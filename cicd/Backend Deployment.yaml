@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dndn-backend
+  labels:
+    type: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      type: backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        type: backend
+    spec:
+      containers:
+      - name: backend
+        image: seungwoo0128/dndn-backend:0.1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "1000m"
+            memory: "2048Mi"
+        envFrom:
+        - configMapRef:
+            name: backend-config

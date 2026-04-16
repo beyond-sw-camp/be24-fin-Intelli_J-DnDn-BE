@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+data:
+  FRONT_URL: "http://www.dndn24.kro.kr/"
+  BACK_URL: "http://www.dndn24.kro.kr/api/"
+  DB_URL: "jdbc:mariadb://192.100.20.6:3306/dndn"
+  DB_USER: "root"
+  DB_PASS: "qwer1234"
