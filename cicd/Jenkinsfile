@@ -102,6 +102,7 @@ spec:
         container('kubectl'){
           script {
               // Deployment 재시작을 통해 최신 이미지 Pull 유도
+              sh "kubectl set image deployment/dndn-backend backend=${IMAGE_NAME}:${IMAGE_TAG}"
               sh "kubectl rollout restart deployment/dndn-backend"
           }
         }
