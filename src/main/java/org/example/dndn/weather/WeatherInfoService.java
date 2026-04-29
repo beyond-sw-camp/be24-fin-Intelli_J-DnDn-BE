@@ -33,13 +33,6 @@ import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * 기상 관제 서비스.
- * - 단기예보(VilageFcst) + 중기예보(MidFcst) + 실측(ASOS) + 특보(WthrWrn) + 미세먼지(에어코리아)
- * - forecastDays 는 최대 10일치까지 채워 프론트의 주간/월간 표출에 사용
- * - 일자별 스냅샷을 WeatherInfo 에 캐시 (스케줄러 주기 갱신 + 30분 fresh check)
- * - 응답은 프론트(WeatherControlView.vue) spread 패턴에 맞춰 평탄(flat)하게 구성
- */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -91,7 +84,7 @@ public class WeatherInfoService {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // 기상 관제 대시보드 단건 조회 (캐시 우선)
+    // 기상 관제 대시보드 단건 조회
     public WeatherInfoDto.DashboardRes readDashboard(LocalDate reportDate) {
         LocalDate targetDate = reportDate != null ? reportDate : LocalDate.now();
 
@@ -126,9 +119,7 @@ public class WeatherInfoService {
         }
     }
 
-    // ───────────────────────────────────────────────────────────────────────
     // 대시보드 빌드 (예보 / 실측 분기)
-    // ───────────────────────────────────────────────────────────────────────
     private WeatherInfoDto.DashboardRes buildDashboard(LocalDate targetDate) throws Exception {
         LocalDate today = LocalDate.now();
         List<WeatherInfoDto.AlertItem> alerts = targetDate.equals(today)
@@ -379,9 +370,7 @@ public class WeatherInfoService {
                 .build();
     }
 
-    // ───────────────────────────────────────────────────────────────────────
     // 기상청 OpenAPI 호출
-    // ───────────────────────────────────────────────────────────────────────
     private Map<LocalDate, DayWeather> fetchVillageForecastMap() throws Exception {
         BaseDateTime baseDateTime = resolveVillageBaseDateTime();
 
@@ -651,9 +640,7 @@ public class WeatherInfoService {
         }
     }
 
-    // ───────────────────────────────────────────────────────────────────────
-    // 일자/주간 예보 가공 (forecastDays 는 오늘부터 최대 10일)
-    // ───────────────────────────────────────────────────────────────────────
+    // 일자/주간 예보 가공
     private List<WeatherInfoDto.ForecastDay> buildForecastDays(LocalDate startDate, Map<LocalDate, DayWeather> source) {
         List<WeatherInfoDto.ForecastDay> result = new ArrayList<>();
 
@@ -681,13 +668,6 @@ public class WeatherInfoService {
         return result.isEmpty() ? buildFallbackForecastDays(startDate) : result;
     }
 
-    /**
-     * 월간 표출용 확장 예보.
-     * - 이번 달 1일부터 다음 달 마지막일까지 일자별로 채운다 (월간 그룹핑이 자연스럽도록)
-     * - 과거 일자: ASOS 실측 (호출 비용 고려해 7일 이내만 시도)
-     * - 오늘~+10일: 단기예보 + 중기예보 결과 사용
-     * - 그 외: fallback (참고용 빈 데이터)
-     */
     private List<WeatherInfoDto.ForecastDay> buildExtendedForecastDays(
             LocalDate baseDate,
             Map<LocalDate, DayWeather> forecastMap
@@ -885,9 +865,7 @@ public class WeatherInfoService {
         return "3일 내 특이 기상 없음";
     }
 
-    // ───────────────────────────────────────────────────────────────────────
     // 위험 통제 추천 (장비 / 계획 연동)
-    // ───────────────────────────────────────────────────────────────────────
     private List<WeatherInfoDto.RiskItem> buildEquipmentRisks(
             DayWeather selectedDay,
             List<WeatherInfoDto.AlertItem> alerts,
@@ -1040,9 +1018,7 @@ public class WeatherInfoService {
         return result;
     }
 
-    // ───────────────────────────────────────────────────────────────────────
     // 스냅샷 캐시 처리
-    // ───────────────────────────────────────────────────────────────────────
     private boolean isFreshSnapshot(WeatherInfo snapshot) {
         if (snapshot == null || snapshot.getUpdatedAt() == null) {
             return false;
@@ -1113,9 +1089,7 @@ public class WeatherInfoService {
                 .build();
     }
 
-    // ───────────────────────────────────────────────────────────────────────
-    // 헬퍼 / 파서
-    // ───────────────────────────────────────────────────────────────────────
+    // 파서
     private String resolveAsosWeatherLabel(Double sumRn, Double ddMes, Double sumDpthFhsc, Double avgTca, String iscs) {
         if (defaultDouble(ddMes) > 0 || defaultDouble(sumDpthFhsc) > 0 || defaultString(iscs, "").contains("눈")) {
             return "눈";
@@ -1441,9 +1415,8 @@ public class WeatherInfoService {
         return Math.max(a, b);
     }
 
-    // ───────────────────────────────────────────────────────────────────────
     // 내부 VO
-    // ───────────────────────────────────────────────────────────────────────
+
     @Getter
     @Setter
     @NoArgsConstructor
