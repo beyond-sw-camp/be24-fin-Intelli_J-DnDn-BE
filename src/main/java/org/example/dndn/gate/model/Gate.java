@@ -19,10 +19,10 @@ public class Gate extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long idx;
 
-    private String name;        // 게이트명 (예: "Gate 1 (정문)")
+    private String name;
 
-    private Double x;           // X 좌표 (0~100, 도면 비율 기준)
-    private Double y;           // Y 좌표 (0~100, 도면 비율 기준)
+    private Double x;
+    private Double y;
 
     private Integer vehicles;   // 현재 진입 중장비 대수
     private Integer manpower;   // 배치 인원
@@ -67,7 +67,7 @@ public class Gate extends BaseEntity {
     }
 
     /**
-     * 세척 기계 추가 (다른 도메인 로직 없이 게이트 내부에서 생성하므로 create 메서드 형태)
+     * 세척 기계 추가
      */
     public GateMachine attachMachine() {
         GateMachine machine = GateMachine.builder()

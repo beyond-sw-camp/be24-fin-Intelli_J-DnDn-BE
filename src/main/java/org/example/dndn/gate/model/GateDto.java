@@ -87,13 +87,12 @@ public class GateDto {
         private Integer vehicles;
         private Integer manpower;
 
-        // 백엔드 derived 값 (프론트는 얇은 표시 레이어로만 사용)
         private Integer capacity;
         private Integer activeMachineCount;
-        private String congestion;       // SMOOTH / BUSY / CRITICAL
-        private String congestionLabel;  // 원활 / 혼잡 / 매우 혼잡
+        private String congestion;
+        private String congestionLabel;
         private Boolean inefficient;
-        private String noticeType;       // HUMAN_WASH_MODE / INEFFICIENT / CRITICAL_GUIDE / OPTIMAL
+        private String noticeType;
         private String noticeMessage;
 
         private List<MachineRes> machines;

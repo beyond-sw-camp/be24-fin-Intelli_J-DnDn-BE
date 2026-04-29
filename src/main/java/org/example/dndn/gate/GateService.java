@@ -17,7 +17,7 @@ public class GateService {
     private final GateRepository gateRepository;
     private final GateMachineRepository gateMachineRepository;
 
-    // 게이트 등록 (기본 기계 2대 OFF 상태로 자동 추가 - 프론트 기존 동작 유지)
+    // 게이트 등록
     @Transactional
     public Long create(GateDto.CreateReq dto) {
         Gate gate = dto.toEntity();
@@ -42,7 +42,7 @@ public class GateService {
                 .toList();
     }
 
-    // 게이트 정보 수정 (이름/좌표/차량/인원 통합)
+    // 게이트 정보 수정
     @Transactional
     public void update(Long gateId, GateDto.UpdateReq dto) {
         Gate gate = findGate(gateId);
@@ -56,7 +56,7 @@ public class GateService {
         );
     }
 
-    // 게이트 좌표 수정 (드래그 종료 시)
+    // 게이트 좌표 수정
     @Transactional
     public void updatePosition(Long gateId, GateDto.PositionReq dto) {
         Gate gate = findGate(gateId);
@@ -86,7 +86,6 @@ public class GateService {
         Gate gate = findGate(gateId);
 
         GateMachine machine = gate.attachMachine();
-        // cascade 의존하지 않고 즉시 idx 할당받기 위해 명시적 save
         GateMachine savedMachine = gateMachineRepository.save(machine);
 
         return savedMachine.getIdx();
