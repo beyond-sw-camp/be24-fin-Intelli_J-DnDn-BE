@@ -10,12 +10,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 
-/**
- * 기상 스냅샷 주기 갱신 스케줄러.
- * - 애플리케이션 기동 직후: 오늘/내일/모레 3일치 워밍업 실행
- * - cron 주기: 오늘부터 7일치 갱신 (월간 표출용 데이터까지 미리 적재)
- *   사용자는 어느 시점에 들어와도 캐시된 최신 데이터를 즉시 받게 됨
- */
 @Component
 @RequiredArgsConstructor
 public class WeatherSnapshotScheduler {
@@ -44,7 +38,7 @@ public class WeatherSnapshotScheduler {
         }
     }
 
-    // 30분 주기 갱신 (yml 의 weather.scheduler.cron 기준)
+    // 30분 주기 갱신
     @Scheduled(cron = "${weather.scheduler.cron:0 0/30 * * * *}")
     public void refreshUpcomingDays() {
         if (!enabled) {

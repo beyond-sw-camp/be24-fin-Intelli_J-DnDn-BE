@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-// 에어코리아(한국환경공단) - 시도별 실시간 미세먼지(PM10) 평균 조회
 @Component
 public class AirKoreaClient {
 
@@ -24,9 +23,7 @@ public class AirKoreaClient {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // 현재 시도의 PM10 평균값 카드 조회
     public WeatherInfoDto.AirQualityCard fetchSidoPm10() {
-        // 인증키 미설정 시 미연동 응답
         if (serviceKey == null || serviceKey.isBlank()
                 || sidoUrl == null || sidoUrl.isBlank()) {
             return WeatherInfoDto.AirQualityCard.empty();
@@ -56,7 +53,6 @@ public class AirKoreaClient {
                 String stationName = item.path("stationName").asText("");
                 String pm10Text = item.path("pm10Value").asText("");
 
-                // "평균" 행이 있을 경우 우선 사용
                 if (stationName.contains("평균") && !pm10Text.isBlank() && !"-".equals(pm10Text)) {
                     Integer pm10 = parsePm10(pm10Text);
                     if (pm10 != null) {
@@ -94,7 +90,6 @@ public class AirKoreaClient {
                 .build();
     }
 
-    // PM10 등급 (환경부 통합 기준)
     private String resolveGrade(int pm10) {
         if (pm10 <= 30) {
             return "좋음";
