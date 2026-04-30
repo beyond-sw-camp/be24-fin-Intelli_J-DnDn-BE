@@ -102,15 +102,11 @@ public class WeatherInfoService {
         }
     }
 
-    // 작업일보 자동 기입 등 다른 도메인용 간이 응답
+    // 작업일보 자동 기입
     public WeatherInfoDto.TodaySimpleRes readTodaySimple(LocalDate reportDate) {
         return readDashboard(reportDate).toTodaySimpleRes();
     }
 
-    /**
-     * 스냅샷 강제 갱신 (스케줄러 / 워밍업 진입점).
-     * 호출 측이 트랜잭션 외부이므로 read 와 별개로 fresh check 없이 빌드 후 저장한다.
-     */
     public void refreshSnapshot(LocalDate targetDate) {
         try {
             WeatherInfoDto.DashboardRes response = buildDashboard(targetDate);
@@ -119,7 +115,7 @@ public class WeatherInfoService {
         }
     }
 
-    // 대시보드 빌드 (예보 / 실측 분기)
+    // 대시보드
     private WeatherInfoDto.DashboardRes buildDashboard(LocalDate targetDate) throws Exception {
         LocalDate today = LocalDate.now();
         List<WeatherInfoDto.AlertItem> alerts = targetDate.equals(today)
@@ -143,7 +139,6 @@ public class WeatherInfoService {
         forecastMap.putAll(fetchMidForecastMap());
 
         DayWeather selectedDay = forecastMap.get(targetDate);
-        // 월간 표출을 위해 이번 달 1일부터 다음 달 마지막까지 일자별로 채운다
         List<WeatherInfoDto.ForecastDay> forecastDays = buildExtendedForecastDays(targetDate, forecastMap);
 
         if (selectedDay == null) {
@@ -158,22 +153,17 @@ public class WeatherInfoService {
                 .observedAt(LocalTime.now().format(HHMM))
                 .build();
 
-        int maxPopInWindow = forecastDays.stream()
-                .filter(day -> day.getDate() != null && !LocalDate.parse(day.getDate()).isBefore(targetDate))
-                .limit(3)
-                .map(WeatherInfoDto.ForecastDay::getPrecipitationProbability)
-                .filter(Objects::nonNull)
-                .max(Integer::compareTo)
-                .orElse(defaultInt(selectedDay.getPrecipitationProbability()));
-
         WeatherInfoDto.WeekCard weekCard = WeatherInfoDto.WeekCard.builder()
-                .summary(buildWeekSummary(targetDate, forecastDays, selectedDay, alerts))
-                .subSummary("최대 풍속 " + formatDouble(defaultDouble(selectedDay.getMaxWindSpeed())) + "m/s · 3일 최고 강수확률 " + maxPopInWindow + "%")
+                .summary(buildWindSummary(selectedDay, alerts))
+                .subSummary(buildWindGuide(selectedDay))
                 .build();
+
+        // 오늘 일중 최대 강수확률
+        int todayMaxPop = defaultInt(selectedDay.getPrecipitationProbability());
 
         WeatherInfoDto.RainCard rainCard = WeatherInfoDto.RainCard.builder()
                 .label("강수확률")
-                .value(maxPopInWindow + "%")
+                .value(todayMaxPop + "%")
                 .build();
 
         Integer fineDustValue = airQualityCard.getValue();
@@ -480,16 +470,16 @@ public class WeatherInfoService {
 
                 String weatherLabel = offset <= 7
                         ? pickMidWeatherLabel(
-                                landItem.path("wf" + offset + "Am").asText(""),
-                                landItem.path("wf" + offset + "Pm").asText("")
-                        )
+                        landItem.path("wf" + offset + "Am").asText(""),
+                        landItem.path("wf" + offset + "Pm").asText("")
+                )
                         : normalizeMidLabel(landItem.path("wf" + offset).asText(""));
 
                 Integer pop = offset <= 7
                         ? maxNullable(
-                                parseInteger(landItem.path("rnSt" + offset + "Am").asText("")),
-                                parseInteger(landItem.path("rnSt" + offset + "Pm").asText(""))
-                        )
+                        parseInteger(landItem.path("rnSt" + offset + "Am").asText("")),
+                        parseInteger(landItem.path("rnSt" + offset + "Pm").asText(""))
+                )
                         : parseInteger(landItem.path("rnSt" + offset).asText(""));
 
                 Integer taMin = parseInteger(tempItem.path("taMin" + offset).asText(""));
@@ -640,7 +630,7 @@ public class WeatherInfoService {
         }
     }
 
-    // 일자/주간 예보 가공
+    // 일자/주간 예보
     private List<WeatherInfoDto.ForecastDay> buildForecastDays(LocalDate startDate, Map<LocalDate, DayWeather> source) {
         List<WeatherInfoDto.ForecastDay> result = new ArrayList<>();
 
@@ -838,34 +828,50 @@ public class WeatherInfoService {
                 .build();
     }
 
-    private String buildWeekSummary(
-            LocalDate targetDate,
-            List<WeatherInfoDto.ForecastDay> forecastDays,
-            DayWeather selectedDay,
-            List<WeatherInfoDto.AlertItem> alerts
-    ) {
-        if (!alerts.isEmpty()) {
+    // 풍속 기반 기상 영향도 요약
+    private String buildWindSummary(DayWeather selectedDay, List<WeatherInfoDto.AlertItem> alerts) {
+        if (alerts != null && !alerts.isEmpty()) {
             return alerts.get(0).getTitle();
         }
 
-        if (defaultDouble(selectedDay.getMaxWindSpeed()) >= 10) {
-            return formatDayLabel(targetDate) + " 강풍 주의 (" + formatDouble(defaultDouble(selectedDay.getMaxWindSpeed())) + "m/s)";
+        double wind = defaultDouble(selectedDay.getMaxWindSpeed());
+        String windText = formatDouble(wind);
+
+        if (wind >= 14) {
+            return "강풍 경보 수준 (" + windText + "m/s) — 옥외 작업 중지";
         }
-
-        Optional<WeatherInfoDto.ForecastDay> rainyDay = forecastDays.stream()
-                .filter(day -> day.getDate() != null && !LocalDate.parse(day.getDate()).isBefore(targetDate))
-                .limit(3)
-                .filter(day -> day.getPrecipitationProbability() != null && day.getPrecipitationProbability() >= 60)
-                .findFirst();
-
-        if (rainyDay.isPresent()) {
-            return rainyDay.get().getDayLabel() + " 강수 대비 필요";
+        if (wind >= 10) {
+            return "강풍 주의보 수준 (" + windText + "m/s) — 양중·고소 제한";
         }
-
-        return "3일 내 특이 기상 없음";
+        if (wind >= 8) {
+            return "바람 강함 (" + windText + "m/s) — 외부 작업 점검";
+        }
+        if (wind >= 4) {
+            return "바람 보통 (" + windText + "m/s) — 평시 작업 가능";
+        }
+        return "바람 약함 (" + windText + "m/s) — 모든 공정 정상";
     }
 
-    // 위험 통제 추천 (장비 / 계획 연동)
+    // 풍속 기반 작업 가이드
+    private String buildWindGuide(DayWeather selectedDay) {
+        double wind = defaultDouble(selectedDay.getMaxWindSpeed());
+
+        if (wind >= 14) {
+            return "타워크레인·고소작업대 즉시 운전 중지, 자재 결속 재점검";
+        }
+        if (wind >= 10) {
+            return "양중 작업 일시 중지, 외장재·패널 설치 보류";
+        }
+        if (wind >= 8) {
+            return "양중 신호수 추가 배치, 자재 결속 상태 수시 확인";
+        }
+        if (wind >= 4) {
+            return "현재 풍속 기준 모든 옥외 작업 정상 진행 가능";
+        }
+        return "풍속 영향 없음, 표준 작업 절차 유지";
+    }
+
+    // 위험 통제 추천
     private List<WeatherInfoDto.RiskItem> buildEquipmentRisks(
             DayWeather selectedDay,
             List<WeatherInfoDto.AlertItem> alerts,
@@ -1018,7 +1024,6 @@ public class WeatherInfoService {
         return result;
     }
 
-    // 스냅샷 캐시 처리
     private boolean isFreshSnapshot(WeatherInfo snapshot) {
         if (snapshot == null || snapshot.getUpdatedAt() == null) {
             return false;
@@ -1184,7 +1189,7 @@ public class WeatherInfoService {
         return text == null ? "" : text.trim();
     }
 
-    // 일자 라벨 - 오늘/내일/모레, 그 이후는 요일
+    // 3일치 일자 라벨
     private String formatDayLabel(LocalDate date) {
         LocalDate today = LocalDate.now();
 
@@ -1415,7 +1420,6 @@ public class WeatherInfoService {
         return Math.max(a, b);
     }
 
-    // 내부 VO
 
     @Getter
     @Setter
