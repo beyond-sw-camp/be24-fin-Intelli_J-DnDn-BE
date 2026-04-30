@@ -73,7 +73,6 @@ public class AirKoreaClient {
                 String stationName = item.path("stationName").asText("");
                 String pm10Text = item.path("pm10Value").asText("");
 
-                // "평균" 행이 있으면 우선 사용
                 if (stationName.contains("평균") && !pm10Text.isBlank() && !"-".equals(pm10Text)) {
                     Integer pm10 = parsePm10(pm10Text);
                     if (pm10 != null) {
