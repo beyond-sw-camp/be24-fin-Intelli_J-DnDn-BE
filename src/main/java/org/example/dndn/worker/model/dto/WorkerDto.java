@@ -1,5 +1,6 @@
 package org.example.dndn.worker.model.dto;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import org.example.dndn.worker.model.entity.AttendanceRecord;
 import org.example.dndn.worker.model.entity.Worker;
@@ -26,6 +27,34 @@ public class WorkerDto {
         private String searchName;
     }
 
+    // MANAGEMENT_010 게이트 출근 인식.
+    @Getter
+    @Setter
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @Builder
+    public static class GateClockInReq {
+        @NotNull
+        private Long workerIdx;
+        private LocalDate workDate; // null 이면 서버 로컬 기준 오늘
+        @NotNull
+        private LocalTime recognizedAt;
+    }
+
+    // MANAGEMENT_011 게이트 퇴근 인식
+    @Getter
+    @Setter
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @Builder
+    public static class GateClockOutReq {
+        @NotNull
+        private Long workerIdx;
+        private LocalDate workDate; // null 이면 서버 로컬 기준 오늘
+        @NotNull
+        private LocalTime recognizedAt;
+    }
+
     // MANAGEMENT_001 인력 데이터 요약
     @Getter
     @NoArgsConstructor
@@ -35,14 +64,33 @@ public class WorkerDto {
         private int created;
         private int updated;
         private int total;
+        private int documentsSynced;
+        private int zoneHistoriesSynced;
+        private int sanctionsSynced;
+        private int accidentsSynced;
+        private int attendanceRecordsSynced;
     }
 
-    // 목록 상단 KPI (출근/지각/조퇴/결근 + 총 인원)
+    // MANAGEMENT_010, MANAGEMENT_011 게이트 처리 직후 해당 일 근태 스냅샷.
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class GateAttendanceRes {
+        private Long workerIdx;
+        private LocalDate workDate;
+        private LocalTime clockIn;
+        private LocalTime clockOut;
+        private AttendanceStatus attendanceStatus;
+    }
+
+    // 목록 상단 KPI (총 인원에 대한 출근/지각/조퇴/결근)
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
     public static class StateCountRes {
+        private int pending;
         private int present;
         private int late;
         private int earlyLeave;
