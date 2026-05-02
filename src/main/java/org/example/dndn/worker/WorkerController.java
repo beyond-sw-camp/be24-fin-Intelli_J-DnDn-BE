@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.dndn.common.model.BaseResponse;
 import org.example.dndn.worker.model.dto.WorkerDetailDto;
 import org.example.dndn.worker.model.dto.WorkerDto;
+import org.example.dndn.worker.model.enums.AttendanceStatus;
 import org.example.dndn.worker.service.WorkerDetailService;
 import org.example.dndn.worker.service.WorkerService;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -25,6 +26,24 @@ public class WorkerController {
     public ResponseEntity<BaseResponse<WorkerDto.SyncRes>> syncWorkforce(@RequestParam(required = false) String siteCode)
     {
         WorkerDto.SyncRes dto = workerService.syncWorkforce(siteCode);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
+
+    // MANAGEMENT_002 근무자 검색
+    @GetMapping("/search")
+    public ResponseEntity<BaseResponse<WorkerDto.ListRes>> search(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) AttendanceStatus attendanceStatus,
+            @RequestParam(required = false) String partnerCompany,
+            @RequestParam(required = false) String searchName
+    ) {
+        WorkerDto.SearchReq req = WorkerDto.SearchReq.builder()
+                .date(date)
+                .attendanceStatus(attendanceStatus)
+                .partnerCompany(partnerCompany)
+                .searchName(searchName)
+                .build();
+        WorkerDto.ListRes dto = workerService.search(req);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 

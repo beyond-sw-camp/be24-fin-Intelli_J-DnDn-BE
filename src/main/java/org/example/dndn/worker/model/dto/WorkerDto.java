@@ -1,21 +1,32 @@
 package org.example.dndn.worker.model.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.example.dndn.worker.model.entity.AttendanceRecord;
 import org.example.dndn.worker.model.entity.Worker;
 import org.example.dndn.worker.model.enums.AffiliationKind;
 import org.example.dndn.worker.model.enums.AttendanceStatus;
 import org.example.dndn.worker.model.enums.JobRank;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
 public class WorkerDto {
 
-    // MANAGEMENT_001 sync 결과 요약
+    // MANAGEMENT_002 근무자 검색
+    @Getter
+    @Setter
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @Builder
+    public static class SearchReq {
+        private LocalDate date;
+        private AttendanceStatus attendanceStatus;
+        private String partnerCompany;
+        private String searchName;
+    }
+
+    // MANAGEMENT_001 인력 데이터 요약
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -85,7 +96,8 @@ public class WorkerDto {
     @AllArgsConstructor
     @Builder
     public static class ListRes {
-        private StateCountRes kpi;
+        private StateCountRes globalKpi;
+        private StateCountRes listKpi;
         private List<WorkerRes> rows;
     }
 }
