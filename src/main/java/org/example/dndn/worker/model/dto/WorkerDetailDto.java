@@ -144,4 +144,29 @@ public class WorkerDetailDto {
                     .build();
         }
     }
+
+    // MANAGEMENT_009 안전 사고 이력 1건
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class AccidentRes {
+        private Long idx;
+        private LocalDate occurredAt;
+        private String accidentType;
+        private String zone;
+        private String resolution;
+        private boolean severe;
+
+        public static AccidentRes from(SafetyAccident a) {
+            return AccidentRes.builder()
+                    .idx(a.getIdx())
+                    .occurredAt(a.getOccurredAt())
+                    .accidentType(a.getAccidentType())
+                    .zone(a.getZone())
+                    .resolution(a.getResolution())
+                    .severe(a.isSevere())
+                    .build();
+        }
+    }
 }
