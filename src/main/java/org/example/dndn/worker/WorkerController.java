@@ -74,4 +74,13 @@ public class WorkerController {
         List<WorkerDetailDto.DocRes> dto = workerDetailService.getDocuments(workerIdx);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
+
+    // MANAGEMENT_007 구역 배치 이력 조회
+    @GetMapping("/{workerIdx}/deployments")
+    public ResponseEntity<BaseResponse<List<WorkerDetailDto.DeploymentRes>>> deployments(
+            @PathVariable Long workerIdx
+    ) {
+        List<WorkerDetailDto.DeploymentRes> dto = workerDetailService.getDeployments(workerIdx);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
 }

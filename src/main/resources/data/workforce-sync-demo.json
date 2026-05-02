@@ -12,7 +12,55 @@
       "subLabel": "목공",
       "site": "강남 재건축 A공구",
       "bloodType": "A",
-      "profileImageUrl": null
+      "profileImageUrl": null,
+      "documents": [
+        {
+          "title": "기초안전보건교육 이수증",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "storedFileName": "DEMO-001_기초안전보건교육.pdf"
+        },
+        {
+          "title": "신분증 사본",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "storedFileName": "DEMO-001_신분증.pdf"
+        }
+      ],
+      "zoneHistory": [
+        {
+          "assignedAt": "2026-04-15",
+          "zone": "A구역 (지하주차장)",
+          "workType": "목공 거푸집",
+          "partnerCompanySnapshot": "태양건설"
+        },
+        {
+          "assignedAt": "2026-03-01",
+          "zone": "B구역 (업무동)",
+          "workType": "목재 보조",
+          "partnerCompanySnapshot": "태양건설"
+        }
+      ],
+      "sanctions": [],
+      "accidents": [],
+      "attendanceRecords": [
+        {
+          "workDate": "2026-05-02",
+          "clockIn": "06:48:00",
+          "clockOut": "17:05:00",
+          "manDays": 1.0,
+          "attendanceStatus": "PRESENT",
+          "zone": "A구역",
+          "closed": false
+        },
+        {
+          "workDate": "2026-05-01",
+          "clockIn": "07:15:00",
+          "clockOut": "17:10:00",
+          "manDays": 1.0,
+          "attendanceStatus": "LATE",
+          "zone": "A구역",
+          "closed": false
+        }
+      ]
     },
     {
       "externalCode": "DEMO-002",
@@ -26,7 +74,48 @@
       "subLabel": "직영",
       "site": "강남 재건축 A공구",
       "bloodType": "B",
-      "profileImageUrl": null
+      "profileImageUrl": null,
+      "documents": [
+        {
+          "title": "현장 관리자 안전교육 이수증",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "storedFileName": "DEMO-002_안전교육.pdf"
+        },
+        {
+          "title": "개인정보 제3자 제공 동의서",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "storedFileName": "DEMO-002_개인정보동의.pdf"
+        }
+      ],
+      "zoneHistory": [
+        {
+          "assignedAt": "2026-04-20",
+          "zone": "전 구역 순회",
+          "workType": "현장 순찰·작업 허가",
+          "partnerCompanySnapshot": null
+        }
+      ],
+      "sanctions": [
+        {
+          "occurredAt": "2026-02-10",
+          "type": "주의",
+          "reason": "안전회의 지각 2회",
+          "action": "구두 경고 및 재교육",
+          "active": false
+        }
+      ],
+      "accidents": [],
+      "attendanceRecords": [
+        {
+          "workDate": "2026-05-02",
+          "clockIn": "06:45:00",
+          "clockOut": "16:00:00",
+          "manDays": 0.5,
+          "attendanceStatus": "EARLY_LEAVE",
+          "zone": "본관",
+          "closed": false
+        }
+      ]
     },
     {
       "externalCode": "DEMO-003",
@@ -40,7 +129,56 @@
       "subLabel": "철근",
       "site": "강남 재건축 A공구",
       "bloodType": "O",
-      "profileImageUrl": null
+      "profileImageUrl": null,
+      "documents": [
+        {
+          "title": "철근공 특별교육 이수증",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "storedFileName": "DEMO-003_철근특별교육.pdf"
+        }
+      ],
+      "zoneHistory": [
+        {
+          "assignedAt": "2026-04-28",
+          "zone": "C구역 (철근 야드)",
+          "workType": "철근 결속",
+          "partnerCompanySnapshot": "대한건설"
+        },
+        {
+          "assignedAt": "2026-04-10",
+          "zone": "A구역 코어",
+          "workType": "철근 배근",
+          "partnerCompanySnapshot": "대한건설"
+        },
+        {
+          "assignedAt": "2026-03-05",
+          "zone": "외부 비계",
+          "workType": "자재 이송 보조",
+          "partnerCompanySnapshot": "대한건설"
+        }
+      ],
+      "sanctions": [],
+      "accidents": [],
+      "attendanceRecords": [
+        {
+          "workDate": "2026-05-02",
+          "clockIn": "06:50:00",
+          "clockOut": "17:10:00",
+          "manDays": 1.0,
+          "attendanceStatus": "PRESENT",
+          "zone": "C구역",
+          "closed": false
+        },
+        {
+          "workDate": "2026-05-04",
+          "clockIn": "06:50:00",
+          "clockOut": "17:10:00",
+          "manDays": 1.0,
+          "attendanceStatus": "PRESENT",
+          "zone": "C구역",
+          "closed": false
+        }
+      ]
     },
     {
       "externalCode": "DEMO-004",
@@ -54,7 +192,56 @@
       "subLabel": "직영",
       "site": "강남 재건축 A공구",
       "bloodType": "AB",
-      "profileImageUrl": null
+      "profileImageUrl": null,
+      "documents": [
+        {
+          "title": "현장 총책임자 선임 서류",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "storedFileName": "DEMO-004_총책임선임.pdf"
+        },
+        {
+          "title": "발주처 안전협약 서명본",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "storedFileName": "DEMO-004_안전협약.pdf"
+        }
+      ],
+      "zoneHistory": [
+        {
+          "assignedAt": "2026-04-01",
+          "zone": "현장 전반",
+          "workType": "총괄·안전 총점검",
+          "partnerCompanySnapshot": null
+        }
+      ],
+      "sanctions": [
+        {
+          "occurredAt": "2026-04-25",
+          "type": "주의",
+          "reason": "주간 안전점검 미이행 보고 지연",
+          "action": "본사 안전팀 통보·재발방지 계획 제출",
+          "active": true
+        }
+      ],
+      "accidents": [
+        {
+          "occurredAt": "2026-01-08",
+          "accidentType": "넘어짐(경미)",
+          "zone": "A구역 출입로",
+          "resolution": "현장 응급처치·유사구간 미끄럼방지 조치",
+          "severe": false
+        }
+      ],
+      "attendanceRecords": [
+        {
+          "workDate": "2026-05-02",
+          "clockIn": "07:00:00",
+          "clockOut": "18:30:00",
+          "manDays": 1.5,
+          "attendanceStatus": "PRESENT",
+          "zone": "본관",
+          "closed": false
+        }
+      ]
     },
     {
       "externalCode": "DEMO-005",
@@ -68,7 +255,71 @@
       "subLabel": "용접",
       "site": "강남 재건축 A공구",
       "bloodType": "A",
-      "profileImageUrl": null
+      "profileImageUrl": null,
+      "documents": [
+        {
+          "title": "용접기 특별안전교육 이수증",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "storedFileName": "DEMO-005_용접특별교육.pdf"
+        },
+        {
+          "title": "호흡보호구 적합증명",
+          "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "storedFileName": "DEMO-005_호흡보호구.pdf"
+        }
+      ],
+      "zoneHistory": [
+        {
+          "assignedAt": "2026-04-22",
+          "zone": "D구역 (용접 부스)",
+          "workType": "부속 용접",
+          "partnerCompanySnapshot": "태양건설"
+        },
+        {
+          "assignedAt": "2026-03-18",
+          "zone": "구조물 연결부",
+          "workType": "현장 용접",
+          "partnerCompanySnapshot": "태양건설"
+        }
+      ],
+      "sanctions": [
+        {
+          "occurredAt": "2026-04-05",
+          "type": "제재",
+          "reason": "소화기 미비치 구역 용접 작업",
+          "action": "작업 중지 1일·재교육 이수",
+          "active": false
+        }
+      ],
+      "accidents": [
+        {
+          "occurredAt": "2025-11-20",
+          "accidentType": "화상",
+          "zone": "D구역 용접 부스",
+          "resolution": "병원 이송·현장 화기작업 절차 개정",
+          "severe": true
+        }
+      ],
+      "attendanceRecords": [
+        {
+          "workDate": "2026-05-02",
+          "clockIn": null,
+          "clockOut": null,
+          "manDays": 0,
+          "attendanceStatus": "ABSENT",
+          "zone": null,
+          "closed": false
+        },
+        {
+          "workDate": "2026-05-01",
+          "clockIn": "06:55:00",
+          "clockOut": "17:00:00",
+          "manDays": 1.0,
+          "attendanceStatus": "PRESENT",
+          "zone": "D구역",
+          "closed": false
+        }
+      ]
     }
   ]
 }

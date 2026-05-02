@@ -3,6 +3,7 @@ package org.example.dndn.worker.model.dto;
 import lombok.*;
 import org.example.dndn.worker.model.entity.Worker;
 import org.example.dndn.worker.model.entity.WorkerDocument;
+import org.example.dndn.worker.model.entity.WorkerZoneHistory;
 import org.example.dndn.worker.model.enums.AffiliationKind;
 import org.example.dndn.worker.model.enums.JobRank;
 
@@ -67,6 +68,29 @@ public class WorkerDetailDto {
                     .title(d.getTitle())
                     .fileUrl(d.getFileUrl())
                     .storedFileName(d.getStoredFileName())
+                    .build();
+        }
+    }
+
+    // MANAGEMENT_007 구역 배치 이력 1건
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class DeploymentRes {
+        private Long idx;
+        private LocalDate assignedAt;
+        private String zone;
+        private String workType;
+        private String partnerCompany; // 그 시점 소속 협력사 snapshot
+
+        public static DeploymentRes from(WorkerZoneHistory h) {
+            return DeploymentRes.builder()
+                    .idx(h.getIdx())
+                    .assignedAt(h.getAssignedAt())
+                    .zone(h.getZone())
+                    .workType(h.getWorkType())
+                    .partnerCompany(h.getPartnerCompanySnapshot())
                     .build();
         }
     }
