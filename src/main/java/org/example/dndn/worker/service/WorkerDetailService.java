@@ -23,6 +23,7 @@ public class WorkerDetailService {
     private final WorkerDocumentRepository documentRepository;
     private final WorkerZoneHistoryRepository zoneHistoryRepository;
     private final WorkerSanctionRepository sanctionRepository;
+    private final SafetyAccidentRepository accidentRepository;
 
     // MANAGEMENT_004 작업자 상세 프로필 조회 (기본 정보 카드)
     public WorkerDetailDto.ProfileRes getProfile(Long workerIdx) {
@@ -67,11 +68,19 @@ public class WorkerDetailService {
                 .map(WorkerDetailDto.DeploymentRes::from)
                 .collect(Collectors.toList());
     }
-
+    // MANAGEMENT_008 제재 / 주의 이력 조회
     public List<WorkerDetailDto.SanctionRes> getPenalties(Long workerIdx) {
         ensureExists(workerIdx);
         return sanctionRepository.findAllByWorkerIdxOrderByActiveDescOccurredAtDesc(workerIdx).stream()
                 .map(WorkerDetailDto.SanctionRes::from)
+                .collect(Collectors.toList());
+    }
+
+    /** MANAGEMENT_009 안전 사고 이력 조회 */
+    public List<WorkerDetailDto.AccidentRes> getAccidents(Long workerIdx) {
+        ensureExists(workerIdx);
+        return accidentRepository.findAllByWorkerIdxOrderBySevereDescOccurredAtDesc(workerIdx).stream()
+                .map(WorkerDetailDto.AccidentRes::from)
                 .collect(Collectors.toList());
     }
 

@@ -102,4 +102,13 @@ public class WorkerController {
         List<WorkerDetailDto.SanctionRes> dto = workerDetailService.getPenalties(workerIdx);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
+
+    // MANAGEMENT_009 안전 사고 이력 조회
+    @GetMapping("/{workerIdx}/accidents")
+    public ResponseEntity<BaseResponse<List<WorkerDetailDto.AccidentRes>>> accidents(
+            @PathVariable Long workerIdx
+    ) {
+        List<WorkerDetailDto.AccidentRes> dto = workerDetailService.getAccidents(workerIdx);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
 }
