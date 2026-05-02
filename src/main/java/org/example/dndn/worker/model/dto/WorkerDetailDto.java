@@ -1,10 +1,7 @@
 package org.example.dndn.worker.model.dto;
 
 import lombok.*;
-import org.example.dndn.worker.model.entity.AttendanceRecord;
-import org.example.dndn.worker.model.entity.Worker;
-import org.example.dndn.worker.model.entity.WorkerDocument;
-import org.example.dndn.worker.model.entity.WorkerZoneHistory;
+import org.example.dndn.worker.model.entity.*;
 import org.example.dndn.worker.model.enums.AffiliationKind;
 import org.example.dndn.worker.model.enums.AttendanceStatus;
 import org.example.dndn.worker.model.enums.JobRank;
@@ -119,6 +116,31 @@ public class WorkerDetailDto {
                     .zone(h.getZone())
                     .workType(h.getWorkType())
                     .partnerCompany(h.getPartnerCompanySnapshot())
+                    .build();
+        }
+    }
+
+    // MANAGEMENT_008 제재 / 주의 이력
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class SanctionRes {
+        private Long idx;
+        private LocalDate occurredAt;
+        private String type;
+        private String reason;
+        private String action;
+        private boolean active;
+
+        public static SanctionRes from(WorkerSanction s) {
+            return SanctionRes.builder()
+                    .idx(s.getIdx())
+                    .occurredAt(s.getOccurredAt())
+                    .type(s.getType())
+                    .reason(s.getReason())
+                    .action(s.getAction())
+                    .active(s.isActive())
                     .build();
         }
     }

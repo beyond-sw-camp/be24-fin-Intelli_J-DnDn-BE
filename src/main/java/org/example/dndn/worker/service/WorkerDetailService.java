@@ -5,10 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.dndn.common.exception.BaseException;
 import org.example.dndn.worker.model.dto.WorkerDetailDto;
 import org.example.dndn.worker.model.entity.Worker;
-import org.example.dndn.worker.repository.AttendanceRecordRepository;
-import org.example.dndn.worker.repository.WorkerDocumentRepository;
-import org.example.dndn.worker.repository.WorkerRepository;
-import org.example.dndn.worker.repository.WorkerZoneHistoryRepository;
+import org.example.dndn.worker.repository.*;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -25,6 +22,7 @@ public class WorkerDetailService {
     private final AttendanceRecordRepository attendanceRepository;
     private final WorkerDocumentRepository documentRepository;
     private final WorkerZoneHistoryRepository zoneHistoryRepository;
+    private final WorkerSanctionRepository sanctionRepository;
 
     // MANAGEMENT_004 작업자 상세 프로필 조회 (기본 정보 카드)
     public WorkerDetailDto.ProfileRes getProfile(Long workerIdx) {
@@ -67,6 +65,13 @@ public class WorkerDetailService {
         ensureExists(workerIdx);
         return zoneHistoryRepository.findAllByWorkerIdxOrderByAssignedAtDesc(workerIdx).stream()
                 .map(WorkerDetailDto.DeploymentRes::from)
+                .collect(Collectors.toList());
+    }
+
+    public List<WorkerDetailDto.SanctionRes> getPenalties(Long workerIdx) {
+        ensureExists(workerIdx);
+        return sanctionRepository.findAllByWorkerIdxOrderByActiveDescOccurredAtDesc(workerIdx).stream()
+                .map(WorkerDetailDto.SanctionRes::from)
                 .collect(Collectors.toList());
     }
 
