@@ -1,4 +1,4 @@
-package org.example.dndn.worker;
+package org.example.dndn.worker.service;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -7,7 +7,8 @@ import org.example.dndn.worker.fixture.WorkerScenarioFixtureRow;
 import org.example.dndn.worker.model.dto.WorkerDto;
 import org.example.dndn.worker.model.entity.AttendanceRecord;
 import org.example.dndn.worker.model.entity.Worker;
-import org.example.dndn.worker.model.enums.AttendanceStatus;
+import org.example.dndn.worker.repository.AttendanceRecordRepository;
+import org.example.dndn.worker.repository.WorkerRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
