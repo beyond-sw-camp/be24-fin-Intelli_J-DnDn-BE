@@ -2,6 +2,7 @@ package org.example.dndn.worker.model.dto;
 
 import lombok.*;
 import org.example.dndn.worker.model.entity.Worker;
+import org.example.dndn.worker.model.entity.WorkerDocument;
 import org.example.dndn.worker.model.enums.AffiliationKind;
 import org.example.dndn.worker.model.enums.JobRank;
 
@@ -45,6 +46,27 @@ public class WorkerDetailDto {
                     .registeredAt(w.getRegisteredAt())
                     .profileImageUrl(w.getProfileImageUrl())
                     .monthTotalMan(w.getMonthTotalMan())
+                    .build();
+        }
+    }
+
+    // MANAGEMENT_005 안전 및 서류 현황
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class DocRes {
+        private Long idx;
+        private String title;
+        private String fileUrl;
+        private String storedFileName;
+
+        public static DocRes from(WorkerDocument d) {
+            return DocRes.builder()
+                    .idx(d.getIdx())
+                    .title(d.getTitle())
+                    .fileUrl(d.getFileUrl())
+                    .storedFileName(d.getStoredFileName())
                     .build();
         }
     }

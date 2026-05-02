@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 
 
 @RestController
@@ -56,12 +57,21 @@ public class WorkerController {
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
-    //MANAGEMENT_004 작업자 상세 프로필 조회 (기본 프로필 카드).
+    // MANAGEMENT_004 작업자 상세 프로필 조회 (기본 프로필 카드).
     @GetMapping("/{workerIdx}/detail")
     public ResponseEntity<BaseResponse<WorkerDetailDto.ProfileRes>> detail(
             @PathVariable Long workerIdx
     ) {
         WorkerDetailDto.ProfileRes dto = workerDetailService.getProfile(workerIdx);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
+
+    // MANAGEMENT_005 서류 현황 조회
+    @GetMapping("/{workerIdx}/docs")
+    public ResponseEntity<BaseResponse<List<WorkerDetailDto.DocRes>>> docs(
+            @PathVariable Long workerIdx
+    ) {
+        List<WorkerDetailDto.DocRes> dto = workerDetailService.getDocuments(workerIdx);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 }
