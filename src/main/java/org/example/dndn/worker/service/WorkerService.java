@@ -7,6 +7,7 @@ import org.example.dndn.worker.fixture.WorkerScenarioFixtureRow;
 import org.example.dndn.worker.model.dto.WorkerDto;
 import org.example.dndn.worker.model.entity.AttendanceRecord;
 import org.example.dndn.worker.model.entity.Worker;
+import org.example.dndn.worker.model.enums.AttendanceStatus;
 import org.example.dndn.worker.repository.AttendanceRecordRepository;
 import org.example.dndn.worker.repository.WorkerRepository;
 import org.springframework.stereotype.Service;
@@ -24,11 +25,11 @@ public class WorkerService {
     private final AttendanceRecordRepository attendanceRepository;
     private final WorkerScenarioFixtureLoader workerScenarioFixtureLoader;
 
+    // 인력 데이터 조회
     @Transactional
     public WorkerDto.SyncRes syncWorkforce(String siteCode) {
         List<WorkerScenarioFixtureRow> payload = workerScenarioFixtureLoader.loadWorkers();
-        int created = 0;
-        int updated = 0;
+        int created = 0, updated = 0;
         for(WorkerScenarioFixtureRow item : payload) {
             Optional<Worker> existing = workerRepository.findByExternalCode(item.getExternalCode());
             if (existing.isPresent()) {
@@ -43,6 +44,36 @@ public class WorkerService {
                 .created(created)
                 .updated(updated)
                 .total(payload.size())
+                .build();
+    }
+
+    // MANAGEMENT_002 근무자 검색 — 출근 상태/협력사명/이름 필터 적용
+    public WorkerDto.ListRes search(WorkerDto.SearchReq req) {
+        LocalDate target = req.getDate() == null ? LocalDate.now() : req.getDate();
+        AttendanceStatus statusFilter = req.getAttendanceStatus();
+
+        Map<Long, AttendanceRecord> attendanceByWorkerIdx = attendanceRepository
+                .findAllByWorkDate(target)
+                .stream()
+                .collect(Collectors.toMap(a -> a.getWorker().getIdx(), a -> a, (a, b) -> a));
+
+        List<WorkerDto.WorkerRes> allRows = workerRepository.findAllByOrderByNameAsc().stream()
+                .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx())))
+                .collect(Collectors.toList());
+        WorkerDto.StateCountRes globalKpi = aggregateAttendance(allRows);
+
+        List<WorkerDto.WorkerRes> rows = workerRepository
+                .search(req.getPartnerCompany(), req.getSearchName())
+                .stream()
+                .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx())))
+                .filter(item -> statusFilter == null || item.getAttendanceStatus() == statusFilter)
+                .collect(Collectors.toList());
+        WorkerDto.StateCountRes listKpi = aggregateAttendance(rows);
+
+        return WorkerDto.ListRes.builder()
+                .globalKpi(globalKpi)
+                .listKpi(listKpi)
+                .rows(rows)
                 .build();
     }
 
@@ -61,6 +92,17 @@ public class WorkerService {
                 .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx())))
                 .collect(Collectors.toList());
 
+        WorkerDto.StateCountRes globalKpi = aggregateAttendance(rows);
+        WorkerDto.StateCountRes listKpi = aggregateAttendance(rows);
+
+        return WorkerDto.ListRes.builder()
+                .globalKpi(globalKpi)
+                .listKpi(listKpi)
+                .rows(rows)
+                .build();
+    }
+
+    private WorkerDto.StateCountRes aggregateAttendance(List<WorkerDto.WorkerRes> rows) {
         int present = 0, late = 0, early = 0, absent = 0;
         for (WorkerDto.WorkerRes r : rows) {
             switch (r.getAttendanceStatus()) {
@@ -70,14 +112,9 @@ public class WorkerService {
                 case ABSENT -> absent++;
             }
         }
-        WorkerDto.StateCountRes kpi = WorkerDto.StateCountRes.builder()
+        return WorkerDto.StateCountRes.builder()
                 .present(present).late(late).earlyLeave(early).absent(absent)
                 .total(rows.size())
-                .build();
-
-        return WorkerDto.ListRes.builder()
-                .kpi(kpi)
-                .rows(rows)
                 .build();
     }
 }
