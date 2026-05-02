@@ -5,11 +5,13 @@ import lombok.RequiredArgsConstructor;
 import org.example.dndn.common.exception.BaseException;
 import org.example.dndn.worker.model.dto.WorkerDetailDto;
 import org.example.dndn.worker.model.entity.Worker;
+import org.example.dndn.worker.repository.AttendanceRecordRepository;
 import org.example.dndn.worker.repository.WorkerDocumentRepository;
 import org.example.dndn.worker.repository.WorkerRepository;
 import org.example.dndn.worker.repository.WorkerZoneHistoryRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,6 +22,7 @@ import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
 @Transactional
 public class WorkerDetailService {
     private final WorkerRepository workerRepository;
+    private final AttendanceRecordRepository attendanceRepository;
     private final WorkerDocumentRepository documentRepository;
     private final WorkerZoneHistoryRepository zoneHistoryRepository;
 
@@ -34,6 +37,28 @@ public class WorkerDetailService {
         ensureExists(workerIdx);
         return documentRepository.findAllByWorkerIdx(workerIdx).stream()
                 .map(WorkerDetailDto.DocRes::from)
+                .collect(Collectors.toList());
+    }
+
+    // MANAGEMENT_006 최근 출결 이력 조회 (월별 캘린더).
+    public List<WorkerDetailDto.AttendanceRes> getAttendance(Long workerIdx, String yearMonth) {
+        ensureExists(workerIdx);
+        LocalDate from, to;
+        if (yearMonth == null || yearMonth.isBlank()) {
+            LocalDate now = LocalDate.now();
+            from = now.withDayOfMonth(1);
+            to = now.withDayOfMonth(now.lengthOfMonth());
+        } else {
+            String[] split = yearMonth.split("-");
+            int y = Integer.parseInt(split[0]);
+            int m = Integer.parseInt(split[1]);
+            from = LocalDate.of(y, m, 1);
+            to = from.withDayOfMonth(from.lengthOfMonth());
+        }
+        return attendanceRepository
+                .findAllByWorkerIdxAndWorkDateBetweenOrderByWorkDateDesc(workerIdx, from, to)
+                .stream()
+                .map(WorkerDetailDto.AttendanceRes::from)
                 .collect(Collectors.toList());
     }
 

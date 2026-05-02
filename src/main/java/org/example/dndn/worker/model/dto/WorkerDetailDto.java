@@ -1,14 +1,17 @@
 package org.example.dndn.worker.model.dto;
 
 import lombok.*;
+import org.example.dndn.worker.model.entity.AttendanceRecord;
 import org.example.dndn.worker.model.entity.Worker;
 import org.example.dndn.worker.model.entity.WorkerDocument;
 import org.example.dndn.worker.model.entity.WorkerZoneHistory;
 import org.example.dndn.worker.model.enums.AffiliationKind;
+import org.example.dndn.worker.model.enums.AttendanceStatus;
 import org.example.dndn.worker.model.enums.JobRank;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 public class WorkerDetailDto {
 
@@ -68,6 +71,31 @@ public class WorkerDetailDto {
                     .title(d.getTitle())
                     .fileUrl(d.getFileUrl())
                     .storedFileName(d.getStoredFileName())
+                    .build();
+        }
+    }
+
+    // MANAGEMENT_006 출결 캘린더 1셀
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class AttendanceRes {
+        private LocalDate date;
+        private LocalTime clockIn;
+        private LocalTime clockOut;
+        private String zone;
+        private AttendanceStatus attendanceStatus;
+        private BigDecimal manDays;
+
+        public static AttendanceRes from(AttendanceRecord a) {
+            return AttendanceRes.builder()
+                    .date(a.getWorkDate())
+                    .clockIn(a.getClockIn())
+                    .clockOut(a.getClockOut())
+                    .zone(a.getZone())
+                    .attendanceStatus(a.getAttendanceStatus())
+                    .manDays(a.getManDays())
                     .build();
         }
     }

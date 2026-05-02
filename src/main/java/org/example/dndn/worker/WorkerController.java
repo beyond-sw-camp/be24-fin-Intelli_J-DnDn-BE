@@ -75,6 +75,16 @@ public class WorkerController {
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
+    // MANAGEMENT_006 최근 출결 이력 조회 (월별 캘린더)
+    @GetMapping("/{workerIdx}/attendance")
+    public ResponseEntity<BaseResponse<List<WorkerDetailDto.AttendanceRes>>> attendance(
+            @PathVariable Long workerIdx,
+            @RequestParam(required = false) String yearMonth
+    ) {
+        List<WorkerDetailDto.AttendanceRes> dto = workerDetailService.getAttendance(workerIdx, yearMonth);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
+
     // MANAGEMENT_007 구역 배치 이력 조회
     @GetMapping("/{workerIdx}/deployments")
     public ResponseEntity<BaseResponse<List<WorkerDetailDto.DeploymentRes>>> deployments(
