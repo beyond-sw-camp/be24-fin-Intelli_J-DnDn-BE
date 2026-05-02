@@ -1,0 +1,74 @@
+{
+  "workers": [
+    {
+      "externalCode": "DEMO-001",
+      "name": "김시연",
+      "phone": "010-1111-2222",
+      "emergencyPhone": "010-3333-4444",
+      "emergencyRelation": "배우자",
+      "jobRank": "WORKER",
+      "affiliationKind": "PARTNER",
+      "partnerCompany": "태양건설",
+      "subLabel": "목공",
+      "site": "강남 재건축 A공구",
+      "bloodType": "A",
+      "profileImageUrl": null
+    },
+    {
+      "externalCode": "DEMO-002",
+      "name": "이관리",
+      "phone": "010-2222-3333",
+      "emergencyPhone": "010-4444-5555",
+      "emergencyRelation": "부",
+      "jobRank": "MANAGER",
+      "affiliationKind": "DIRECT",
+      "partnerCompany": null,
+      "subLabel": "직영",
+      "site": "강남 재건축 A공구",
+      "bloodType": "B",
+      "profileImageUrl": null
+    },
+    {
+      "externalCode": "DEMO-003",
+      "name": "박철근",
+      "phone": "010-3333-4444",
+      "emergencyPhone": "010-6666-7777",
+      "emergencyRelation": "형제",
+      "jobRank": "WORKER",
+      "affiliationKind": "PARTNER",
+      "partnerCompany": "대한건설",
+      "subLabel": "철근",
+      "site": "강남 재건축 A공구",
+      "bloodType": "O",
+      "profileImageUrl": null
+    },
+    {
+      "externalCode": "DEMO-004",
+      "name": "최책임",
+      "phone": "010-4444-5555",
+      "emergencyPhone": "010-8888-9999",
+      "emergencyRelation": "배우자",
+      "jobRank": "CHIEF",
+      "affiliationKind": "DIRECT",
+      "partnerCompany": null,
+      "subLabel": "직영",
+      "site": "강남 재건축 A공구",
+      "bloodType": "AB",
+      "profileImageUrl": null
+    },
+    {
+      "externalCode": "DEMO-005",
+      "name": "정용접",
+      "phone": "010-5555-6666",
+      "emergencyPhone": "010-1212-3434",
+      "emergencyRelation": "자녀",
+      "jobRank": "WORKER",
+      "affiliationKind": "PARTNER",
+      "partnerCompany": "태양건설",
+      "subLabel": "용접",
+      "site": "강남 재건축 A공구",
+      "bloodType": "A",
+      "profileImageUrl": null
+    }
+  ]
+}
