@@ -1,5 +1,6 @@
 package org.example.dndn.worker;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.dndn.common.model.BaseResponse;
 import org.example.dndn.worker.model.dto.WorkerDetailDto;
@@ -24,9 +25,31 @@ public class WorkerController {
 
     // MANAGEMENT_001 인력 데이터 불러오기
     @GetMapping("/sync")
-    public ResponseEntity<BaseResponse<WorkerDto.SyncRes>> syncWorkforce(@RequestParam(required = false) String siteCode)
-    {
-        WorkerDto.SyncRes dto = workerService.syncWorkforce(siteCode);
+    public ResponseEntity<BaseResponse<WorkerDto.SyncRes>> syncWorkforce(
+            @RequestParam String siteCode,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+    ) {
+        WorkerDto.SyncRes dto = workerService.syncWorkforce(siteCode, date);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
+
+    // MANAGEMENT_010 게이트 출근 인식 (HTTP). 추후 동일 본문을 WebSocket 으로 수신하도록 전환.
+    // POST `/management/attendance/gate-clock-in`
+    @PostMapping("/attendance/gate-clock-in")
+    public ResponseEntity<BaseResponse<WorkerDto.GateAttendanceRes>> gateClockIn(
+            @Valid @RequestBody WorkerDto.GateClockInReq req
+    ) {
+        WorkerDto.GateAttendanceRes dto = workerService.recordGateClockIn(req);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
+
+    // MANAGEMENT_011 게이트 퇴근 인식 (HTTP).
+    // POST `/management/attendance/gate-clock-out`
+    @PostMapping("/attendance/gate-clock-out")
+    public ResponseEntity<BaseResponse<WorkerDto.GateAttendanceRes>> gateClockOut(
+            @Valid @RequestBody WorkerDto.GateClockOutReq req
+    ) {
+        WorkerDto.GateAttendanceRes dto = workerService.recordGateClockOut(req);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 

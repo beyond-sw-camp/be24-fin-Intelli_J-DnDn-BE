@@ -11,6 +11,7 @@
       "partnerCompany": "태양건설",
       "subLabel": "목공",
       "site": "강남 재건축 A공구",
+      "siteCode": "GN-A",
       "bloodType": "A",
       "profileImageUrl": null,
       "documents": [
@@ -73,6 +74,7 @@
       "partnerCompany": null,
       "subLabel": "직영",
       "site": "강남 재건축 A공구",
+      "siteCode": "GN-A",
       "bloodType": "B",
       "profileImageUrl": null,
       "documents": [
@@ -128,6 +130,7 @@
       "partnerCompany": "대한건설",
       "subLabel": "철근",
       "site": "강남 재건축 A공구",
+      "siteCode": "GN-A",
       "bloodType": "O",
       "profileImageUrl": null,
       "documents": [
@@ -191,6 +194,7 @@
       "partnerCompany": null,
       "subLabel": "직영",
       "site": "강남 재건축 A공구",
+      "siteCode": "GN-A",
       "bloodType": "AB",
       "profileImageUrl": null,
       "documents": [
@@ -254,6 +258,7 @@
       "partnerCompany": "태양건설",
       "subLabel": "용접",
       "site": "강남 재건축 A공구",
+      "siteCode": "GN-A",
       "bloodType": "A",
       "profileImageUrl": null,
       "documents": [
