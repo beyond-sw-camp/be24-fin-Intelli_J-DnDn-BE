@@ -1,4 +1,4 @@
-package org.example.dndn.worker;
+package org.example.dndn.worker.repository;
 
 import org.example.dndn.worker.model.entity.AttendanceRecord;
 import org.springframework.data.jpa.repository.JpaRepository;

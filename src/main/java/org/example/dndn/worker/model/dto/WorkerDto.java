@@ -15,9 +15,7 @@ import java.util.List;
 
 public class WorkerDto {
 
-    /**
-     * MANAGEMENT_001 sync 결과 요약
-     */
+    // MANAGEMENT_001 sync 결과 요약
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -28,9 +26,7 @@ public class WorkerDto {
         private int total;
     }
 
-    /**
-     * 목록 상단 KPI (출근/지각/조퇴/결근 + 총 인원)
-     */
+    // 목록 상단 KPI (출근/지각/조퇴/결근 + 총 인원)
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -43,6 +39,8 @@ public class WorkerDto {
         private int total;
     }
 
+    // MANAGEMENT_002/003 Worker 1행 조회.
+    // 컬럼: 이름/연락처, 비상연락망/관계, 소속, 직급, 출/퇴근 시간, 상태, 상세보기 ID
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -58,16 +56,10 @@ public class WorkerDto {
         private String partnerCompany;
         private String subLabel;
         private String site;
-
-        // 해당일 근태
         private LocalTime clockIn;
         private LocalTime clockOut;
         private AttendanceStatus attendanceStatus;
 
-        /**
-         * Worker + 해당일 AttendanceRecord(없을 수 있음) → WorkerRes.
-         * 해당일 근태 행이 없으면 상태는 결근(ABSENT)으로 둔다 — 근태는 항상 {@link AttendanceRecord} 가 단일 출처.
-         */
         public static WorkerRes from(Worker w, AttendanceRecord a) {
             return WorkerRes.builder()
                     .idx(w.getIdx())
@@ -87,9 +79,7 @@ public class WorkerDto {
         }
     }
 
-    /**
-     * MANAGEMENT_002/003 목록 응답 (KPI + rows)
-     */
+    // MANAGEMENT_002/003 목록 응답 (KPI + rows)
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
