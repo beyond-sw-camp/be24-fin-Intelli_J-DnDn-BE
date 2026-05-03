@@ -84,6 +84,7 @@ public class WorkerService {
         Optional<AttendanceRecord> prev = attendanceRepository.findByWorkerIdxAndWorkDate(wid, rosterDate);
         boolean hadRow = prev.isPresent();
         prev.ifPresent(attendanceRepository::delete);
+        attendanceRepository.flush();
         attendanceRepository.save(AttendanceRecord.builder()
                 .worker(worker)
                 .workDate(rosterDate)
@@ -181,6 +182,7 @@ public class WorkerService {
         if (row.getDocuments() != null) {
             for (WorkerScenarioFixtureRow.DocumentFixtureRow r : row.getDocuments()) {
                 documentRepository.findByWorkerIdxAndTitle(wid, r.getTitle()).ifPresent(documentRepository::delete);
+                documentRepository.flush();
                 documentRepository.save(WorkerDocument.builder()
                         .worker(worker)
                         .title(r.getTitle())
@@ -248,6 +250,7 @@ public class WorkerService {
         if (row.getAttendanceRecords() != null) {
             for (WorkerScenarioFixtureRow.AttendanceFixtureRow r : row.getAttendanceRecords()) {
                 attendanceRepository.findByWorkerIdxAndWorkDate(wid, r.getWorkDate()).ifPresent(attendanceRepository::delete);
+                attendanceRepository.flush();
                 attendanceRepository.save(AttendanceRecord.builder()
                         .worker(worker)
                         .workDate(r.getWorkDate())
