@@ -14,9 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNullElse;
@@ -279,12 +277,24 @@ public class WorkerService {
         LocalDate target = req.getDate() == null ? LocalDate.now() : req.getDate();
         AttendanceStatus statusFilter = req.getAttendanceStatus();
 
-        Map<Long, AttendanceRecord> attendanceByWorkerIdx = attendanceRepository
-                .findAllByWorkDate(target)
-                .stream()
+        List<AttendanceRecord> records = attendanceRepository.findAllByWorkDate(target);
+        Map<Long, AttendanceRecord> attendanceByWorkerIdx = records.stream()
                 .collect(Collectors.toMap(a -> a.getWorker().getIdx(), a -> a, (a, b) -> a));
 
-        List<WorkerDto.WorkerRes> allRows = workerRepository.findAllByOrderByNameAsc().stream()
+        if (attendanceByWorkerIdx.isEmpty()) {
+            WorkerDto.StateCountRes zero = emptyAttendanceKpi();
+            return WorkerDto.ListRes.builder()
+                    .globalKpi(zero)
+                    .listKpi(zero)
+                    .rows(List.of())
+                    .build();
+        }
+
+        Set<Long> rosterIds = attendanceByWorkerIdx.keySet();
+        List<Worker> rosterWorkers = workerRepository.findAllById(rosterIds);
+        rosterWorkers.sort(Comparator.comparing(Worker::getName, Comparator.nullsLast(String::compareTo)));
+
+        List<WorkerDto.WorkerRes> allRows = rosterWorkers.stream()
                 .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx())))
                 .collect(Collectors.toList());
         WorkerDto.StateCountRes globalKpi = aggregateAttendance(allRows);
@@ -292,34 +302,11 @@ public class WorkerService {
         List<WorkerDto.WorkerRes> rows = workerRepository
                 .search(req.getPartnerCompany(), req.getSearchName())
                 .stream()
+                .filter(w -> rosterIds.contains(w.getIdx()))
                 .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx())))
                 .filter(item -> statusFilter == null || item.getAttendanceStatus() == statusFilter)
+                .sorted(Comparator.comparing(WorkerDto.WorkerRes::getName, Comparator.nullsLast(String::compareTo)))
                 .collect(Collectors.toList());
-        WorkerDto.StateCountRes listKpi = aggregateAttendance(rows);
-
-        return WorkerDto.ListRes.builder()
-                .globalKpi(globalKpi)
-                .listKpi(listKpi)
-                .rows(rows)
-                .build();
-    }
-
-    /** MANAGEMENT_003 작업자 목록 조회 — 필터 없이 전체 */
-    public WorkerDto.ListRes getList(LocalDate date) {
-        LocalDate target = date == null ? LocalDate.now() : date;
-
-        List<Worker> workers = workerRepository.findAllByOrderByNameAsc();
-
-        Map<Long, AttendanceRecord> attendanceByWorkerIdx = attendanceRepository
-                .findAllByWorkDate(target)
-                .stream()
-                .collect(Collectors.toMap(a -> a.getWorker().getIdx(), a -> a, (a, b) -> a));
-
-        List<WorkerDto.WorkerRes> rows = workers.stream()
-                .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx())))
-                .collect(Collectors.toList());
-
-        WorkerDto.StateCountRes globalKpi = aggregateAttendance(rows);
         WorkerDto.StateCountRes listKpi = aggregateAttendance(rows);
 
         return WorkerDto.ListRes.builder()
@@ -330,9 +317,10 @@ public class WorkerService {
     }
 
     private WorkerDto.StateCountRes aggregateAttendance(List<WorkerDto.WorkerRes> rows) {
-        int present = 0, late = 0, early = 0, absent = 0;
+        int pending = 0, present = 0, late = 0, early = 0, absent = 0;
         for (WorkerDto.WorkerRes r : rows) {
             switch (r.getAttendanceStatus()) {
+                case PENDING -> pending++;
                 case PRESENT -> present++;
                 case LATE -> late++;
                 case EARLY_LEAVE -> early++;
@@ -340,8 +328,52 @@ public class WorkerService {
             }
         }
         return WorkerDto.StateCountRes.builder()
+                .pending(pending)
                 .present(present).late(late).earlyLeave(early).absent(absent)
                 .total(rows.size())
+                .build();
+    }
+
+    /** MANAGEMENT_003 작업자 목록 조회 — 필터 없이 전체 */
+    private static WorkerDto.StateCountRes emptyAttendanceKpi() {
+        return WorkerDto.StateCountRes.builder()
+                .pending(0)
+                .present(0)
+                .late(0)
+                .earlyLeave(0)
+                .absent(0)
+                .total(0)
+                .build();
+    }
+
+    public WorkerDto.ListRes getList(LocalDate date) {
+        LocalDate target = date == null ? LocalDate.now() : date;
+
+        List<AttendanceRecord> records = attendanceRepository.findAllByWorkDate(target);
+        Map<Long, AttendanceRecord> attendanceByWorkerIdx = records.stream()
+                .collect(Collectors.toMap(a -> a.getWorker().getIdx(), a -> a, (a, b) -> a));
+
+        if (attendanceByWorkerIdx.isEmpty()) {
+            WorkerDto.StateCountRes zero = emptyAttendanceKpi();
+            return WorkerDto.ListRes.builder()
+                    .globalKpi(zero)
+                    .listKpi(zero)
+                    .rows(List.of())
+                    .build();
+        }
+
+        List<Worker> workers = workerRepository.findAllById(attendanceByWorkerIdx.keySet());
+        workers.sort(Comparator.comparing(Worker::getName, Comparator.nullsLast(String::compareTo)));
+
+        List<WorkerDto.WorkerRes> rows = workers.stream()
+                .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx())))
+                .collect(Collectors.toList());
+
+        WorkerDto.StateCountRes kpi = aggregateAttendance(rows);
+        return WorkerDto.ListRes.builder()
+                .globalKpi(kpi)
+                .listKpi(kpi)
+                .rows(rows)
                 .build();
     }
 }
