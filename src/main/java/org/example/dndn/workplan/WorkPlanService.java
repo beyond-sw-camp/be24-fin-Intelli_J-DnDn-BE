@@ -1,17 +1,15 @@
 package org.example.dndn.workplan;
 
 import lombok.RequiredArgsConstructor;
-import org.example.dndn.workplan.model.PlanStatus;
-import org.example.dndn.workplan.model.PlanType;
-import org.example.dndn.workplan.model.WorkPlan;
-import org.example.dndn.workplan.model.WorkPlanDto;
-import org.example.dndn.workplan.model.WorkPlanEquipment;
-import org.example.dndn.workplan.model.WorkPlanExtension;
-import org.example.dndn.workplan.model.WorkPlanWorker;
-import org.example.dndn.workplan.model.WorkTrade;
+import org.example.dndn.project.repository.TradeProcessRepository;
+import org.example.dndn.project.model.entity.TradeProcess;
+import org.example.dndn.workplan.model.*;
+import org.example.dndn.workplan.model.entity.WorkPlan;
+import org.example.dndn.workplan.model.entity.WorkPlanExtension;
+import org.example.dndn.workplan.model.enums.PlanStatus;
+import org.example.dndn.workplan.model.enums.PlanType;
+import org.example.dndn.workplan.model.enums.WorkTrade;
 import org.springframework.stereotype.Service;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -25,21 +23,24 @@ import java.util.List;
 public class WorkPlanService {
 
     private final WorkPlanRepository workPlanRepository;
+    // ── 1단계 추가 ─────────────────────────────────────────────────────────
+    private final TradeProcessRepository tradeProcessRepository;
+    // ────────────────────────────────────────────────────────────────────────
 
     // 작업 계획 등록
     @Transactional
     public Long create(WorkPlanDto.Req dto) {
         WorkPlan plan = dto.toEntity();
-        WorkPlan savedPlan = workPlanRepository.save(plan);
 
-        return savedPlan.getIdx();
+        linkTradeProcessIfPresent(plan, dto.getTradeProcessId());
+        linkParentWorkPlanIfPresent(plan, dto.getParentWorkPlanId());
+
+        return workPlanRepository.save(plan).getIdx();
     }
 
     // 작업 계획 단일 조회
     public WorkPlanDto.Res read(Long planId) {
-        WorkPlan plan = findPlan(planId);
-
-        return WorkPlanDto.Res.from(plan);
+        return WorkPlanDto.Res.from(findPlan(planId));
     }
 
     // 작업 계획 목록 조회 (계획 종류 + 공종/상태 필터)
@@ -47,11 +48,9 @@ public class WorkPlanService {
         PlanType type = PlanType.fromLabel(planType);
         WorkTrade tradeEnum = WorkTrade.fromLabel(trade);
         PlanStatus statusEnum = (status == null || status.isBlank())
-                ? null
-                : PlanStatus.fromLabel(status);
+                ? null : PlanStatus.fromLabel(status);
 
         List<WorkPlan> plans;
-
         if (tradeEnum != null && statusEnum != null) {
             plans = workPlanRepository.findAllByPlanTypeAndTradeAndStatus(type, tradeEnum, statusEnum);
         } else if (tradeEnum != null) {
@@ -62,13 +61,10 @@ public class WorkPlanService {
             plans = workPlanRepository.findAllByPlanType(type);
         }
 
-        return plans.stream()
-                .map(WorkPlanDto.workPlanRes::from)
-                .toList();
+        return plans.stream().map(WorkPlanDto.workPlanRes::from).toList();
     }
 
     // 작업 계획 정보 수정
-    // requiredCount는 받지 않음 - workers로부터 자동 계산됨
     @Transactional
     public void update(Long planId, WorkPlanDto.Req dto) {
         WorkPlan plan = findPlan(planId);
@@ -89,23 +85,23 @@ public class WorkPlanService {
         if (dto.getWorkers() != null) {
             plan.replaceWorkers(dto.getWorkers().stream()
                     .filter(w -> w != null && w.getTrade() != null && !w.getTrade().isBlank())
-                    .map(WorkPlanDto.WorkerEntry::toEntity)
-                    .toList());
+                    .map(WorkPlanDto.WorkerEntry::toEntity).toList());
         }
 
         if (dto.getEquipment() != null) {
             plan.replaceEquipment(dto.getEquipment().stream()
                     .filter(e -> e != null && e.getType() != null && !e.getType().isBlank())
-                    .map(WorkPlanDto.EquipmentEntry::toEntity)
-                    .toList());
+                    .map(WorkPlanDto.EquipmentEntry::toEntity).toList());
         }
+
+        linkTradeProcessIfPresent(plan, dto.getTradeProcessId());
+        linkParentWorkPlanIfPresent(plan, dto.getParentWorkPlanId());
     }
 
     // 일정 연장 등록/수정
     @Transactional
     public void extend(Long planId, WorkPlanDto.ExtReq dto) {
         WorkPlan plan = findPlan(planId);
-
         WorkPlanExtension extension = plan.getExtension();
 
         if (extension == null) {
@@ -114,26 +110,19 @@ public class WorkPlanService {
         }
 
         Integer addedDays = dto.getAddedDays();
-
         if (addedDays == null && plan.getEndDate() != null && dto.getExtendedEnd() != null) {
             addedDays = (int) ChronoUnit.DAYS.between(plan.getEndDate(), dto.getExtendedEnd());
         }
 
-        extension.update(
-                dto.getExtendedEnd(),
-                addedDays,
-                dto.getReason(),
-                LocalDate.now()
-        );
+        extension.update(dto.getExtendedEnd(), addedDays, dto.getReason(), LocalDate.now());
     }
 
-    // 주간 계획서 일괄 제출 (협력사 담당자가 한 번에 여러 일자 작업 등록)
+    // 주간 계획서 일괄 제출
     @Transactional
     public List<Long> submitWeekly(WorkPlanDto.WeeklySubmitReq dto) {
         if (dto.getItems() == null || dto.getItems().isEmpty()) {
             throw new RuntimeException("제출할 작업 항목이 없습니다.");
         }
-
         if (dto.getPartner() == null || dto.getPartner().isBlank()
                 || dto.getManager() == null || dto.getManager().isBlank()) {
             throw new RuntimeException("협력사명과 담당자명은 필수입니다.");
@@ -157,87 +146,79 @@ public class WorkPlanService {
                     .note(item.getNote())
                     .build();
 
-            // 인력 등록 (replaceWorkers 호출이 requiredCount 자동 계산)
-            List<WorkPlanWorker> workerEntities = item.getWorkers().stream()
+            plan.replaceWorkers(item.getWorkers().stream()
                     .filter(w -> w != null && w.getTrade() != null && !w.getTrade().isBlank())
-                    .map(WorkPlanDto.WorkerEntry::toEntity)
-                    .toList();
+                    .map(WorkPlanDto.WorkerEntry::toEntity).toList());
 
-            plan.replaceWorkers(workerEntities);
-
-            // 장비 등록
-            List<WorkPlanEquipment> equipmentEntities = item.getEquipment().stream()
+            plan.replaceEquipment(item.getEquipment().stream()
                     .filter(e -> e != null && e.getType() != null && !e.getType().isBlank())
-                    .map(WorkPlanDto.EquipmentEntry::toEntity)
-                    .toList();
+                    .map(WorkPlanDto.EquipmentEntry::toEntity).toList());
 
-            plan.replaceEquipment(equipmentEntities);
+            linkTradeProcessIfPresent(plan, dto.getTradeProcessId());
+            linkParentWorkPlanIfPresent(plan, dto.getParentWorkPlanId());
 
-            WorkPlan saved = workPlanRepository.save(plan);
-            savedIds.add(saved.getIdx());
+            savedIds.add(workPlanRepository.save(plan).getIdx());
         }
 
         return savedIds;
     }
 
-    // 작업 착수 처리 (실제 시작일 기록)
+    // 작업 착수 처리
     @Transactional
     public void start(Long planId) {
-        WorkPlan plan = findPlan(planId);
-
-        plan.markStarted(LocalDate.now());
+        findPlan(planId).markStarted(LocalDate.now());
     }
 
     // 작업 계획 삭제
     @Transactional
     public void delete(Long planId) {
-        WorkPlan plan = findPlan(planId);
-
-        workPlanRepository.delete(plan);
+        workPlanRepository.delete(findPlan(planId));
     }
+
 
     private WorkPlan findPlan(Long planId) {
         return workPlanRepository.findById(planId)
                 .orElseThrow(() -> new RuntimeException("작업 계획을 찾을 수 없습니다."));
     }
 
+    /**
+     * tradeProcessId가 있을 때만 공정 연결.
+     * null이면 기존 연결 유지 (연결 해제는 별도 API로 분리 권장).
+     */
+    private void linkTradeProcessIfPresent(WorkPlan plan, Long tradeProcessId) {
+        if (tradeProcessId == null) return;
+
+        TradeProcess tradeProcess = tradeProcessRepository.findById(tradeProcessId)
+                .orElseThrow(() -> new RuntimeException("공정을 찾을 수 없습니다. id=" + tradeProcessId));
+
+        plan.linkTradeProcess(tradeProcess);
+    }
+
+    private void linkParentWorkPlanIfPresent(WorkPlan plan, Long parentWorkPlanId) {
+        if (parentWorkPlanId == null) return;
+
+        WorkPlan parent = workPlanRepository.findById(parentWorkPlanId)
+                .orElseThrow(() -> new RuntimeException("상위 작업 계획을 찾을 수 없습니다. id=" + parentWorkPlanId));
+
+        plan.linkParentWorkPlan(parent);
+    }
+
     private void validateWeeklyItem(WorkPlanDto.WeeklyItemReq item) {
-        if (item.getDate() == null) {
-            throw new RuntimeException("작업일자는 필수입니다.");
-        }
-
-        if (item.getProcessName() == null || item.getProcessName().isBlank()) {
-            throw new RuntimeException("공정명은 필수입니다.");
-        }
-
-        if (item.getZone() == null || item.getZone().isBlank()) {
-            throw new RuntimeException("작업구역은 필수입니다.");
-        }
-
-        if (item.getWorkers() == null || item.getWorkers().isEmpty()) {
-            throw new RuntimeException("인력은 최소 1개 이상 필요합니다.");
-        }
+        if (item.getDate() == null) throw new RuntimeException("작업일자는 필수입니다.");
+        if (item.getProcessName() == null || item.getProcessName().isBlank()) throw new RuntimeException("공정명은 필수입니다.");
+        if (item.getZone() == null || item.getZone().isBlank()) throw new RuntimeException("작업구역은 필수입니다.");
+        if (item.getWorkers() == null || item.getWorkers().isEmpty()) throw new RuntimeException("인력은 최소 1개 이상 필요합니다.");
 
         boolean hasValidWorker = item.getWorkers().stream()
-                .anyMatch(w -> w != null
-                        && w.getTrade() != null && !w.getTrade().isBlank()
+                .anyMatch(w -> w != null && w.getTrade() != null && !w.getTrade().isBlank()
                         && w.getCount() != null && w.getCount() > 0);
+        if (!hasValidWorker) throw new RuntimeException("유효한 인력 항목이 없습니다.");
 
-        if (!hasValidWorker) {
-            throw new RuntimeException("유효한 인력 항목이 없습니다.");
-        }
-
-        if (item.getEquipment() == null || item.getEquipment().isEmpty()) {
-            throw new RuntimeException("장비는 최소 1개 이상 필요합니다.");
-        }
+        if (item.getEquipment() == null || item.getEquipment().isEmpty()) throw new RuntimeException("장비는 최소 1개 이상 필요합니다.");
 
         boolean hasValidEquipment = item.getEquipment().stream()
-                .anyMatch(e -> e != null
-                        && e.getType() != null && !e.getType().isBlank()
+                .anyMatch(e -> e != null && e.getType() != null && !e.getType().isBlank()
                         && e.getCount() != null && e.getCount() > 0);
-
-        if (!hasValidEquipment) {
-            throw new RuntimeException("유효한 장비 항목이 없습니다.");
-        }
+        if (!hasValidEquipment) throw new RuntimeException("유효한 장비 항목이 없습니다.");
     }
 }
