@@ -1,0 +1,53 @@
+package org.example.dndn.project.service;
+
+import lombok.RequiredArgsConstructor;
+import org.example.dndn.project.model.entity.Project;
+import org.example.dndn.project.model.dto.ProjectDto;
+import org.example.dndn.project.repository.ProjectRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class ProjectService {
+
+    private final ProjectRepository projectRepository;
+
+    @Transactional
+    public Long create(ProjectDto.Req dto) {
+        return projectRepository.save(dto.toEntity()).getIdx();
+    }
+
+    public ProjectDto.Res read(Long projectId) {
+        return ProjectDto.Res.from(findProject(projectId));
+    }
+
+    public List<ProjectDto.Res> list() {
+        return projectRepository.findAll().stream()
+                .map(ProjectDto.Res::from)
+                .toList();
+    }
+
+    @Transactional
+    public void update(Long projectId, ProjectDto.Req dto) {
+        findProject(projectId).update(
+                dto.getName(),
+                dto.getLocation(),
+                dto.getStartDate(),
+                dto.getEndDate()
+        );
+    }
+
+    @Transactional
+    public void delete(Long projectId) {
+        projectRepository.delete(findProject(projectId));
+    }
+
+    private Project findProject(Long projectId) {
+        return projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("현장을 찾을 수 없습니다."));
+    }
+}
