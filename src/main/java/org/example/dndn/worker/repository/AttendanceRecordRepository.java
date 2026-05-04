@@ -15,6 +15,9 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
     List<AttendanceRecord> findAllByWorkerIdxAndWorkDateBetweenOrderByWorkDateDesc(
             Long workerIdx, LocalDate from, LocalDate to);
 
+    /** MANAGEMENT_007 — 근태 행 기준 일자 내림차순 전체(구역·공종 표에 사용) */
+    List<AttendanceRecord> findAllByWorkerIdxOrderByWorkDateDesc(Long workerIdx);
+
     // 일자별 근태 upsert
     Optional<AttendanceRecord> findByWorkerIdxAndWorkDate(Long workerIdx, LocalDate workDate);
 }

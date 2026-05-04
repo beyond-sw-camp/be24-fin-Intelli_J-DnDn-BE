@@ -1,6 +1,5 @@
 package org.example.dndn.worker.service;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.example.dndn.common.exception.BaseException;
 import org.example.dndn.worker.config.ManagementAttendanceProperties;
@@ -9,8 +8,10 @@ import org.example.dndn.worker.fixture.WorkerScenarioFixtureRow;
 import org.example.dndn.worker.model.dto.WorkerDto;
 import org.example.dndn.worker.model.entity.*;
 import org.example.dndn.worker.model.enums.AttendanceStatus;
+import org.example.dndn.worker.model.enums.EmploymentKind;
 import org.example.dndn.worker.repository.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -22,11 +23,11 @@ import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class WorkerService {
     private final WorkerRepository workerRepository;
     private final AttendanceRecordRepository attendanceRepository;
     private final WorkerDocumentRepository documentRepository;
-    private final WorkerZoneHistoryRepository zoneHistoryRepository;
     private final WorkerSanctionRepository sanctionRepository;
     private final SafetyAccidentRepository accidentRepository;
     private final WorkerScenarioFixtureLoader workerScenarioFixtureLoader;
@@ -69,7 +70,6 @@ public class WorkerService {
                 .updated(updated)
                 .total(payload.size())
                 .documentsSynced(detail.documents)
-                .zoneHistoriesSynced(detail.zoneHistories)
                 .sanctionsSynced(detail.sanctions)
                 .accidentsSynced(detail.accidents)
                 .attendanceRecordsSynced(detail.attendanceRecords)
@@ -77,10 +77,13 @@ public class WorkerService {
     }
 
     // 명단 반영 직후 해당 근무일 행을 출근 전(`PENDING`)으로 고정. 인사 JSON 에 당일 근태가 있어도 덮어쓴다.
+    // `employment_kind` 는 동기화 직전 해당 일 행이 있으면 유지하고, 없으면 {@link Worker#getEmploymentKind()} 마스터 값.
     private void normalizeRosterDayPending(Worker worker, LocalDate rosterDate, SyncDetailAccumulator acc) {
         Long wid = worker.getIdx();
         Optional<AttendanceRecord> prev = attendanceRepository.findByWorkerIdxAndWorkDate(wid, rosterDate);
         boolean hadRow = prev.isPresent();
+        EmploymentKind preservedEk = prev.map(AttendanceRecord::getEmploymentKind)
+                .orElseGet(() -> requireNonNullElse(worker.getEmploymentKind(), EmploymentKind.REGULAR));
         prev.ifPresent(attendanceRepository::delete);
         attendanceRepository.flush();
         attendanceRepository.save(AttendanceRecord.builder()
@@ -90,8 +93,10 @@ public class WorkerService {
                 .clockOut(null)
                 .manDays(null)
                 .attendanceStatus(AttendanceStatus.PENDING)
-                .zone(null)
-                .closed(false)
+                .zoneMain(null)
+                .zoneSub(null)
+                .assignedTrade(null)
+                .employmentKind(preservedEk)
                 .build());
         if (!hadRow) {
             acc.attendanceRecords++;
@@ -120,13 +125,15 @@ public class WorkerService {
                 .clockOut(old.getClockOut())
                 .manDays(old.getManDays())
                 .attendanceStatus(next)
-                .zone(old.getZone())
-                .closed(old.isClosed())
+                .zoneMain(old.getZoneMain())
+                .zoneSub(old.getZoneSub())
+                .assignedTrade(old.getAssignedTrade())
+                .employmentKind(old.getEmploymentKind())
                 .build());
         return toGateRes(saved);
     }
 
-    /** MANAGEMENT_011 게이트 퇴근 — 규정 퇴근 시각 이전이면 {@code EARLY_LEAVE}. */
+    /** MANAGEMENT_011 게이트 퇴근 — 규정 퇴근 시각 이전이면 {@code EARLY_LEAVE}, 정시 또는 그 이후면 {@code LEAVE}. */
     @Transactional
     public WorkerDto.GateAttendanceRes recordGateClockOut(WorkerDto.GateClockOutReq req) {
         LocalDate date = req.getWorkDate() != null ? req.getWorkDate() : LocalDate.now();
@@ -140,10 +147,9 @@ public class WorkerService {
             throw new BaseException(FAIL);
             // throw new BaseException("ATT_CLOCK_IN_MISSING", "출근 기록 없이 퇴근할 수 없습니다.");
         }
-        AttendanceStatus next = old.getAttendanceStatus();
-        if (req.getRecognizedAt().isBefore(attendanceProps.getOfficialEnd())) {
-            next = AttendanceStatus.EARLY_LEAVE;
-        }
+        AttendanceStatus next = req.getRecognizedAt().isBefore(attendanceProps.getOfficialEnd())
+                ? AttendanceStatus.EARLY_LEAVE
+                : AttendanceStatus.LEAVE;
 
         attendanceRepository.delete(old);
         attendanceRepository.flush();
@@ -154,8 +160,10 @@ public class WorkerService {
                 .clockOut(req.getRecognizedAt())
                 .manDays(old.getManDays())
                 .attendanceStatus(next)
-                .zone(old.getZone())
-                .closed(old.isClosed())
+                .zoneMain(old.getZoneMain())
+                .zoneSub(old.getZoneSub())
+                .assignedTrade(old.getAssignedTrade())
+                .employmentKind(old.getEmploymentKind())
                 .build());
         return toGateRes(saved);
     }
@@ -190,21 +198,6 @@ public class WorkerService {
                 acc.documents++;
             }
         }
-        if (row.getZoneHistory() != null) {
-            for (WorkerScenarioFixtureRow.ZoneHistoryFixtureRow r : row.getZoneHistory()) {
-                if (zoneHistoryRepository.existsByWorkerIdxAndAssignedAtAndZone(wid, r.getAssignedAt(), r.getZone())) {
-                    continue;
-                }
-                zoneHistoryRepository.save(WorkerZoneHistory.builder()
-                        .worker(worker)
-                        .assignedAt(r.getAssignedAt())
-                        .zone(r.getZone())
-                        .workType(r.getWorkType())
-                        .partnerCompanySnapshot(r.getPartnerCompanySnapshot())
-                        .build());
-                acc.zoneHistories++;
-            }
-        }
         if (row.getSanctions() != null) {
             for (WorkerScenarioFixtureRow.SanctionFixtureRow r : row.getSanctions()) {
                 if (sanctionRepository.existsByWorkerIdxAndOccurredAtAndTypeAndReason(
@@ -227,26 +220,32 @@ public class WorkerService {
         }
         if (row.getAccidents() != null) {
             for (WorkerScenarioFixtureRow.AccidentFixtureRow r : row.getAccidents()) {
-                if (accidentRepository.existsByWorkerIdxAndOccurredAtAndAccidentTypeAndZone(
+                String zm = requireNonNullElse(r.getZoneMain(), "").trim();
+                String zs = requireNonNullElse(r.getZoneSub(), "").trim();
+                if (accidentRepository.existsByWorkerIdxAndOccurredAtAndAccidentTypeAndZoneMainAndZoneSub(
                         wid,
                         r.getOccurredAt(),
                         requireNonNullElse(r.getAccidentType(), ""),
-                        requireNonNullElse(r.getZone(), ""))) {
+                        zm.isEmpty() ? null : zm,
+                        zs.isEmpty() ? null : zs)) {
                     continue;
                 }
                 accidentRepository.save(SafetyAccident.builder()
                         .worker(worker)
                         .occurredAt(r.getOccurredAt())
                         .accidentType(r.getAccidentType())
-                        .zone(r.getZone())
+                        .zoneMain(zm.isEmpty() ? null : zm)
+                        .zoneSub(zs.isEmpty() ? null : zs)
                         .resolution(r.getResolution())
-                        .severe(r.isSevere())
                         .build());
                 acc.accidents++;
             }
         }
         if (row.getAttendanceRecords() != null) {
             for (WorkerScenarioFixtureRow.AttendanceFixtureRow r : row.getAttendanceRecords()) {
+                String zm = requireNonNullElse(r.getZoneMain(), "").trim();
+                String zs = requireNonNullElse(r.getZoneSub(), "").trim();
+                String zt = requireNonNullElse(r.getAssignedTrade(), "").trim();
                 attendanceRepository.findByWorkerIdxAndWorkDate(wid, r.getWorkDate()).ifPresent(attendanceRepository::delete);
                 attendanceRepository.flush();
                 attendanceRepository.save(AttendanceRecord.builder()
@@ -256,8 +255,12 @@ public class WorkerService {
                         .clockOut(r.getClockOut())
                         .manDays(r.getManDays())
                         .attendanceStatus(r.getAttendanceStatus())
-                        .zone(r.getZone())
-                        .closed(r.isClosed())
+                        .zoneMain(zm.isEmpty() ? null : zm)
+                        .zoneSub(zs.isEmpty() ? null : zs)
+                        .assignedTrade(zt.isEmpty() ? null : zt)
+                        .employmentKind(requireNonNullElse(
+                                r.getEmploymentKind(),
+                                requireNonNullElse(worker.getEmploymentKind(), EmploymentKind.REGULAR)))
                         .build());
                 acc.attendanceRecords++;
             }
@@ -266,13 +269,56 @@ public class WorkerService {
 
     private static final class SyncDetailAccumulator {
         int documents;
-        int zoneHistories;
         int sanctions;
         int accidents;
         int attendanceRecords;
     }
 
-    // MANAGEMENT_002 근무자 검색 — 출근 상태/협력사명/이름 필터 적용
+    private static WorkerDto.StateCountRes emptyAttendanceKpi() {
+        return WorkerDto.StateCountRes.builder()
+                .pending(0)
+                .present(0)
+                .late(0)
+                .leave(0)
+                .earlyLeave(0)
+                .absent(0)
+                .total(0)
+                .build();
+    }
+
+    /** MANAGEMENT_003 작업자 목록 조회 — 조회일 AttendanceRecord 기준 */
+    public WorkerDto.ListRes getList(LocalDate date) {
+        LocalDate target = date == null ? LocalDate.now() : date;
+
+        List<AttendanceRecord> records = attendanceRepository.findAllByWorkDate(target);
+        Map<Long, AttendanceRecord> attendanceByWorkerIdx = records.stream()
+                .collect(Collectors.toMap(a -> a.getWorker().getIdx(), a -> a, (a, b) -> a));
+
+        if (attendanceByWorkerIdx.isEmpty()) {
+            WorkerDto.StateCountRes zero = emptyAttendanceKpi();
+            return WorkerDto.ListRes.builder()
+                    .globalKpi(zero)
+                    .listKpi(zero)
+                    .rows(List.of())
+                    .build();
+        }
+
+        List<Worker> workers = workerRepository.findAllById(attendanceByWorkerIdx.keySet());
+        workers.sort(Comparator.comparing(Worker::getName, Comparator.nullsLast(String::compareTo)));
+
+        List<WorkerDto.WorkerRes> rows = workers.stream()
+                .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx())))
+                .collect(Collectors.toList());
+
+        WorkerDto.StateCountRes kpi = aggregateAttendance(rows);
+        return WorkerDto.ListRes.builder()
+                .globalKpi(kpi)
+                .listKpi(kpi)
+                .rows(rows)
+                .build();
+    }
+
+    // MANAGEMENT_002 근무자 검색 — 조회일 ATT 명단 범위 안에서 출근 상태/협력사명/이름 필터 적용
     public WorkerDto.ListRes search(WorkerDto.SearchReq req) {
         LocalDate target = req.getDate() == null ? LocalDate.now() : req.getDate();
         AttendanceStatus statusFilter = req.getAttendanceStatus();
@@ -317,63 +363,21 @@ public class WorkerService {
     }
 
     private WorkerDto.StateCountRes aggregateAttendance(List<WorkerDto.WorkerRes> rows) {
-        int pending = 0, present = 0, late = 0, early = 0, absent = 0;
+        int pending = 0, present = 0, late = 0, leave = 0, early = 0, absent = 0;
         for (WorkerDto.WorkerRes r : rows) {
             switch (r.getAttendanceStatus()) {
                 case PENDING -> pending++;
                 case PRESENT -> present++;
                 case LATE -> late++;
+                case LEAVE -> leave++;
                 case EARLY_LEAVE -> early++;
                 case ABSENT -> absent++;
             }
         }
         return WorkerDto.StateCountRes.builder()
                 .pending(pending)
-                .present(present).late(late).earlyLeave(early).absent(absent)
+                .present(present).late(late).leave(leave).earlyLeave(early).absent(absent)
                 .total(rows.size())
-                .build();
-    }
-
-    /** MANAGEMENT_003 작업자 목록 조회 — 필터 없이 전체 */
-    private static WorkerDto.StateCountRes emptyAttendanceKpi() {
-        return WorkerDto.StateCountRes.builder()
-                .pending(0)
-                .present(0)
-                .late(0)
-                .earlyLeave(0)
-                .absent(0)
-                .total(0)
-                .build();
-    }
-
-    public WorkerDto.ListRes getList(LocalDate date) {
-        LocalDate target = date == null ? LocalDate.now() : date;
-
-        List<AttendanceRecord> records = attendanceRepository.findAllByWorkDate(target);
-        Map<Long, AttendanceRecord> attendanceByWorkerIdx = records.stream()
-                .collect(Collectors.toMap(a -> a.getWorker().getIdx(), a -> a, (a, b) -> a));
-
-        if (attendanceByWorkerIdx.isEmpty()) {
-            WorkerDto.StateCountRes zero = emptyAttendanceKpi();
-            return WorkerDto.ListRes.builder()
-                    .globalKpi(zero)
-                    .listKpi(zero)
-                    .rows(List.of())
-                    .build();
-        }
-
-        List<Worker> workers = workerRepository.findAllById(attendanceByWorkerIdx.keySet());
-        workers.sort(Comparator.comparing(Worker::getName, Comparator.nullsLast(String::compareTo)));
-
-        List<WorkerDto.WorkerRes> rows = workers.stream()
-                .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx())))
-                .collect(Collectors.toList());
-
-        WorkerDto.StateCountRes kpi = aggregateAttendance(rows);
-        return WorkerDto.ListRes.builder()
-                .globalKpi(kpi)
-                .listKpi(kpi)
-                .rows(rows)
                 .build();
     }
 }
