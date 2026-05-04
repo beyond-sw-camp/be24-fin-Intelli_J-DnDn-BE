@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndn.common.model.BaseEntity;
 import org.example.dndn.worker.model.enums.AffiliationKind;
-import org.example.dndn.worker.model.enums.AttendanceStatus;
+import org.example.dndn.worker.model.enums.EmploymentKind;
 import org.example.dndn.worker.model.enums.JobRank;
 
 import java.math.BigDecimal;
@@ -53,13 +53,22 @@ public class Worker extends BaseEntity {
     @Column(length = 50)
     private String partnerCompany;
 
-    /** 소속 부서/직종 라벨. 본사: 직영, 협력사: 목공/철근/용접/타일/인력 등 */
+    /** 마스터 <strong>공종</strong> 라벨 (예: 목공·철근). 일별 상용/일용은 {@link #employmentKind}·{@link AttendanceRecord#getEmploymentKind()} 로 반영한다. */
     @Column(length = 30)
     private String subLabel;
+
+    /** 인사·연동에서 받은 상용(REGULAR)·일용(DAILY) 마스터 구분. sync 시 갱신되며 명단일 {@link AttendanceRecord} 생성 시 기본값으로 쓰인다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "employment_kind", nullable = false, length = 16)
+    private EmploymentKind employmentKind;
 
     /** 투입 현장 (예: 강남구 재건축 A공구) */
     @Column(length = 100)
     private String site;
+
+    /** 인사·현장 시스템과 맞추는 현장 코드(sync 필터 키). 미입력 시 {@link #site} 문자열로만 매칭. */
+    @Column(length = 30)
+    private String siteCode;
 
     /** 혈액형 */
     @Column(length = 5)
@@ -85,7 +94,9 @@ public class Worker extends BaseEntity {
         this.affiliationKind = incoming.affiliationKind;
         this.partnerCompany = incoming.partnerCompany;
         this.subLabel = incoming.subLabel;
+        this.employmentKind = incoming.employmentKind;
         this.site = incoming.site;
+        this.siteCode = incoming.siteCode;
         this.bloodType = incoming.bloodType;
         this.profileImageUrl = incoming.profileImageUrl;
     }

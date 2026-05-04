@@ -4,6 +4,7 @@ import lombok.*;
 import org.example.dndn.worker.model.entity.*;
 import org.example.dndn.worker.model.enums.AffiliationKind;
 import org.example.dndn.worker.model.enums.AttendanceStatus;
+import org.example.dndn.worker.model.enums.EmploymentKind;
 import org.example.dndn.worker.model.enums.JobRank;
 
 import java.math.BigDecimal;
@@ -11,6 +12,16 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 public class WorkerDetailDto {
+
+    /** 기본구역·상세구역 한 줄 표기 — 프론트 `formatWorkerZoneDisplay` 와 동일 규칙. */
+    public static String formatZoneLine(String zoneMain, String zoneSub) {
+        boolean hm = zoneMain != null && !zoneMain.isBlank();
+        boolean hs = zoneSub != null && !zoneSub.isBlank();
+        if (hm && hs) return zoneMain.trim() + " · " + zoneSub.trim();
+        if (hm) return zoneMain.trim();
+        if (hs) return zoneSub.trim();
+        return null;
+    }
 
     // MANAGEMENT_004 작업자 상세 프로필 조회 응답.
     @Getter
@@ -31,8 +42,10 @@ public class WorkerDetailDto {
         private LocalDate registeredAt;
         private String profileImageUrl;
         private BigDecimal monthTotalMan;
+        /** 서버 로컬 오늘({@code LocalDate.now}) {@code work_date} 근태 행의 고용 구분. 행이 없으면 null. */
+        private EmploymentKind employmentKind;
 
-        public static ProfileRes from(Worker w) {
+        public static ProfileRes from(Worker w, EmploymentKind rosterEmploymentKind) {
             return ProfileRes.builder()
                     .idx(w.getIdx())
                     .name(w.getName())
@@ -47,6 +60,7 @@ public class WorkerDetailDto {
                     .registeredAt(w.getRegisteredAt())
                     .profileImageUrl(w.getProfileImageUrl())
                     .monthTotalMan(w.getMonthTotalMan())
+                    .employmentKind(rosterEmploymentKind)
                     .build();
         }
     }
@@ -81,23 +95,35 @@ public class WorkerDetailDto {
         private LocalDate date;
         private LocalTime clockIn;
         private LocalTime clockOut;
-        private String zone;
+        private String zoneMain;
+        private String zoneSub;
+        /** 표시용 한 줄 — {@link WorkerDetailDto#formatZoneLine} */
+        private String zoneDisplay;
+        private String assignedTrade;
+        /** 당일 고용 구분 (상용/일용) — {@link AttendanceRecord#getEmploymentKind()} */
+        private EmploymentKind employmentKind;
         private AttendanceStatus attendanceStatus;
         private BigDecimal manDays;
 
         public static AttendanceRes from(AttendanceRecord a) {
+            String zm = a.getZoneMain();
+            String zs = a.getZoneSub();
             return AttendanceRes.builder()
                     .date(a.getWorkDate())
                     .clockIn(a.getClockIn())
                     .clockOut(a.getClockOut())
-                    .zone(a.getZone())
+                    .zoneMain(zm)
+                    .zoneSub(zs)
+                    .zoneDisplay(formatZoneLine(zm, zs))
+                    .assignedTrade(a.getAssignedTrade())
+                    .employmentKind(a.getEmploymentKind())
                     .attendanceStatus(a.getAttendanceStatus())
                     .manDays(a.getManDays())
                     .build();
         }
     }
 
-    // MANAGEMENT_007 구역 배치 이력 1건
+    /** MANAGEMENT_007 구역·공종 배치 요약 1건 — `worker_zone_history` 없이 {@link AttendanceRecord} 스냅샷 */
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -105,17 +131,25 @@ public class WorkerDetailDto {
     public static class DeploymentRes {
         private Long idx;
         private LocalDate assignedAt;
-        private String zone;
-        private String workType;
-        private String partnerCompany; // 그 시점 소속 협력사 snapshot
+        private String zoneMain;
+        private String zoneSub;
+        private String zoneDisplay;
+        /** 공종 — {@link AttendanceRecord#getAssignedTrade()} */
+        private String assignedTrade;
+        /** 당일 고용 구분 — {@link AttendanceRecord#getEmploymentKind()} */
+        private EmploymentKind employmentKind;
 
-        public static DeploymentRes from(WorkerZoneHistory h) {
+        public static DeploymentRes from(AttendanceRecord a) {
+            String zm = a.getZoneMain();
+            String zs = a.getZoneSub();
             return DeploymentRes.builder()
-                    .idx(h.getIdx())
-                    .assignedAt(h.getAssignedAt())
-                    .zone(h.getZone())
-                    .workType(h.getWorkType())
-                    .partnerCompany(h.getPartnerCompanySnapshot())
+                    .idx(a.getIdx())
+                    .assignedAt(a.getWorkDate())
+                    .zoneMain(zm)
+                    .zoneSub(zs)
+                    .zoneDisplay(formatZoneLine(zm, zs))
+                    .assignedTrade(a.getAssignedTrade())
+                    .employmentKind(a.getEmploymentKind())
                     .build();
         }
     }
@@ -154,18 +188,22 @@ public class WorkerDetailDto {
         private Long idx;
         private LocalDate occurredAt;
         private String accidentType;
-        private String zone;
+        private String zoneMain;
+        private String zoneSub;
+        private String zoneDisplay;
         private String resolution;
-        private boolean severe;
 
         public static AccidentRes from(SafetyAccident a) {
+            String zm = a.getZoneMain();
+            String zs = a.getZoneSub();
             return AccidentRes.builder()
                     .idx(a.getIdx())
                     .occurredAt(a.getOccurredAt())
                     .accidentType(a.getAccidentType())
-                    .zone(a.getZone())
+                    .zoneMain(zm)
+                    .zoneSub(zs)
+                    .zoneDisplay(formatZoneLine(zm, zs))
                     .resolution(a.getResolution())
-                    .severe(a.isSevere())
                     .build();
         }
     }

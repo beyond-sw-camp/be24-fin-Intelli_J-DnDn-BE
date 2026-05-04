@@ -29,15 +29,15 @@ public class SafetyAccident extends BaseEntity {
     @Column(length = 50)
     private String accidentType;
 
-    /** 발생 구역 (예: B구역 (업무동) 3층) */
-    @Column(length = 100)
-    private String zone;
+    /** 발생 기본 구역 */
+    @Column(name = "zone_main", length = 50)
+    private String zoneMain;
+
+    /** 발생 상세 위치 */
+    @Column(name = "zone_sub", length = 100)
+    private String zoneSub;
 
     /** 조치 결과 / 후속 조치 */
     @Column(length = 500)
     private String resolution;
-
-    /** 중대 사고 여부 */
-    @Column(nullable = false)
-    private boolean severe;
 }

@@ -14,6 +14,7 @@
       "siteCode": "GN-A",
       "bloodType": "A",
       "profileImageUrl": null,
+      "registeredAt": "2025-09-15",
       "documents": [
         {
           "title": "기초안전보건교육 이수증",
@@ -24,20 +25,6 @@
           "title": "신분증 사본",
           "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
           "storedFileName": "DEMO-001_신분증.pdf"
-        }
-      ],
-      "zoneHistory": [
-        {
-          "assignedAt": "2026-04-15",
-          "zone": "A구역 (지하주차장)",
-          "workType": "목공 거푸집",
-          "partnerCompanySnapshot": "태양목공"
-        },
-        {
-          "assignedAt": "2026-03-01",
-          "zone": "B구역 (업무동)",
-          "workType": "목재 보조",
-          "partnerCompanySnapshot": "태양목공"
         }
       ],
       "sanctions": [
@@ -53,9 +40,9 @@
         {
           "occurredAt": "2026-02-12",
           "accidentType": "낙하물",
-          "zone": "A구역 자재 적치장",
           "resolution": "현장 교육 및 적치 높이 재점검",
-          "severe": false
+          "zoneMain": "A구역 자재 적치장",
+          "zoneSub": null
         }
       ],
       "attendanceRecords": [
@@ -63,21 +50,70 @@
           "workDate": "2026-05-02",
           "clockIn": "06:48:00",
           "clockOut": "17:05:00",
-          "manDays": 1.0,
+          "manDays": 1,
           "attendanceStatus": "PRESENT",
-          "zone": "A구역",
-          "closed": false
+          "zoneMain": "A구역",
+          "zoneSub": null,
+          "assignedTrade": "목공",
+          "employmentKind": "REGULAR"
         },
         {
           "workDate": "2026-05-01",
           "clockIn": "07:15:00",
           "clockOut": "17:10:00",
-          "manDays": 1.0,
+          "manDays": 1,
           "attendanceStatus": "LATE",
-          "zone": "A구역",
-          "closed": false
+          "zoneMain": "A구역",
+          "zoneSub": null,
+          "assignedTrade": "목공",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-30",
+          "clockIn": "06:50:00",
+          "clockOut": "17:05:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "A구역",
+          "zoneSub": "지상 1층 거푸집",
+          "assignedTrade": "목공",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-25",
+          "clockIn": "06:55:00",
+          "clockOut": "18:10:00",
+          "manDays": 1.25,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "A구역",
+          "zoneSub": "지하 1층 코어부",
+          "assignedTrade": "목공",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-18",
+          "clockIn": "06:48:00",
+          "clockOut": "17:00:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "B구역",
+          "zoneSub": "지상 2층",
+          "assignedTrade": "목공",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-10",
+          "clockIn": "07:25:00",
+          "clockOut": "17:00:00",
+          "manDays": 1,
+          "attendanceStatus": "LATE",
+          "zoneMain": "B구역",
+          "zoneSub": "옥상 파라펫",
+          "assignedTrade": "목공",
+          "employmentKind": "REGULAR"
         }
-      ]
+      ],
+      "employmentKind": "REGULAR"
     },
     {
       "externalCode": "DEMO-002",
@@ -93,6 +129,7 @@
       "siteCode": "GN-A",
       "bloodType": "B",
       "profileImageUrl": null,
+      "registeredAt": "2025-08-01",
       "documents": [
         {
           "title": "현장 관리자 안전교육 이수증",
@@ -103,14 +140,6 @@
           "title": "개인정보 제3자 제공 동의서",
           "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
           "storedFileName": "DEMO-002_개인정보동의.pdf"
-        }
-      ],
-      "zoneHistory": [
-        {
-          "assignedAt": "2026-04-20",
-          "zone": "전 구역 순회",
-          "workType": "현장 순찰·작업 허가",
-          "partnerCompanySnapshot": null
         }
       ],
       "sanctions": [
@@ -126,9 +155,9 @@
         {
           "occurredAt": "2025-09-01",
           "accidentType": "차량 접촉",
-          "zone": "현장 진입로",
           "resolution": "보험 처리·진입로 유도원 배치",
-          "severe": false
+          "zoneMain": "현장 진입로",
+          "zoneSub": null
         }
       ],
       "attendanceRecords": [
@@ -138,10 +167,57 @@
           "clockOut": "16:00:00",
           "manDays": 0.5,
           "attendanceStatus": "EARLY_LEAVE",
-          "zone": "본관",
-          "closed": false
+          "zoneMain": "본관",
+          "zoneSub": null,
+          "assignedTrade": "관리",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-05-01",
+          "clockIn": "06:40:00",
+          "clockOut": "18:20:00",
+          "manDays": 1.5,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "본관",
+          "zoneSub": "현장 사무실",
+          "assignedTrade": "관리",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-28",
+          "clockIn": "06:42:00",
+          "clockOut": "17:30:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "본관",
+          "zoneSub": "자재 야적장",
+          "assignedTrade": "관리",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-20",
+          "clockIn": "06:55:00",
+          "clockOut": "17:10:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "A구역",
+          "zoneSub": "출입 게이트",
+          "assignedTrade": "관리",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-15",
+          "clockIn": "06:48:00",
+          "clockOut": "17:15:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "본관",
+          "zoneSub": "안전관리실",
+          "assignedTrade": "관리",
+          "employmentKind": "REGULAR"
         }
-      ]
+      ],
+      "employmentKind": "REGULAR"
     },
     {
       "externalCode": "DEMO-003",
@@ -157,31 +233,12 @@
       "siteCode": "GN-A",
       "bloodType": "O",
       "profileImageUrl": null,
+      "registeredAt": "2025-10-08",
       "documents": [
         {
           "title": "철근공 특별교육 이수증",
           "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
           "storedFileName": "DEMO-003_철근특별교육.pdf"
-        }
-      ],
-      "zoneHistory": [
-        {
-          "assignedAt": "2026-04-28",
-          "zone": "C구역 (철근 야드)",
-          "workType": "철근 결속",
-          "partnerCompanySnapshot": "대한철근"
-        },
-        {
-          "assignedAt": "2026-04-10",
-          "zone": "A구역 코어",
-          "workType": "철근 배근",
-          "partnerCompanySnapshot": "대한철근"
-        },
-        {
-          "assignedAt": "2026-03-05",
-          "zone": "외부 비계",
-          "workType": "자재 이송 보조",
-          "partnerCompanySnapshot": "대한철근"
         }
       ],
       "sanctions": [
@@ -197,9 +254,9 @@
         {
           "occurredAt": "2025-12-03",
           "accidentType": "추락(경미)",
-          "zone": "C구역 비계 인근",
           "resolution": "안전대 착용 재교육·펜스 보강",
-          "severe": false
+          "zoneMain": "C구역 비계 인근",
+          "zoneSub": null
         }
       ],
       "attendanceRecords": [
@@ -207,21 +264,81 @@
           "workDate": "2026-05-02",
           "clockIn": "06:50:00",
           "clockOut": "17:10:00",
-          "manDays": 1.0,
+          "manDays": 1,
           "attendanceStatus": "PRESENT",
-          "zone": "C구역",
-          "closed": false
+          "zoneMain": "C구역",
+          "zoneSub": null,
+          "assignedTrade": "철근",
+          "employmentKind": "REGULAR"
         },
         {
           "workDate": "2026-05-04",
           "clockIn": "06:50:00",
           "clockOut": "17:10:00",
-          "manDays": 1.0,
+          "manDays": 1,
           "attendanceStatus": "PRESENT",
-          "zone": "C구역",
-          "closed": false
+          "zoneMain": "C구역",
+          "zoneSub": null,
+          "assignedTrade": "철근",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-05-01",
+          "clockIn": "06:52:00",
+          "clockOut": "17:15:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "C구역",
+          "zoneSub": "지상 1층",
+          "assignedTrade": "철근",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-28",
+          "clockIn": "06:48:00",
+          "clockOut": "18:00:00",
+          "manDays": 1.25,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "C구역",
+          "zoneSub": "지상 2층",
+          "assignedTrade": "철근",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-22",
+          "clockIn": "06:50:00",
+          "clockOut": "17:20:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "D구역",
+          "zoneSub": "코어부 벽체",
+          "assignedTrade": "철근",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-15",
+          "clockIn": "06:55:00",
+          "clockOut": "17:00:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "C구역",
+          "zoneSub": "비계 인근 슬래브",
+          "assignedTrade": "철근",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-03-30",
+          "clockIn": "07:05:00",
+          "clockOut": "17:00:00",
+          "manDays": 1,
+          "attendanceStatus": "LATE",
+          "zoneMain": "B구역",
+          "zoneSub": "지하 1층 기초",
+          "assignedTrade": "철근",
+          "employmentKind": "REGULAR"
         }
-      ]
+      ],
+      "employmentKind": "REGULAR"
     },
     {
       "externalCode": "DEMO-004",
@@ -237,6 +354,7 @@
       "siteCode": "GN-A",
       "bloodType": "AB",
       "profileImageUrl": null,
+      "registeredAt": "2025-07-20",
       "documents": [
         {
           "title": "현장 총책임자 선임 서류",
@@ -247,14 +365,6 @@
           "title": "발주처 안전협약 서명본",
           "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
           "storedFileName": "DEMO-004_안전협약.pdf"
-        }
-      ],
-      "zoneHistory": [
-        {
-          "assignedAt": "2026-04-01",
-          "zone": "현장 전반",
-          "workType": "총괄·안전 총점검",
-          "partnerCompanySnapshot": null
         }
       ],
       "sanctions": [
@@ -270,16 +380,16 @@
         {
           "occurredAt": "2026-01-08",
           "accidentType": "넘어짐(경미)",
-          "zone": "A구역 출입로",
           "resolution": "현장 응급처치·유사구간 미끄럼방지 조치",
-          "severe": false
+          "zoneMain": "A구역 출입로",
+          "zoneSub": null
         },
         {
           "occurredAt": "2025-11-02",
           "accidentType": "협착",
-          "zone": "본관 승강기 주변",
           "resolution": "작업동선 분리·표지판 추가",
-          "severe": true
+          "zoneMain": "본관 승강기 주변",
+          "zoneSub": null
         }
       ],
       "attendanceRecords": [
@@ -289,10 +399,57 @@
           "clockOut": "18:30:00",
           "manDays": 1.5,
           "attendanceStatus": "PRESENT",
-          "zone": "본관",
-          "closed": false
+          "zoneMain": "본관",
+          "zoneSub": null,
+          "assignedTrade": "총괄",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-05-01",
+          "clockIn": "06:30:00",
+          "clockOut": "19:00:00",
+          "manDays": 1.5,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "본관",
+          "zoneSub": "현장 사무실",
+          "assignedTrade": "총괄",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-30",
+          "clockIn": "06:35:00",
+          "clockOut": "18:10:00",
+          "manDays": 1.25,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "A구역",
+          "zoneSub": "출입 게이트",
+          "assignedTrade": "총괄",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-25",
+          "clockIn": "06:40:00",
+          "clockOut": "18:00:00",
+          "manDays": 1.25,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "C구역",
+          "zoneSub": "타워크레인 인근",
+          "assignedTrade": "총괄",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-20",
+          "clockIn": "06:45:00",
+          "clockOut": "17:50:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "B구역",
+          "zoneSub": "옥상 안전점검",
+          "assignedTrade": "총괄",
+          "employmentKind": "REGULAR"
         }
-      ]
+      ],
+      "employmentKind": "REGULAR"
     },
     {
       "externalCode": "DEMO-005",
@@ -308,6 +465,7 @@
       "siteCode": "GN-A",
       "bloodType": "A",
       "profileImageUrl": null,
+      "registeredAt": "2025-11-12",
       "documents": [
         {
           "title": "용접기 특별안전교육 이수증",
@@ -318,20 +476,6 @@
           "title": "호흡보호구 적합증명",
           "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
           "storedFileName": "DEMO-005_호흡보호구.pdf"
-        }
-      ],
-      "zoneHistory": [
-        {
-          "assignedAt": "2026-04-22",
-          "zone": "D구역 (용접 부스)",
-          "workType": "부속 용접",
-          "partnerCompanySnapshot": "성신용접"
-        },
-        {
-          "assignedAt": "2026-03-18",
-          "zone": "구조물 연결부",
-          "workType": "현장 용접",
-          "partnerCompanySnapshot": "성신용접"
         }
       ],
       "sanctions": [
@@ -347,9 +491,9 @@
         {
           "occurredAt": "2025-11-20",
           "accidentType": "화상",
-          "zone": "D구역 용접 부스",
           "resolution": "병원 이송·현장 화기작업 절차 개정",
-          "severe": true
+          "zoneMain": "D구역 용접 부스",
+          "zoneSub": null
         }
       ],
       "attendanceRecords": [
@@ -359,19 +503,68 @@
           "clockOut": null,
           "manDays": 0,
           "attendanceStatus": "ABSENT",
-          "zone": null,
-          "closed": false
+          "zoneMain": null,
+          "zoneSub": null,
+          "assignedTrade": "용접",
+          "employmentKind": "REGULAR"
         },
         {
           "workDate": "2026-05-01",
           "clockIn": "06:55:00",
           "clockOut": "17:00:00",
-          "manDays": 1.0,
+          "manDays": 1,
           "attendanceStatus": "PRESENT",
-          "zone": "D구역",
-          "closed": false
+          "zoneMain": "D구역",
+          "zoneSub": null,
+          "assignedTrade": "용접",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-30",
+          "clockIn": "06:50:00",
+          "clockOut": "17:30:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "D구역",
+          "zoneSub": "용접 부스 1번",
+          "assignedTrade": "용접",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-25",
+          "clockIn": "06:53:00",
+          "clockOut": "17:10:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "C구역",
+          "zoneSub": "비계 인근 강재 가공",
+          "assignedTrade": "용접",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-18",
+          "clockIn": "06:58:00",
+          "clockOut": "16:50:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "D구역",
+          "zoneSub": "강재 적치장",
+          "assignedTrade": "용접",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-08",
+          "clockIn": null,
+          "clockOut": null,
+          "manDays": 0,
+          "attendanceStatus": "ABSENT",
+          "zoneMain": null,
+          "zoneSub": null,
+          "assignedTrade": "용접",
+          "employmentKind": "REGULAR"
         }
-      ]
+      ],
+      "employmentKind": "REGULAR"
     },
     {
       "externalCode": "DEMO-006",
@@ -387,6 +580,7 @@
       "siteCode": "GN-A",
       "bloodType": "O",
       "profileImageUrl": null,
+      "registeredAt": "2026-02-03",
       "documents": [
         {
           "title": "기초안전보건교육 이수증",
@@ -397,14 +591,6 @@
           "title": "일용직 근로계약 확인서",
           "fileUrl": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
           "storedFileName": "DEMO-006_근로계약.pdf"
-        }
-      ],
-      "zoneHistory": [
-        {
-          "assignedAt": "2026-04-25",
-          "zone": "A구역 (보조)",
-          "workType": "자재 정리·보조",
-          "partnerCompanySnapshot": "강남인력사무소"
         }
       ],
       "sanctions": [
@@ -420,9 +606,9 @@
         {
           "occurredAt": "2026-02-20",
           "accidentType": "미끄러짐",
-          "zone": "우천 시 진입로",
           "resolution": "방습 매트·유의 표지",
-          "severe": false
+          "zoneMain": "우천 시 진입로",
+          "zoneSub": null
         }
       ],
       "attendanceRecords": [
@@ -432,19 +618,68 @@
           "clockOut": "12:30:00",
           "manDays": 0.5,
           "attendanceStatus": "EARLY_LEAVE",
-          "zone": "A구역",
-          "closed": false
+          "zoneMain": "A구역",
+          "zoneSub": null,
+          "assignedTrade": "인력",
+          "employmentKind": "DAILY"
         },
         {
           "workDate": "2026-05-01",
           "clockIn": "07:10:00",
           "clockOut": "17:00:00",
-          "manDays": 1.0,
+          "manDays": 1,
           "attendanceStatus": "PRESENT",
-          "zone": "A구역",
-          "closed": false
+          "zoneMain": "A구역",
+          "zoneSub": null,
+          "assignedTrade": "인력",
+          "employmentKind": "DAILY"
+        },
+        {
+          "workDate": "2026-04-30",
+          "clockIn": "07:00:00",
+          "clockOut": "17:05:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "A구역",
+          "zoneSub": "지상 1층 자재 운반",
+          "assignedTrade": "인력",
+          "employmentKind": "DAILY"
+        },
+        {
+          "workDate": "2026-04-26",
+          "clockIn": "07:08:00",
+          "clockOut": "16:55:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "B구역",
+          "zoneSub": "옥상 자재 양중",
+          "assignedTrade": "인력",
+          "employmentKind": "DAILY"
+        },
+        {
+          "workDate": "2026-04-22",
+          "clockIn": "07:12:00",
+          "clockOut": "13:00:00",
+          "manDays": 0.5,
+          "attendanceStatus": "EARLY_LEAVE",
+          "zoneMain": "C구역",
+          "zoneSub": "지하 2층 청소",
+          "assignedTrade": "인력",
+          "employmentKind": "DAILY"
+        },
+        {
+          "workDate": "2026-04-15",
+          "clockIn": "07:05:00",
+          "clockOut": "17:10:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "본관",
+          "zoneSub": "자재 야적장 정리",
+          "assignedTrade": "인력",
+          "employmentKind": "DAILY"
         }
-      ]
+      ],
+      "employmentKind": "DAILY"
     },
     {
       "externalCode": "DEMO-007",
@@ -460,6 +695,7 @@
       "siteCode": "GN-A",
       "bloodType": "B",
       "profileImageUrl": null,
+      "registeredAt": "2026-01-10",
       "documents": [
         {
           "title": "마감공정 안전교육 이수증",
@@ -467,22 +703,14 @@
           "storedFileName": "DEMO-007_마감안전교육.pdf"
         }
       ],
-      "zoneHistory": [
-        {
-          "assignedAt": "2026-04-18",
-          "zone": "실내 마감 구역",
-          "workType": "타일 시공",
-          "partnerCompanySnapshot": "미래타일"
-        }
-      ],
       "sanctions": [],
       "accidents": [
         {
           "occurredAt": "2026-04-02",
           "accidentType": "미끄러짐",
-          "zone": "실내 마감 구역",
           "resolution": "바닥 건조 유도·미끄럼방지 매트",
-          "severe": false
+          "zoneMain": "실내 마감 구역",
+          "zoneSub": null
         }
       ],
       "attendanceRecords": [
@@ -490,12 +718,59 @@
           "workDate": "2026-05-02",
           "clockIn": "06:52:00",
           "clockOut": "17:08:00",
-          "manDays": 1.0,
+          "manDays": 1,
           "attendanceStatus": "PRESENT",
-          "zone": "실내 마감",
-          "closed": false
+          "zoneMain": "실내 마감",
+          "zoneSub": null,
+          "assignedTrade": "타일",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-05-01",
+          "clockIn": "06:50:00",
+          "clockOut": "17:00:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "실내 마감",
+          "zoneSub": "1101호 욕실",
+          "assignedTrade": "타일",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-28",
+          "clockIn": "06:55:00",
+          "clockOut": "17:05:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "실내 마감",
+          "zoneSub": "1102호 주방",
+          "assignedTrade": "타일",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-20",
+          "clockIn": "06:58:00",
+          "clockOut": "17:00:00",
+          "manDays": 1,
+          "attendanceStatus": "PRESENT",
+          "zoneMain": "실내 마감",
+          "zoneSub": "902호 욕실",
+          "assignedTrade": "타일",
+          "employmentKind": "REGULAR"
+        },
+        {
+          "workDate": "2026-04-12",
+          "clockIn": "07:20:00",
+          "clockOut": "17:10:00",
+          "manDays": 1,
+          "attendanceStatus": "LATE",
+          "zoneMain": "실내 마감",
+          "zoneSub": "801호 현관",
+          "assignedTrade": "타일",
+          "employmentKind": "REGULAR"
         }
-      ]
+      ],
+      "employmentKind": "REGULAR"
     }
   ]
 }

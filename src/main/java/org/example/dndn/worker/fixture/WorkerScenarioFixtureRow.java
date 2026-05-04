@@ -4,6 +4,7 @@ import lombok.*;
 import org.example.dndn.worker.model.entity.Worker;
 import org.example.dndn.worker.model.enums.AffiliationKind;
 import org.example.dndn.worker.model.enums.AttendanceStatus;
+import org.example.dndn.worker.model.enums.EmploymentKind;
 import org.example.dndn.worker.model.enums.JobRank;
 
 import java.math.BigDecimal;
@@ -34,9 +35,13 @@ public class WorkerScenarioFixtureRow {
     private String siteCode;
     private String bloodType;
     private String profileImageUrl;
+    /** 최초등록일 — 본인 마스터 신규 생성 시 채워지며, updateFromSync 에서는 덮어쓰지 않는다. */
+    private LocalDate registeredAt;
+
+    /** 인사·픽스처 루트에서 받는 상용(REGULAR)·일용(DAILY). 없으면 마스터·근태 모두 {@link EmploymentKind#REGULAR} 로 적재 */
+    private EmploymentKind employmentKind;
 
     private List<DocumentFixtureRow> documents;
-    private List<ZoneHistoryFixtureRow> zoneHistory;
     private List<SanctionFixtureRow> sanctions;
     private List<AccidentFixtureRow> accidents;
     private List<AttendanceFixtureRow> attendanceRecords;
@@ -52,9 +57,12 @@ public class WorkerScenarioFixtureRow {
                 .affiliationKind(this.affiliationKind)
                 .partnerCompany(this.partnerCompany)
                 .subLabel(this.subLabel)
+                .employmentKind(this.employmentKind != null ? this.employmentKind : EmploymentKind.REGULAR)
                 .site(this.site)
+                .siteCode(this.siteCode)
                 .bloodType(this.bloodType)
                 .profileImageUrl(this.profileImageUrl)
+                .registeredAt(this.registeredAt)
                 .build();
     }
 
@@ -67,18 +75,6 @@ public class WorkerScenarioFixtureRow {
         private String title;
         private String fileUrl;
         private String storedFileName;
-    }
-
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class ZoneHistoryFixtureRow {
-        private LocalDate assignedAt;
-        private String zone;
-        private String workType;
-        private String partnerCompanySnapshot;
     }
 
     @Getter
@@ -102,9 +98,9 @@ public class WorkerScenarioFixtureRow {
     public static class AccidentFixtureRow {
         private LocalDate occurredAt;
         private String accidentType;
-        private String zone;
+        private String zoneMain;
+        private String zoneSub;
         private String resolution;
-        private boolean severe;
     }
 
     @Getter
@@ -118,7 +114,9 @@ public class WorkerScenarioFixtureRow {
         private LocalTime clockOut;
         private BigDecimal manDays;
         private AttendanceStatus attendanceStatus;
-        private String zone;
-        private boolean closed;
+        private String zoneMain;
+        private String zoneSub;
+        private String assignedTrade;
+        private EmploymentKind employmentKind;
     }
 }

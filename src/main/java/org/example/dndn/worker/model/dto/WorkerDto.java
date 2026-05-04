@@ -6,6 +6,7 @@ import org.example.dndn.worker.model.entity.AttendanceRecord;
 import org.example.dndn.worker.model.entity.Worker;
 import org.example.dndn.worker.model.enums.AffiliationKind;
 import org.example.dndn.worker.model.enums.AttendanceStatus;
+import org.example.dndn.worker.model.enums.EmploymentKind;
 import org.example.dndn.worker.model.enums.JobRank;
 
 import java.time.LocalDate;
@@ -65,7 +66,6 @@ public class WorkerDto {
         private int updated;
         private int total;
         private int documentsSynced;
-        private int zoneHistoriesSynced;
         private int sanctionsSynced;
         private int accidentsSynced;
         private int attendanceRecordsSynced;
@@ -84,7 +84,7 @@ public class WorkerDto {
         private AttendanceStatus attendanceStatus;
     }
 
-    // 목록 상단 KPI (총 인원에 대한 출근/지각/조퇴/결근)
+    // 목록 상단 KPI (총 인원에 대한 출근/지각/퇴근/조퇴/결근)
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -93,13 +93,18 @@ public class WorkerDto {
         private int pending;
         private int present;
         private int late;
+        /** 규정 퇴근 시각 이후 정상 퇴근 처리된 인원 */
+        private int leave;
         private int earlyLeave;
         private int absent;
         private int total;
     }
 
-    // MANAGEMENT_002/003 Worker 1행 조회.
-    // 컬럼: 이름/연락처, 비상연락망/관계, 소속, 직급, 출/퇴근 시간, 상태, 상세보기 ID
+    /**
+     * MANAGEMENT_002/003 Worker 1행 조회.
+     * 「상용/일용」은 조회일 {@link AttendanceRecord#getEmploymentKind()} → {@link #employmentKind}.
+     * {@link #subLabel} 은 마스터 테이블에 저장되는 공종 라벨이다.
+     */
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -108,13 +113,12 @@ public class WorkerDto {
         private Long idx;
         private String name;
         private String phone;
-        private String emergencyPhone;
-        private String emergencyRelation;
         private JobRank jobRank;
         private AffiliationKind affiliationKind;
         private String partnerCompany;
         private String subLabel;
         private String site;
+        private EmploymentKind employmentKind;
         private LocalTime clockIn;
         private LocalTime clockOut;
         private AttendanceStatus attendanceStatus;
@@ -124,13 +128,12 @@ public class WorkerDto {
                     .idx(w.getIdx())
                     .name(w.getName())
                     .phone(w.getPhone())
-                    .emergencyPhone(w.getEmergencyPhone())
-                    .emergencyRelation(w.getEmergencyRelation())
                     .jobRank(w.getJobRank())
                     .affiliationKind(w.getAffiliationKind())
                     .partnerCompany(w.getPartnerCompany())
                     .subLabel(w.getSubLabel())
                     .site(w.getSite())
+                    .employmentKind(a == null ? null : a.getEmploymentKind())
                     .clockIn(a == null ? null : a.getClockIn())
                     .clockOut(a == null ? null : a.getClockOut())
                     .attendanceStatus(a == null ? AttendanceStatus.ABSENT : a.getAttendanceStatus())
