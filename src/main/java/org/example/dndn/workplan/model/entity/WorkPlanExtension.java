@@ -1,4 +1,4 @@
-package org.example.dndn.workplan.model;
+package org.example.dndn.workplan.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -26,16 +26,13 @@ public class WorkPlanExtension extends BaseEntity {
     private String reason;           // 연장 사유 (공정 분석 결과)
     private LocalDate decidedAt;     // 반영일
 
-    /**
-     * 양방향 연관관계 - WorkPlan에서 호출
-     */
+
     public void bindWorkPlan(WorkPlan workPlan) {
         this.workPlan = workPlan;
     }
 
-    /**
-     * 연장 정보 수정
-     */
+
+     // 연장 정보 수정
     public void update(LocalDate extendedEnd, Integer addedDays, String reason, LocalDate decidedAt) {
         this.extendedEnd = extendedEnd;
         this.addedDays = addedDays;

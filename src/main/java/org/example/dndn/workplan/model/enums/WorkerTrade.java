@@ -1,4 +1,4 @@
-package org.example.dndn.workplan.model;
+package org.example.dndn.workplan.model.enums;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

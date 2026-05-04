@@ -1,8 +1,9 @@
-package org.example.dndn.workplan.model;
+package org.example.dndn.workplan.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndn.common.model.BaseEntity;
+import org.example.dndn.workplan.model.enums.WorkerTrade;
 
 @AllArgsConstructor
 @NoArgsConstructor
