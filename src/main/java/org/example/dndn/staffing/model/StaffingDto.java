@@ -3,6 +3,7 @@ package org.example.dndn.staffing.model;
 import lombok.*;
 
 import java.util.List;
+import java.util.Map;
 
 public class StaffingDto {
 
@@ -49,6 +50,56 @@ public class StaffingDto {
                     .title(zs.getTitle())
                     .required(zs.getRequired())
                     .assignedCount(zs.getAssignments().size())
+                    .build();
+        }
+    }
+
+    // STAFFING_004 — 상세 구역(ZoneSub) 단건 및 직종별 필요/충원
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ZoneSubRes {
+        private Long idx;
+        private Long zoneMainIdx;
+        private String title;
+        private int required;
+        private int assignedCount;
+        private List<TradeNeedRes> tradeNeeds;
+
+        // 직종별 현재 해당 ZoneSub 에 투입된 인원 수(마스터 공종으로 분류)
+        public static ZoneSubRes from(ZoneSub zs, Map<Trade, Integer> filledByTrade) {
+            return ZoneSubRes.builder()
+                    .idx(zs.getIdx())
+                    .zoneMainIdx(zs.getZoneMain().getIdx())
+                    .title(zs.getTitle())
+                    .required(zs.getRequired())
+                    .assignedCount(zs.getAssignments().size())
+                    .tradeNeeds(zs.getTradeNeeds().stream()
+                            .map(tn -> TradeNeedRes.from(
+                                    tn, filledByTrade.getOrDefault(tn.getTrade(), 0)))
+                            .toList())
+                    .build();
+        }
+    }
+
+    // STAFFING_004 내 직종별 필요 인원 1건
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class TradeNeedRes {
+        private Long idx;
+        private Trade trade;
+        private int need;
+        private int filled;
+
+        public static TradeNeedRes from(TradeNeed t, int filled) {
+            return TradeNeedRes.builder()
+                    .idx(t.getIdx())
+                    .trade(t.getTrade())
+                    .need(t.getNeed())
+                    .filled(filled)
                     .build();
         }
     }

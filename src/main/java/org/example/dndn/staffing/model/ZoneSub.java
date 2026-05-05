@@ -34,5 +34,11 @@ public class ZoneSub extends BaseEntity {
     @BatchSize(size = 64)
     @OneToMany(mappedBy = "zoneSub", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
+    @OrderBy("trade ASC")
+    private List<TradeNeed> tradeNeeds = new ArrayList<>();
+
+    @BatchSize(size = 64)
+    @OneToMany(mappedBy = "zoneSub", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<StaffingAssignment> assignments = new ArrayList<>();
 }
