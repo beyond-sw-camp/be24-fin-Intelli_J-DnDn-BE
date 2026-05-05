@@ -39,6 +39,17 @@ public class StaffingDto {
         }
     }
 
+    // STAFFING_007 — 상세 구역에 미투입 작업자 수동 배치 (subZoneIdx 는 경로변수와 동기화 가능)
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class AssignReq {
+        private Long subZoneIdx;
+        private List<Long> workerIds;
+    }
+
     // STAFFING_003 — 기본 구역 정보 조회 응답
     @Getter
     @NoArgsConstructor

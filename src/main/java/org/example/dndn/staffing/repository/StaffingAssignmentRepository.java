@@ -25,6 +25,8 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
 
     boolean existsByZoneSub_IdxAndWorkerIdx(Long zoneSubIdx, Long workerIdx);
 
+    boolean existsByWorkerIdx(Long workerIdx);
+
     @Query("""
             select a from StaffingAssignment a
                 join fetch a.zoneSub zs

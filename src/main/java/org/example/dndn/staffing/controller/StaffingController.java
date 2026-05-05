@@ -5,6 +5,7 @@ import org.example.dndn.common.model.BaseResponse;
 import org.example.dndn.staffing.model.StaffingDto;
 import org.example.dndn.staffing.service.StaffingService;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -62,6 +63,19 @@ public class StaffingController {
     ) {
         staffingService.unassignWorkerFromZoneSub(zoneSubIdx, workerIdx, rosterDate);
         return ResponseEntity.ok(BaseResponse.success(null));
+    }
+
+    // STAFFING_007 — 상세 구역에 작업자 수동 배치
+    @PostMapping("/zones/{zoneSubIdx}/assign")
+    public ResponseEntity<BaseResponse<Void>> assignWorkers(
+            @PathVariable Long zoneSubIdx,
+            @RequestBody StaffingDto.AssignReq req,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
+    ) {
+        req.setSubZoneIdx(zoneSubIdx);
+        staffingService.assignWorkers(zoneSubIdx, req, rosterDate);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(BaseResponse.success("배치 완료", null));
     }
 
     // STAFFING_002 — 투입 인원 초기화.

@@ -6,6 +6,7 @@ import org.example.dndn.staffing.model.StaffingAssignment;
 import org.example.dndn.staffing.model.StaffingDto;
 import org.example.dndn.staffing.model.Trade;
 import org.example.dndn.staffing.model.TradeNeed;
+import org.example.dndn.staffing.model.ZoneMain;
 import org.example.dndn.staffing.model.ZoneSub;
 import org.example.dndn.staffing.repository.StaffingAssignmentRepository;
 import org.example.dndn.staffing.repository.TradeNeedRepository;
@@ -19,12 +20,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.example.dndn.common.model.BaseResponseStatus.ASSIGN_OVERFLOW;
 import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
 
 @Service
@@ -118,6 +122,68 @@ public class StaffingService {
         assignmentRepository.deleteByZoneSub_IdxAndWorkerIdx(zoneSubIdx, workerIdx);
         assignmentRepository.flush();
         syncAttendanceZoneForStaffingWorker(workerIdx, date);
+    }
+
+    // STAFFING_007 — 미투입({@code JobRank.WORKER})만 상세 구역에 수동 배치.
+    @Transactional
+    public void assignWorkers(Long zoneSubIdx, StaffingDto.AssignReq req, LocalDate rosterDate) {
+        LocalDate date = rosterDate != null ? rosterDate : LocalDate.now();
+        if (req == null) {
+            throw new BaseException(FAIL);
+        }
+
+        List<Long> ids = req.getWorkerIds();
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+
+        ZoneSub zs = zoneSubRepository.findWithStaffingRelationsByIdx(zoneSubIdx)
+                .orElseThrow(() -> new BaseException(FAIL));
+
+        LinkedHashSet<Long> unique = new LinkedHashSet<>(ids);
+        List<Long> toBind = new ArrayList<>(unique.size());
+        for (Long workerIdx : unique) {
+            if (workerIdx == null) {
+                throw new BaseException(FAIL);
+            }
+            if (assignmentRepository.existsByZoneSub_IdxAndWorkerIdx(zoneSubIdx, workerIdx)) {
+                continue;
+            }
+            if (assignmentRepository.existsByWorkerIdx(workerIdx)) {
+                throw new BaseException(FAIL);
+            }
+
+            Worker worker = workerRepository.findById(workerIdx).orElseThrow(() -> new BaseException(FAIL));
+            if (worker.getJobRank() != JobRank.WORKER) {
+                throw new BaseException(FAIL);
+            }
+            toBind.add(workerIdx);
+        }
+
+        if (toBind.isEmpty()) {
+            return;
+        }
+
+        int assigned = zs.getAssignments().size();
+        int remaining = Math.max(0, zs.getRequired() - assigned);
+        if (toBind.size() > remaining) {
+            throw new BaseException(ASSIGN_OVERFLOW);
+        }
+
+        ZoneMain zm = zs.getZoneMain();
+        for (Long workerIdx : toBind) {
+            assignmentRepository.save(StaffingAssignment.builder()
+                    .zoneSub(zs)
+                    .workerIdx(workerIdx)
+                    .confirmed(false)
+                    .build());
+        }
+        assignmentRepository.flush();
+
+        for (Long workerIdx : toBind) {
+            attendanceDeploymentSyncService.applyZonePlacementIfPresent(
+                    workerIdx, date, zm.getTitle(), zs.getTitle());
+        }
     }
 
     private void syncAttendanceZoneForStaffingWorker(Long workerIdx, LocalDate rosterDate) {

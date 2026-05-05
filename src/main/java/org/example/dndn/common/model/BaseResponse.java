@@ -23,6 +23,11 @@ public class BaseResponse<T> {
         );
     }
 
+    // success method overloading
+    public static <T> BaseResponse<T> success(String message, T data) {
+        return new BaseResponse<>(SUCCESS.isSuccess(), SUCCESS.getCode(), message, data);
+    }
+
     public static BaseResponse<Void> fail(BaseResponseStatus status) {
         return new BaseResponse<>(
                 status.isSuccess(),
