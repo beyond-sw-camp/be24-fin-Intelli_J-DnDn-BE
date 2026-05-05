@@ -175,7 +175,7 @@ public class StaffingDto {
         private String affiliationLine;
         /** 당일 명단 근태 기준 고용구분(REGULAR 상용 · DAILY 일용); STAFFING_006 에서 선택적으로 null */
         private EmploymentKind employmentKind;
-        /** 피로도 점수 — 산출 로직 추후 적용 예정(STAFFING_008). 현재는 0 고정. */
+        /** 피로도 점수(0–100) — 마지막 산정 스냅샷(STAFFING_008). 프로필 조회 시 갱신될 수 있다. */
         private int fatigueScore;
         // 기본구역 · 상세구역 배치 문자열 ("미투입" 허용)
         private String placement;
@@ -215,7 +215,7 @@ public class StaffingDto {
                     .partnerCompany(worker.getPartnerCompany())
                     .employmentKind(rosterEmploymentKind)
                     .affiliationLine(line)
-                    .fatigueScore(0)
+                    .fatigueScore(worker.getFatigueScoreTotal())
                     .placement(placementText)
                     .assigned(isAssigned)
                     .build();
