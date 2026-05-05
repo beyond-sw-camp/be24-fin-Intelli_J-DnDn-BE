@@ -144,16 +144,14 @@ public class StaffingService {
                 .toList();
     }
 
-    // STAFFING_006 DELETE — 해당 ZoneSub 에서 작업자 미투입 처리
+    // STAFFING_006 DELETE — 해당 ZoneSub 에서 배치 행만 삭제(근태 구역은 최종배치 /staffing/save 시에만 반영).
     @Transactional
     public void unassignWorkerFromZoneSub(Long zoneSubIdx, Long workerIdx, LocalDate rosterDate) {
-        LocalDate date = rosterDate != null ? rosterDate : LocalDate.now();
         if (!assignmentRepository.existsByZoneSub_IdxAndWorkerIdx(zoneSubIdx, workerIdx)) {
             return;
         }
         assignmentRepository.deleteByZoneSub_IdxAndWorkerIdx(zoneSubIdx, workerIdx);
         assignmentRepository.flush();
-        syncAttendanceZoneForStaffingWorker(workerIdx, date);
     }
 
     // STAFFING_008 근태 명단 필터 — PRESENT·LATE(지각)만 포함
@@ -209,10 +207,9 @@ public class StaffingService {
         return StaffingDto.WorkerPoolRes.builder().totalCount(rows.size()).rows(rows).build();
     }
 
-    // STAFFING_007 — 미투입({@code JobRank.WORKER})만 상세 구역에 수동 배치.
+    // STAFFING_007 — 미투입({@code JobRank.WORKER})만 상세 구역에 초안 배치. staffing_assignment 만 저장; 근태 구역은 POST /staffing/save.
     @Transactional
     public void assignWorkers(Long zoneSubIdx, StaffingDto.AssignReq req, LocalDate rosterDate) {
-        LocalDate date = rosterDate != null ? rosterDate : LocalDate.now();
         if (req == null) {
             throw new BaseException(FAIL);
         }
@@ -255,7 +252,6 @@ public class StaffingService {
             throw new BaseException(ASSIGN_OVERFLOW);
         }
 
-        ZoneMain zm = zs.getZoneMain();
         for (Long workerIdx : toBind) {
             assignmentRepository.save(StaffingAssignment.builder()
                     .zoneSub(zs)
@@ -264,26 +260,6 @@ public class StaffingService {
                     .build());
         }
         assignmentRepository.flush();
-
-        for (Long workerIdx : toBind) {
-            attendanceDeploymentSyncService.applyZonePlacementIfPresent(
-                    workerIdx, date, zm.getTitle(), zs.getTitle());
-        }
-    }
-
-    private void syncAttendanceZoneForStaffingWorker(Long workerIdx, LocalDate rosterDate) {
-        List<StaffingAssignment> remaining =
-                assignmentRepository.findAssignmentsWithZonesByWorkerOrderByIdxAsc(workerIdx);
-        if (remaining.isEmpty()) {
-            attendanceDeploymentSyncService.clearPlacementIfPresent(workerIdx, rosterDate);
-            return;
-        }
-        StaffingAssignment chosen = remaining.get(0);
-        attendanceDeploymentSyncService.applyZonePlacementIfPresent(
-                workerIdx,
-                rosterDate,
-                chosen.getZoneSub().getZoneMain().getTitle(),
-                chosen.getZoneSub().getTitle());
     }
 
     private static EnumMap<Trade, Integer> mergeTradeNeedRequests(List<StaffingDto.TradeNeedReq> rows) {
@@ -335,6 +311,32 @@ public class StaffingService {
             attendanceDeploymentSyncService.clearPlacementIfPresent(workerIdx, date);
         }
         assignmentRepository.deleteAll();
+    }
+
+    /**
+     * 배치 확정(최종배치): 현재 {@code staffing_assignment} 의 구역을 해당 일 근태 행의
+     * {@code zone_main} / {@code zone_sub} 에 반영하고, 배치 행을 {@code confirmed = true} 로 둔다.
+     */
+    @Transactional
+    public StaffingDto.SaveSummaryRes finalizePlacementsToAttendance(LocalDate rosterDate) {
+        LocalDate date = rosterDate != null ? rosterDate : LocalDate.now();
+        List<StaffingAssignment> all = assignmentRepository.findAllWithZoneHierarchyOrderByIdxAsc();
+        if (all.isEmpty()) {
+            return StaffingDto.SaveSummaryRes.builder().assignedCount(0).unassignedCount(0).build();
+        }
+        for (StaffingAssignment a : all) {
+            ZoneSub zs = a.getZoneSub();
+            ZoneMain zm = zs.getZoneMain();
+            attendanceDeploymentSyncService.applyZonePlacementIfPresent(
+                    a.getWorkerIdx(), date, zm.getTitle(), zs.getTitle());
+            a.markConfirmed(true);
+        }
+        assignmentRepository.saveAll(all);
+        assignmentRepository.flush();
+        return StaffingDto.SaveSummaryRes.builder()
+                .assignedCount(all.size())
+                .unassignedCount(0)
+                .build();
     }
 
     /**
@@ -403,7 +405,6 @@ public class StaffingService {
             if (remainingSlots <= 0) {
                 continue;
             }
-            ZoneMain zm = zs.getZoneMain();
             while (remainingSlots > 0 && !queue.isEmpty()) {
                 Worker w = queue.pollFirst();
                 assignmentRepository.save(StaffingAssignment.builder()
@@ -411,13 +412,11 @@ public class StaffingService {
                         .workerIdx(w.getIdx())
                         .confirmed(false)
                         .build());
-                assignmentRepository.flush();
-                attendanceDeploymentSyncService.applyZonePlacementIfPresent(
-                        w.getIdx(), date, zm.getTitle(), zs.getTitle());
                 assignedNow++;
                 remainingSlots--;
             }
         }
+        assignmentRepository.flush();
 
         return StaffingDto.SaveSummaryRes.builder()
                 .assignedCount(assignedNow)

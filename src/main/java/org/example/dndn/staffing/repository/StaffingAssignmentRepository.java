@@ -46,4 +46,13 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
             order by a.workerIdx asc, a.idx asc
             """)
     List<StaffingAssignment> findAllWithZonesByWorkerIdxIn(@Param("workerIdxes") Collection<Long> workerIdxes);
+
+    /** 최종배치 시 전체 배치 행 + 구역 계층 로드 */
+    @Query("""
+            select a from StaffingAssignment a
+                join fetch a.zoneSub zs
+                join fetch zs.zoneMain zm
+            order by a.idx asc
+            """)
+    List<StaffingAssignment> findAllWithZoneHierarchyOrderByIdxAsc();
 }

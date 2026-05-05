@@ -107,6 +107,18 @@ public class StaffingController {
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
+    /**
+     * 최종배치(확정): {@code staffing_assignment} → 당일 {@code attendance_record} 구역 반영.
+     * POST /staffing/save
+     */
+    @PostMapping("/save")
+    public ResponseEntity<BaseResponse<StaffingDto.SaveSummaryRes>> savePlacements(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
+    ) {
+        StaffingDto.SaveSummaryRes dto = staffingService.finalizePlacementsToAttendance(rosterDate);
+        return ResponseEntity.ok(BaseResponse.success("배치 저장 완료", dto));
+    }
+
     // STAFFING_002 — 투입 인원 초기화.
     @PostMapping("/reset")
     public ResponseEntity<BaseResponse<Void>> reset(

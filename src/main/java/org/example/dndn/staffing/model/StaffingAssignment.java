@@ -25,4 +25,9 @@ public class StaffingAssignment extends BaseEntity {
 
     @Column(nullable = false)
     private boolean confirmed;
+
+    /** 최종배치(`/staffing/save`) 반영 여부. 초안 배치에서는 {@code false}. */
+    public void markConfirmed(boolean confirmed) {
+        this.confirmed = confirmed;
+    }
 }
