@@ -3,6 +3,7 @@ package org.example.dndn.staffing.model;
 import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndn.common.model.BaseEntity;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +31,7 @@ public class ZoneSub extends BaseEntity {
 
     private int displayOrder;
 
+    @BatchSize(size = 64)
     @OneToMany(mappedBy = "zoneSub", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<StaffingAssignment> assignments = new ArrayList<>();

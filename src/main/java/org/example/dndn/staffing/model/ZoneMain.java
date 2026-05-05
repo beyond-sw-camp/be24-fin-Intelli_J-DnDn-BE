@@ -3,6 +3,7 @@ package org.example.dndn.staffing.model;
 import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndn.common.model.BaseEntity;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,7 @@ public class ZoneMain extends BaseEntity {
 
     private int displayOrder;
 
+    @BatchSize(size = 64)
     @OneToMany(mappedBy = "zoneMain", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     @OrderBy("displayOrder ASC")
