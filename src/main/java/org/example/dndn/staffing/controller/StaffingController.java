@@ -34,13 +34,33 @@ public class StaffingController {
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
-    /** STAFFING_005 — 상세 구역(ZoneSub) 제목·직종별 필요 인원 수정 */
+    // STAFFING_005 — 상세 구역(ZoneSub) 제목·직종별 필요 인원 수정
     @PatchMapping("/zones/{zoneSubIdx}")
     public ResponseEntity<BaseResponse<Void>> patchZoneSub(
             @PathVariable Long zoneSubIdx,
             @RequestBody StaffingDto.ZoneUpdateReq req
     ) {
         staffingService.updateZoneSub(zoneSubIdx, req);
+        return ResponseEntity.ok(BaseResponse.success(null));
+    }
+
+    // STAFFING_006 — 해당 ZoneSub 배치 작업자 조회
+    @GetMapping("/zones/{zoneSubIdx}/workers")
+    public ResponseEntity<BaseResponse<List<StaffingDto.AssignedWorkerRes>>> getAssignedWorkers(
+            @PathVariable Long zoneSubIdx
+    ) {
+        List<StaffingDto.AssignedWorkerRes> dto = staffingService.loadAssignedWorkersForZoneSub(zoneSubIdx);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
+
+    // STAFFING_006 — 해당 ZoneSub 에서 작업자 미투입
+    @DeleteMapping("/zones/{zoneSubIdx}/workers/{workerIdx}")
+    public ResponseEntity<BaseResponse<Void>> unassignWorker(
+            @PathVariable Long zoneSubIdx,
+            @PathVariable Long workerIdx,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
+    ) {
+        staffingService.unassignWorkerFromZoneSub(zoneSubIdx, workerIdx, rosterDate);
         return ResponseEntity.ok(BaseResponse.success(null));
     }
 

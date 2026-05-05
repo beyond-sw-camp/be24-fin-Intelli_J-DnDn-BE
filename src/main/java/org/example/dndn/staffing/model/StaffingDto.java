@@ -1,6 +1,8 @@
 package org.example.dndn.staffing.model;
 
 import lombok.*;
+import org.example.dndn.worker.model.entity.Worker;
+import org.example.dndn.worker.model.enums.AffiliationKind;
 
 import java.util.List;
 import java.util.Map;
@@ -130,6 +132,49 @@ public class StaffingDto {
                     .trade(t.getTrade())
                     .need(t.getNeed())
                     .filled(filled)
+                    .build();
+        }
+    }
+
+    // STAFFING_006 해당 ZoneSub 에 배치된 작업자 1행
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class AssignedWorkerRes {
+        private Long workerIdx;
+        private String name;
+        private AffiliationKind affiliationKind;
+        private String partnerCompany;
+        private String affiliationLine;
+        private int fatigueScore;
+        // 기본구역 · 상세구역 배치 문자열
+        private String placement;
+        private boolean assigned;
+
+        public static AssignedWorkerRes from(Worker worker, StaffingAssignment assignment) {
+            String placementText = assignment.getZoneSub().getZoneMain().getTitle()
+                    + " · "
+                    + assignment.getZoneSub().getTitle();
+
+            boolean direct = worker.getAffiliationKind() == AffiliationKind.DIRECT;
+            String companyLabel = direct
+                    ? "본사"
+                    : (worker.getPartnerCompany() != null && !worker.getPartnerCompany().isBlank()
+                            ? worker.getPartnerCompany()
+                            : "협력사");
+            String sub = worker.getSubLabel();
+            String line = companyLabel + " / " + (sub == null ? "" : sub.trim());
+
+            return AssignedWorkerRes.builder()
+                    .workerIdx(worker.getIdx())
+                    .name(worker.getName())
+                    .affiliationKind(worker.getAffiliationKind())
+                    .partnerCompany(worker.getPartnerCompany())
+                    .affiliationLine(line)
+                    .fatigueScore(0)
+                    .placement(placementText)
+                    .assigned(true)
                     .build();
         }
     }

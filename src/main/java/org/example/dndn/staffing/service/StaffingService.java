@@ -12,6 +12,7 @@ import org.example.dndn.staffing.repository.TradeNeedRepository;
 import org.example.dndn.staffing.repository.ZoneMainRepository;
 import org.example.dndn.staffing.repository.ZoneSubRepository;
 import org.example.dndn.worker.model.entity.Worker;
+import org.example.dndn.worker.model.enums.JobRank;
 import org.example.dndn.worker.repository.WorkerRepository;
 import org.example.dndn.worker.service.AttendanceDeploymentSyncService;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ import java.time.LocalDate;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
@@ -82,6 +84,55 @@ public class StaffingService {
 
         int assignedNow = zs.getAssignments().size();
         zs.updateRequired(sum > 0 ? sum : Math.max(assignedNow, 1));
+    }
+
+    // STAFFING_006 GET — 해당 ZoneSub 에 배치된 작업자 목록
+    public List<StaffingDto.AssignedWorkerRes> loadAssignedWorkersForZoneSub(Long zoneSubIdx) {
+        if (!zoneSubRepository.existsById(zoneSubIdx)) {
+            throw new BaseException(FAIL);
+        }
+        List<StaffingAssignment> rows = assignmentRepository.findAllByZoneSubWithHierarchy(zoneSubIdx);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        List<Long> ids = rows.stream().map(StaffingAssignment::getWorkerIdx).distinct().toList();
+        Map<Long, Worker> workerMap = workerRepository.findAllById(ids).stream()
+                .filter(w -> w.getJobRank() == JobRank.WORKER)
+                .collect(Collectors.toMap(Worker::getIdx, w -> w, (a, b) -> a));
+        return rows.stream()
+                .map(a -> {
+                    Worker worker = workerMap.get(a.getWorkerIdx());
+                    return worker != null ? StaffingDto.AssignedWorkerRes.from(worker, a) : null;
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    // STAFFING_006 DELETE — 해당 ZoneSub 에서 작업자 미투입 처리
+    @Transactional
+    public void unassignWorkerFromZoneSub(Long zoneSubIdx, Long workerIdx, LocalDate rosterDate) {
+        LocalDate date = rosterDate != null ? rosterDate : LocalDate.now();
+        if (!assignmentRepository.existsByZoneSub_IdxAndWorkerIdx(zoneSubIdx, workerIdx)) {
+            return;
+        }
+        assignmentRepository.deleteByZoneSub_IdxAndWorkerIdx(zoneSubIdx, workerIdx);
+        assignmentRepository.flush();
+        syncAttendanceZoneForStaffingWorker(workerIdx, date);
+    }
+
+    private void syncAttendanceZoneForStaffingWorker(Long workerIdx, LocalDate rosterDate) {
+        List<StaffingAssignment> remaining =
+                assignmentRepository.findAssignmentsWithZonesByWorkerOrderByIdxAsc(workerIdx);
+        if (remaining.isEmpty()) {
+            attendanceDeploymentSyncService.clearPlacementIfPresent(workerIdx, rosterDate);
+            return;
+        }
+        StaffingAssignment chosen = remaining.get(0);
+        attendanceDeploymentSyncService.applyZonePlacementIfPresent(
+                workerIdx,
+                rosterDate,
+                chosen.getZoneSub().getZoneMain().getTitle(),
+                chosen.getZoneSub().getTitle());
     }
 
     private static EnumMap<Trade, Integer> mergeTradeNeedRequests(List<StaffingDto.TradeNeedReq> rows) {

@@ -9,7 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.Optional;
 
-// 인력 배치 초기화(STAFFING_002) 등과 연동하여 AttendanceRecord의 당일 구역·공종 필드를 초기화
 @Service
 @RequiredArgsConstructor
 public class AttendanceDeploymentSyncService {
@@ -22,8 +21,20 @@ public class AttendanceDeploymentSyncService {
         if (prev.isEmpty()) {
             return;
         }
-        AttendanceRecord old = prev.get();
+        replaceZones(prev.get(), null, null);
+    }
 
+    // 당일 명단 행이 있으면 구역 문자열만 갱신. 공종은 유지(STAFFING_002·006 등 연동용).
+    @Transactional
+    public void applyZonePlacementIfPresent(Long workerIdx, LocalDate workDate, String zoneMain, String zoneSub) {
+        Optional<AttendanceRecord> prev = attendanceRepository.findByWorkerIdxAndWorkDate(workerIdx, workDate);
+        if (prev.isEmpty()) {
+            return;
+        }
+        replaceZones(prev.get(), blankToNull(zoneMain), blankToNull(zoneSub));
+    }
+
+    private void replaceZones(AttendanceRecord old, String zoneMain, String zoneSub) {
         attendanceRepository.delete(old);
         attendanceRepository.flush();
         attendanceRepository.save(AttendanceRecord.builder()
@@ -33,10 +44,18 @@ public class AttendanceDeploymentSyncService {
                 .clockOut(old.getClockOut())
                 .manDays(old.getManDays())
                 .attendanceStatus(old.getAttendanceStatus())
-                .zoneMain(null)
-                .zoneSub(null)
+                .zoneMain(zoneMain)
+                .zoneSub(zoneSub)
                 .assignedTrade(old.getAssignedTrade())
                 .employmentKind(old.getEmploymentKind())
                 .build());
+    }
+
+    private static String blankToNull(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
     }
 }

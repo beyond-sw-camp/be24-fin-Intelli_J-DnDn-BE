@@ -3,6 +3,7 @@ package org.example.dndn.staffing.repository;
 import org.example.dndn.staffing.model.StaffingAssignment;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
@@ -10,4 +11,26 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
 
     @Query("select distinct a.workerIdx from StaffingAssignment a")
     List<Long> findDistinctAssignedWorkerIdxes();
+
+    @Query("""
+            select distinct a from StaffingAssignment a
+                join fetch a.zoneSub zs
+                join fetch zs.zoneMain zm
+            where zs.idx = :zoneSubIdx
+            order by a.idx asc
+            """)
+    List<StaffingAssignment> findAllByZoneSubWithHierarchy(@Param("zoneSubIdx") Long zoneSubIdx);
+
+    void deleteByZoneSub_IdxAndWorkerIdx(Long zoneSubIdx, Long workerIdx);
+
+    boolean existsByZoneSub_IdxAndWorkerIdx(Long zoneSubIdx, Long workerIdx);
+
+    @Query("""
+            select a from StaffingAssignment a
+                join fetch a.zoneSub zs
+                join fetch zs.zoneMain zm
+            where a.workerIdx = :workerIdx
+            order by a.idx asc
+            """)
+    List<StaffingAssignment> findAssignmentsWithZonesByWorkerOrderByIdxAsc(@Param("workerIdx") Long workerIdx);
 }
