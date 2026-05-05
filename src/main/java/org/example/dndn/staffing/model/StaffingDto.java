@@ -7,6 +7,36 @@ import java.util.Map;
 
 public class StaffingDto {
 
+    // STAFFING_005 요청 — 상세 구역(ZoneSub) 제목 및 직종별 필요 인원 전체 교체 표현
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ZoneUpdateReq {
+        private String title;
+        private List<TradeNeedReq> tradeNeeds;
+    }
+
+    // STAFFING_005 필요 직종 1건 (동일 trade 중복 요청 시 need 합산)
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class TradeNeedReq {
+        private Trade trade;
+        private int need;
+
+        public TradeNeed toEntity(ZoneSub zoneSub) {
+            return TradeNeed.builder()
+                    .zoneSub(zoneSub)
+                    .trade(trade)
+                    .need(Math.max(0, need))
+                    .build();
+        }
+    }
+
     // STAFFING_003 — 기본 구역 정보 조회 응답
     @Getter
     @NoArgsConstructor

@@ -34,6 +34,16 @@ public class StaffingController {
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
+    /** STAFFING_005 — 상세 구역(ZoneSub) 제목·직종별 필요 인원 수정 */
+    @PatchMapping("/zones/{zoneSubIdx}")
+    public ResponseEntity<BaseResponse<Void>> patchZoneSub(
+            @PathVariable Long zoneSubIdx,
+            @RequestBody StaffingDto.ZoneUpdateReq req
+    ) {
+        staffingService.updateZoneSub(zoneSubIdx, req);
+        return ResponseEntity.ok(BaseResponse.success(null));
+    }
+
     // STAFFING_002 — 투입 인원 초기화.
     @PostMapping("/reset")
     public ResponseEntity<BaseResponse<Void>> reset(

@@ -41,4 +41,13 @@ public class ZoneSub extends BaseEntity {
     @OneToMany(mappedBy = "zoneSub", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<StaffingAssignment> assignments = new ArrayList<>();
+
+    public void rename(String title) {
+        this.title = title;
+    }
+
+    // 필요 총 인원 합 또는 투입 수 기준 재계산
+    public void updateRequired(int required) {
+        this.required = required;
+    }
 }

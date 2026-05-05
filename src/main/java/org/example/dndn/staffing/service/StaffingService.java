@@ -5,8 +5,10 @@ import org.example.dndn.common.exception.BaseException;
 import org.example.dndn.staffing.model.StaffingAssignment;
 import org.example.dndn.staffing.model.StaffingDto;
 import org.example.dndn.staffing.model.Trade;
+import org.example.dndn.staffing.model.TradeNeed;
 import org.example.dndn.staffing.model.ZoneSub;
 import org.example.dndn.staffing.repository.StaffingAssignmentRepository;
+import org.example.dndn.staffing.repository.TradeNeedRepository;
 import org.example.dndn.staffing.repository.ZoneMainRepository;
 import org.example.dndn.staffing.repository.ZoneSubRepository;
 import org.example.dndn.worker.model.entity.Worker;
@@ -31,6 +33,7 @@ public class StaffingService {
     private final StaffingAssignmentRepository assignmentRepository;
     private final ZoneMainRepository zoneMainRepository;
     private final ZoneSubRepository zoneSubRepository;
+    private final TradeNeedRepository tradeNeedRepository;
     private final WorkerRepository workerRepository;
     private final AttendanceDeploymentSyncService attendanceDeploymentSyncService;
 
@@ -47,6 +50,54 @@ public class StaffingService {
                 .orElseThrow(() -> new BaseException(FAIL));
         EnumMap<Trade, Integer> filledByTrade = countAssignmentsByTrade(zs);
         return StaffingDto.ZoneSubRes.from(zs, filledByTrade);
+    }
+
+    // STAFFING_005 — 상세 구역 이름·직종별 필요 인원 갱신. 전부 삭제 후 요청 목록으로 재등록
+    @Transactional
+    public void updateZoneSub(Long zoneSubIdx, StaffingDto.ZoneUpdateReq req) {
+        if (req == null) {
+            throw new BaseException(FAIL);
+        }
+        ZoneSub zs = zoneSubRepository.findById(zoneSubIdx).orElseThrow(() -> new BaseException(FAIL));
+        if (req.getTitle() == null || req.getTitle().isBlank()) {
+            throw new BaseException(FAIL);
+        }
+        zs.rename(req.getTitle().trim());
+
+        tradeNeedRepository.deleteAllByZoneSub_Idx(zoneSubIdx);
+        tradeNeedRepository.flush();
+
+        EnumMap<Trade, Integer> mergedNeeds = mergeTradeNeedRequests(req.getTradeNeeds());
+
+        int sum = 0;
+        for (Map.Entry<Trade, Integer> entry : mergedNeeds.entrySet()) {
+            if (entry.getValue() <= 0) continue;
+            tradeNeedRepository.save(TradeNeed.builder()
+                    .zoneSub(zs)
+                    .trade(entry.getKey())
+                    .need(entry.getValue())
+                    .build());
+            sum += entry.getValue();
+        }
+
+        int assignedNow = zs.getAssignments().size();
+        zs.updateRequired(sum > 0 ? sum : Math.max(assignedNow, 1));
+    }
+
+    private static EnumMap<Trade, Integer> mergeTradeNeedRequests(List<StaffingDto.TradeNeedReq> rows) {
+        EnumMap<Trade, Integer> out = new EnumMap<>(Trade.class);
+        if (rows == null) {
+            return out;
+        }
+        for (StaffingDto.TradeNeedReq row : rows) {
+            if (row == null || row.getTrade() == null) {
+                continue;
+            }
+            int n = Math.max(0, row.getNeed());
+            if (n <= 0) continue;
+            out.merge(row.getTrade(), n, Integer::sum);
+        }
+        return out;
     }
 
     private EnumMap<Trade, Integer> countAssignmentsByTrade(ZoneSub zs) {
