@@ -4,8 +4,11 @@ import lombok.RequiredArgsConstructor;
 import org.example.dndn.common.model.BaseResponse;
 import org.example.dndn.workorder.model.WorkOrderDto;
 import org.example.dndn.workorder.model.WorkOrderEquipmentDto;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -52,6 +55,17 @@ public class WorkOrderController {
     @GetMapping("/draft-equipments/{planIdx}")
     public ResponseEntity<?> getDraftEquipments(@PathVariable Long planIdx) {
         List<WorkOrderEquipmentDto> list = workOrderService.getDraftEquipments(planIdx);
+        return ResponseEntity.ok(BaseResponse.success(list));
+    }
+
+    // [GATE_EQUIP_001] 중장비 입출차 현황 테이블 연동 API
+    // feat : 금일(또는 전체) 투입 장비 목록 - 게이트명 포함 응답
+    // NOTE: targetDate 미전달 시 오늘 날짜 기준으로 조회
+    @GetMapping("/gate-equipments")
+    public ResponseEntity<?> getGateEquipments(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate targetDate
+    ) {
+        List<WorkOrderDto.GateEquipmentRes> list = workOrderService.getGateEquipments(targetDate);
         return ResponseEntity.ok(BaseResponse.success(list));
     }
 }

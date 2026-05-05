@@ -8,6 +8,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import org.example.dndn.report.DailyReportRepository;
+import org.example.dndn.report.model.DailyReport;
+import org.example.dndn.workorder.WorkOrderRepository;
+import org.example.dndn.workorder.model.WorkOrder;
+import org.example.dndn.workorder.model.WorkOrderEquipment;
 import org.example.dndn.weather.model.WeatherInfo;
 import org.example.dndn.weather.model.WeatherInfoDto;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,6 +49,9 @@ public class WeatherInfoService {
     private final WeatherInfoRepository weatherInfoRepository;
     private final WeatherSnapshotWriter weatherSnapshotWriter;
     private final AirKoreaClient airKoreaClient;
+    // feat : 금일 공사일보 + 작업지시서 연동 — 날씨 기반 위험 분석에 실제 데이터 활용
+    private final DailyReportRepository dailyReportRepository;
+    private final WorkOrderRepository workOrderRepository;
 
     @Value("${weather.kma.service-key}")
     private String serviceKey;
@@ -158,7 +166,6 @@ public class WeatherInfoService {
                 .subSummary(buildWindGuide(selectedDay))
                 .build();
 
-        // 오늘 일중 최대 강수확률
         int todayMaxPop = defaultInt(selectedDay.getPrecipitationProbability());
 
         WeatherInfoDto.RainCard rainCard = WeatherInfoDto.RainCard.builder()
@@ -169,8 +176,9 @@ public class WeatherInfoService {
         Integer fineDustValue = airQualityCard.getValue();
         boolean fineDustRisk = fineDustValue != null && fineDustValue >= 80;
 
-        List<WeatherInfoDto.RiskItem> equipmentRisks = buildEquipmentRisks(selectedDay, alerts, fineDustValue);
-        List<WeatherInfoDto.RiskItem> planRisks = buildPlanRisks(selectedDay, alerts, fineDustValue);
+        // feat : targetDate 전달 → 실제 작업지시서·공사일보 데이터 기반 위험 분석
+        List<WeatherInfoDto.RiskItem> equipmentRisks = buildEquipmentRisks(selectedDay, alerts, fineDustValue, targetDate);
+        List<WeatherInfoDto.RiskItem> planRisks = buildPlanRisks(selectedDay, alerts, fineDustValue, targetDate);
 
         WeatherInfoDto.WeatherAnalysis analysis = WeatherInfoDto.WeatherAnalysis.builder()
                 .reportDate(targetDate.toString())
@@ -270,8 +278,8 @@ public class WeatherInfoService {
                 .rain(rainCard)
                 .airQuality(airQualityCard)
                 .analysis(analysis)
-                .equipmentRisks(buildEquipmentRisks(selectedDay, new ArrayList<>(), null))
-                .planRisks(buildPlanRisks(selectedDay, new ArrayList<>(), null))
+                .equipmentRisks(buildEquipmentRisks(selectedDay, new ArrayList<>(), null, targetDate))
+                .planRisks(buildPlanRisks(selectedDay, new ArrayList<>(), null, targetDate))
                 .alerts(new ArrayList<>())
                 .forecastDays(List.of(
                         WeatherInfoDto.ForecastDay.builder()
@@ -871,14 +879,16 @@ public class WeatherInfoService {
         return "풍속 영향 없음, 표준 작업 절차 유지";
     }
 
-    // 위험 통제 추천
+    // feat : 위험 장비 통제 — 실제 작업지시서 장비 + 날씨 매칭으로 specific 경고 생성
     private List<WeatherInfoDto.RiskItem> buildEquipmentRisks(
             DayWeather selectedDay,
             List<WeatherInfoDto.AlertItem> alerts,
-            Integer fineDustValue
+            Integer fineDustValue,
+            LocalDate targetDate
     ) {
         List<WeatherInfoDto.RiskItem> result = new ArrayList<>();
 
+        // 1) 기상특보 기반
         if (!alerts.isEmpty()) {
             result.add(WeatherInfoDto.RiskItem.builder()
                     .badge("AI")
@@ -890,39 +900,108 @@ public class WeatherInfoService {
                     .build());
         }
 
-        if (defaultDouble(selectedDay.getMaxWindSpeed()) >= 10) {
-            result.add(WeatherInfoDto.RiskItem.builder()
-                    .badge("AI")
-                    .title("타워크레인 / 이동식 크레인")
-                    .subtitle("순간 풍속 " + formatDouble(defaultDouble(selectedDay.getMaxWindSpeed())) + "m/s 주의")
-                    .level("경고")
-                    .reason("강풍 시 자재 흔들림과 하중 제어 위험이 커져 양중 작업 안정성이 크게 떨어집니다.")
-                    .action("풍속 안정 전까지 양중 작업 제한 또는 중지")
-                    .build());
+        // 2) 오늘 작업지시서 실제 장비 목록 조회 → 날씨 위험과 매칭
+        if (targetDate != null) {
+            try {
+                List<WorkOrder> todayOrders = workOrderRepository.findAll().stream()
+                        .filter(o -> !Boolean.TRUE.equals(o.getIsDeleted()))
+                        .filter(o -> o.getDueDate() != null && o.getDueDate().isEqual(targetDate))
+                        .toList();
+
+                boolean hasCrane = false;
+                boolean hasExcavator = false;
+                boolean hasDump = false;
+
+                for (WorkOrder order : todayOrders) {
+                    for (WorkOrderEquipment eq : order.getEquipments()) {
+                        if (Boolean.TRUE.equals(eq.getIsDeleted())) continue;
+                        String name = eq.getEquipmentName() != null ? eq.getEquipmentName().toLowerCase() : "";
+                        if (name.contains("크레인") || name.contains("crane")) hasCrane = true;
+                        if (name.contains("굴착") || name.contains("굴삭") || name.contains("excavator")) hasExcavator = true;
+                        if (name.contains("덤프") || name.contains("dump")) hasDump = true;
+                    }
+                }
+
+                // 크레인 + 강풍
+                if (hasCrane && defaultDouble(selectedDay.getMaxWindSpeed()) >= 8) {
+                    result.add(WeatherInfoDto.RiskItem.builder()
+                            .badge("AI")
+                            .title("오늘 투입 크레인 — 강풍 위험")
+                            .subtitle("순간 풍속 " + formatDouble(defaultDouble(selectedDay.getMaxWindSpeed())) + "m/s")
+                            .level(defaultDouble(selectedDay.getMaxWindSpeed()) >= 10 ? "경고" : "주의")
+                            .reason("오늘 작업지시서에 크레인이 배정되어 있습니다. 강풍 조건에서 양중 작업 안정성이 낮아집니다.")
+                            .action("풍속 안정 전까지 양중 작업 제한, 신호수 추가 배치")
+                            .build());
+                } else if (!hasCrane && defaultDouble(selectedDay.getMaxWindSpeed()) >= 10) {
+                    // 크레인 없어도 강풍 >= 10m/s 이면 일반 경고
+                    result.add(WeatherInfoDto.RiskItem.builder()
+                            .badge("AI")
+                            .title("타워크레인 / 이동식 크레인")
+                            .subtitle("순간 풍속 " + formatDouble(defaultDouble(selectedDay.getMaxWindSpeed())) + "m/s 주의")
+                            .level("경고")
+                            .reason("강풍 시 자재 흔들림과 하중 제어 위험이 커져 양중 작업 안정성이 크게 떨어집니다.")
+                            .action("풍속 안정 전까지 양중 작업 제한 또는 중지")
+                            .build());
+                }
+
+                // 굴착기 + 우천
+                if (hasExcavator && (selectedDay.isHasRain() || defaultInt(selectedDay.getPrecipitationProbability()) >= 60)) {
+                    result.add(WeatherInfoDto.RiskItem.builder()
+                            .badge("AI")
+                            .title("오늘 투입 굴착기 — 우천 주의")
+                            .subtitle("강수확률 " + defaultInt(selectedDay.getPrecipitationProbability()) + "%")
+                            .level("주의")
+                            .reason("우천 시 굴착 작업면 붕괴와 장비 슬립 위험이 증가합니다.")
+                            .action("굴착 비탈면 배수 점검 후 작업, 강우 시 즉시 중단")
+                            .build());
+                } else if (!hasExcavator && (selectedDay.isHasRain() || defaultInt(selectedDay.getPrecipitationProbability()) >= 60)) {
+                    result.add(WeatherInfoDto.RiskItem.builder()
+                            .badge("AI")
+                            .title("고소작업차 / 외부 이동 장비")
+                            .subtitle("우천·젖은 노면 주의")
+                            .level("주의")
+                            .reason("노면 미끄럼과 시야 저하로 장비 접근성과 작업 발판 안정성이 떨어질 수 있습니다.")
+                            .action("노면 점검 후 제한 운용, 실외 작업 시간 재조정")
+                            .build());
+                }
+
+                // 덤프트럭 + 적설
+                if (hasDump && selectedDay.isHasSnow()) {
+                    result.add(WeatherInfoDto.RiskItem.builder()
+                            .badge("AI")
+                            .title("오늘 투입 덤프트럭 — 결빙 경고")
+                            .subtitle("적설·결빙 구간 이동 위험")
+                            .level("경고")
+                            .reason("적설·결빙 노면에서 덤프트럭은 제동거리가 크게 늘어납니다.")
+                            .action("제설·제빙 완료 후 운행, 경사로 구간 속도 제한 부착")
+                            .build());
+                } else if (!hasDump && selectedDay.isHasSnow()) {
+                    result.add(WeatherInfoDto.RiskItem.builder()
+                            .badge("AI")
+                            .title("지게차 / 자재 운반 장비")
+                            .subtitle("적설·결빙 구간 주의")
+                            .level("경고")
+                            .reason("결빙 노면에서는 제동거리 증가와 하역 중 미끄럼 위험이 동시에 커집니다.")
+                            .action("제설·제빙 후 운행, 경사 구간 장비 투입 제한")
+                            .build());
+                }
+
+            } catch (Exception e) {
+                // NOTE: DB 연동 실패 시 기본 규칙 기반 분석으로 fallback
+                if (defaultDouble(selectedDay.getMaxWindSpeed()) >= 10) {
+                    result.add(WeatherInfoDto.RiskItem.builder()
+                            .badge("AI")
+                            .title("타워크레인 / 이동식 크레인")
+                            .subtitle("순간 풍속 " + formatDouble(defaultDouble(selectedDay.getMaxWindSpeed())) + "m/s 주의")
+                            .level("경고")
+                            .reason("강풍 시 자재 흔들림과 하중 제어 위험이 커져 양중 작업 안정성이 크게 떨어집니다.")
+                            .action("풍속 안정 전까지 양중 작업 제한 또는 중지")
+                            .build());
+                }
+            }
         }
 
-        if (selectedDay.isHasRain() || defaultInt(selectedDay.getPrecipitationProbability()) >= 60) {
-            result.add(WeatherInfoDto.RiskItem.builder()
-                    .badge("AI")
-                    .title("고소작업차 / 외부 이동 장비")
-                    .subtitle("우천·젖은 노면 주의")
-                    .level("주의")
-                    .reason("노면 미끄럼과 시야 저하로 장비 접근성과 작업 발판 안정성이 떨어질 수 있습니다.")
-                    .action("노면 점검 후 제한 운용, 실외 작업 시간 재조정")
-                    .build());
-        }
-
-        if (selectedDay.isHasSnow()) {
-            result.add(WeatherInfoDto.RiskItem.builder()
-                    .badge("AI")
-                    .title("지게차 / 자재 운반 장비")
-                    .subtitle("적설·결빙 구간 주의")
-                    .level("경고")
-                    .reason("결빙 노면에서는 제동거리 증가와 하역 중 미끄럼 위험이 동시에 커집니다.")
-                    .action("제설·제빙 후 운행, 경사 구간 장비 투입 제한")
-                    .build());
-        }
-
+        // 3) 폭염 / 미세먼지 (날씨 조건만으로 생성 — 장비 무관)
         if (selectedDay.getMaxTemp() != null && selectedDay.getMaxTemp() >= 33) {
             result.add(WeatherInfoDto.RiskItem.builder()
                     .badge("AI")
@@ -948,13 +1027,16 @@ public class WeatherInfoService {
         return result;
     }
 
+    // feat : 계획 대비 위험 경고 — 공사일보 내용 분석 + 날씨 기반 선제 추천
     private List<WeatherInfoDto.RiskItem> buildPlanRisks(
             DayWeather selectedDay,
             List<WeatherInfoDto.AlertItem> alerts,
-            Integer fineDustValue
+            Integer fineDustValue,
+            LocalDate targetDate
     ) {
         List<WeatherInfoDto.RiskItem> result = new ArrayList<>();
 
+        // 1) 기상특보 기반
         if (!alerts.isEmpty()) {
             result.add(WeatherInfoDto.RiskItem.builder()
                     .badge("AI")
@@ -966,6 +1048,87 @@ public class WeatherInfoService {
                     .build());
         }
 
+        // 2) 금일 공사일보 내용 분석 → 위험 공정 추출
+        if (targetDate != null) {
+            try {
+                List<DailyReport> reports = dailyReportRepository.findByReportDate(targetDate);
+                boolean reportFound = !reports.isEmpty();
+
+                for (DailyReport report : reports) {
+                    String workContent = (report.getTodayWork() != null ? report.getTodayWork() : "")
+                            + " " + (report.getTomorrowPlan() != null ? report.getTomorrowPlan() : "")
+                            + " " + (report.getIssue() != null ? report.getIssue() : "");
+                    workContent = workContent.toLowerCase();
+
+                    boolean addedForReport = false;
+
+                    // 도장·방수 + 우천
+                    boolean hasPainting = workContent.contains("도장") || workContent.contains("방수");
+                    if (hasPainting && (selectedDay.isHasRain() || defaultInt(selectedDay.getPrecipitationProbability()) >= 50)) {
+                        result.add(WeatherInfoDto.RiskItem.builder()
+                                .badge("AI")
+                                .title("공사일보 — 도장·방수 공정 우천 위험")
+                                .subtitle("강수확률 " + defaultInt(selectedDay.getPrecipitationProbability()) + "% · 품질 저하 우려")
+                                .level("주의")
+                                .reason("오늘 공사일보에 도장 또는 방수 작업이 포함되어 있습니다. 우천 시 부착력 및 양생 품질이 저하됩니다.")
+                                .action("외부 도장·방수 공정을 실내 또는 건조 시간대로 재편성")
+                                .build());
+                        addedForReport = true;
+                    }
+
+                    // 콘크리트 타설 + 우천
+                    boolean hasConcrete = workContent.contains("타설") || workContent.contains("콘크리트");
+                    if (!addedForReport && hasConcrete && (selectedDay.isHasRain() || defaultInt(selectedDay.getPrecipitationProbability()) >= 60)) {
+                        result.add(WeatherInfoDto.RiskItem.builder()
+                                .badge("AI")
+                                .title("공사일보 — 콘크리트 타설 우천 위험")
+                                .subtitle("강수확률 " + defaultInt(selectedDay.getPrecipitationProbability()) + "% · 워터 시멘트비 초과 우려")
+                                .level("경고")
+                                .reason("오늘 공사일보에 콘크리트 타설이 포함되어 있습니다. 우천 시 강도 저하 및 이음부 품질 문제가 발생합니다.")
+                                .action("타설 시간대 우천 여부 재확인, 우수 유입 차단 조치 준비")
+                                .build());
+                        addedForReport = true;
+                    }
+
+                    // 고소·비계 작업 + 강풍
+                    boolean hasHeight = workContent.contains("고소") || workContent.contains("비계")
+                            || workContent.contains("외벽") || workContent.contains("양중");
+                    if (!addedForReport && hasHeight && defaultDouble(selectedDay.getMaxWindSpeed()) >= 8) {
+                        result.add(WeatherInfoDto.RiskItem.builder()
+                                .badge("AI")
+                                .title("공사일보 — 고소 작업 강풍 위험")
+                                .subtitle("풍속 " + formatDouble(defaultDouble(selectedDay.getMaxWindSpeed())) + "m/s")
+                                .level(defaultDouble(selectedDay.getMaxWindSpeed()) >= 10 ? "경고" : "주의")
+                                .reason("오늘 공사일보에 고소 또는 비계 작업이 포함되어 있습니다. 강풍 시 추락·낙하 위험이 증가합니다.")
+                                .action("작업 전 풍속 재측정, 풍속 10m/s 이상 시 작업 중지")
+                                .build());
+                    }
+                }
+
+                // 공사일보 미작성 상태에서 날씨 위험 있을 때 선제 추천
+                if (!reportFound) {
+                    boolean anyRisk = defaultDouble(selectedDay.getMaxWindSpeed()) >= 8
+                            || selectedDay.isHasRain()
+                            || selectedDay.isHasSnow()
+                            || (fineDustValue != null && fineDustValue >= 80);
+                    if (anyRisk) {
+                        result.add(WeatherInfoDto.RiskItem.builder()
+                                .badge("AI")
+                                .title("공사일보 미작성 — 날씨 위험 선제 감지")
+                                .subtitle("기상 조건 기반 자동 추천")
+                                .level("주의")
+                                .reason("금일 공사일보가 아직 작성되지 않았습니다. 현재 날씨 기준 외부 공정 진행 시 위험 조건이 감지되었습니다.")
+                                .action("일보 작성 전 기상 조건을 반드시 확인하고, 외부 고위험 공정은 사전 검토 후 진행하세요.")
+                                .build());
+                    }
+                }
+
+            } catch (Exception e) {
+                // NOTE: DB 연동 실패 시 일반 규칙 기반으로 fallback
+            }
+        }
+
+        // 3) 일반 날씨 조건 기반 (기존 로직 유지)
         if (selectedDay.isHasRain() || defaultInt(selectedDay.getPrecipitationProbability()) >= 60) {
             result.add(WeatherInfoDto.RiskItem.builder()
                     .badge("AI")
@@ -1189,7 +1352,6 @@ public class WeatherInfoService {
         return text == null ? "" : text.trim();
     }
 
-    // 3일치 일자 라벨
     private String formatDayLabel(LocalDate date) {
         LocalDate today = LocalDate.now();
 

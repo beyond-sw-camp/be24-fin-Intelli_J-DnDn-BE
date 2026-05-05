@@ -12,17 +12,21 @@ import org.example.dndn.workplan.model.enums.PlanStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 // feat : 작업 지시서 비즈니스 로직 처리 클래스
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class WorkOrderService {
 
     private final WorkOrderRepository workOrderRepository;
     private final WorkOrderEquipmentRepository workOrderEquipmentRepository;
     private final WorkPlanRepository workPlanRepository;
+    // NOTE: GateRepository 미사용 — 게이트명 resolve는 프론트의 gates 배열에서 처리
 
     // [WORKORDER_001] 1단계 : 작업 지시서 기본 작성 기능
     // feat : 작업 지시서 신규 생성
@@ -40,14 +44,9 @@ public class WorkOrderService {
                 .workerCount(req.getWorkerCount())
                 .build();
 
-        // feat : 신규 지시서 저장 및 ID 발급
         workOrder = workOrderRepository.saveAndFlush(workOrder);
-
-        // feat : 기존 장비 데이터 초기화
         workOrderEquipmentRepository.deleteAllByWorkOrderIdx(workOrder.getIdx());
 
-        // [WORKORDER_002] 2단계 : 장비 매핑 로직 추가
-        // feat : 신규 장비 데이터 연관관계 매핑 및 추가
         if (req.getEquipments() != null) {
             for (WorkOrderEquipmentDto eqDto : req.getEquipments()) {
                 WorkOrderEquipment equipment = WorkOrderEquipment.builder()
@@ -59,13 +58,11 @@ public class WorkOrderService {
             }
         }
 
-        // feat : 최종 저장
         workOrderRepository.save(workOrder);
     }
 
     // [WORKORDER_003] 3단계 : 지시서 목록 조회 기능
     // feat : 작업 지시서 목록 전체 조회
-    @Transactional(readOnly = true)
     public List<WorkOrderDto.Res> getWorkOrderList() {
         return workOrderRepository.findAll().stream().map(order -> {
             List<WorkOrderEquipmentDto> eqDtos = order.getEquipments().stream()
@@ -94,13 +91,11 @@ public class WorkOrderService {
     }
 
     // [WORKORDER_004] 4단계 : 작업 지시서 단건 수정 기능
-    // feat : 작업 지시서 내용 및 연관 장비 수정
     @Transactional
     public void updateWorkOrder(Long id, WorkOrderDto.Req req) {
         WorkOrder workOrder = workOrderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("작업 지시서를 찾을 수 없습니다."));
 
-        // feat : 기본 정보 업데이트
         workOrder.setSiteIdx(req.getSiteIdx());
         workOrder.setPartnerCompanyIdx(req.getPartnerCompanyIdx());
         workOrder.setWorkPlanId(req.getWorkPlanId());
@@ -111,13 +106,9 @@ public class WorkOrderService {
         workOrder.setStatusCode(req.getStatusCode());
         workOrder.setWorkerCount(req.getWorkerCount());
 
-        // [WORKORDER_005] 5단계 : 장비 초기화 로직 추가 (수정 기능 고도화)
-        // feat : JPA의 정상적인 삭제 사이클을 이용해 기존 장비 목록 초기화
         workOrder.clearEquipments();
-        workOrderRepository.flush(); // 기존 장비 DELETE 쿼리를 DB에 먼저 전송하여 충돌 방지
+        workOrderRepository.flush();
 
-        // [WORKORDER_002] 2단계 : 장비 매핑 로직 추가
-        // feat : 클라이언트로부터 전달받은 신규 장비 목록 연관관계 매핑 및 추가
         if (req.getEquipments() != null) {
             for (WorkOrderEquipmentDto eqDto : req.getEquipments()) {
                 WorkOrderEquipment equipment = WorkOrderEquipment.builder()
@@ -133,8 +124,6 @@ public class WorkOrderService {
     }
 
     // [WORKORDER_006] 6단계 : 주간계획 연동 초안 장비 불러오기 기능
-    // feat : 초안 생성 시 장비만 별도로 조회하여 반환
-    @Transactional(readOnly = true)
     public List<WorkOrderEquipmentDto> getDraftEquipments(Long planIdx) {
         List<Object[]> results = workOrderRepository.findEquipmentsByPlanIdx(planIdx);
 
@@ -151,7 +140,6 @@ public class WorkOrderService {
     }
 
     // [WORKORDER_007] 7단계 : 작업 지시서 승인 및 주간 계획 반영 기능
-    // feat : 작업 지시서 승인 시 연결된 주간 계획에 내용과 장비 반영
     @Transactional
     public void approveWorkOrder(Long id) {
         WorkOrder workOrder = workOrderRepository.findById(id)
@@ -164,13 +152,12 @@ public class WorkOrderService {
         WorkPlan weeklyPlan = workPlanRepository.findById(workOrder.getWorkPlanId())
                 .orElseThrow(() -> new RuntimeException("주간 작업 계획을 찾을 수 없습니다."));
 
-        // feat : 승인된 작업지시서 내용을 주간 작업 계획에 반영
         weeklyPlan.updateInfo(
-                workOrder.getInstructionContent(),   // 주간 계획의 작업 내용
-                weeklyPlan.getTrade(),               // 기존 공종 유지
-                weeklyPlan.getLocation(),            // 기존 작업 위치 유지
-                workOrder.getDueDate(),              // 작업일
-                workOrder.getDueDate(),              // 작업일
+                workOrder.getInstructionContent(),
+                weeklyPlan.getTrade(),
+                weeklyPlan.getLocation(),
+                workOrder.getDueDate(),
+                workOrder.getDueDate(),
                 PlanStatus.PLANNED,
                 weeklyPlan.getPartner(),
                 weeklyPlan.getManager(),
@@ -178,7 +165,6 @@ public class WorkOrderService {
                 "작업지시서 승인 반영"
         );
 
-        // feat : 작업지시서 장비를 주간 계획 장비로 반영
         if (workOrder.getEquipments() != null && !workOrder.getEquipments().isEmpty()) {
             weeklyPlan.replaceEquipment(
                     workOrder.getEquipments().stream()
@@ -192,7 +178,46 @@ public class WorkOrderService {
             );
         }
 
-        // feat : 작업 지시서 승인 상태 변경
         workOrder.setStatusCode("APPROVED");
+    }
+
+    // [GATE_EQUIP_001] 중장비 입출차 현황 페이지 테이블 연동
+    // feat : 지정일(기본 오늘) 기준 투입 장비 목록 조회
+    // NOTE: gateName은 null 반환 — 프론트의 gates 배열에서 gateIdx 기준으로 매칭
+    public List<WorkOrderDto.GateEquipmentRes> getGateEquipments(LocalDate targetDate) {
+        LocalDate date = targetDate != null ? targetDate : LocalDate.now();
+
+        List<WorkOrder> orders = workOrderRepository.findAll().stream()
+                .filter(o -> !Boolean.TRUE.equals(o.getIsDeleted()))
+                .filter(o -> o.getDueDate() != null && o.getDueDate().isEqual(date))
+                .toList();
+
+        List<WorkOrderDto.GateEquipmentRes> result = new ArrayList<>();
+
+        for (WorkOrder order : orders) {
+            for (WorkOrderEquipment eq : order.getEquipments()) {
+                if (Boolean.TRUE.equals(eq.getIsDeleted())) continue;
+
+                String workOrderRef = String.format("WI-%d-%03d",
+                        order.getDueDate().getYear(),
+                        order.getIdx());
+
+                result.add(WorkOrderDto.GateEquipmentRes.builder()
+                        .workOrderIdx(order.getIdx())
+                        .workOrderRef(workOrderRef)
+                        .equipmentName(eq.getEquipmentName())
+                        .equipmentType(WorkOrderDto.GateEquipmentRes.parseEquipmentType(eq.getEquipmentName()))
+                        .equipmentCount(eq.getEquipmentCount())
+                        .gateIdx(eq.getGateIdx())
+                        .gateName(null)
+                        .partnerCompanyIdx(order.getPartnerCompanyIdx())
+                        .statusCode(order.getStatusCode())
+                        .statusLabel(WorkOrderDto.GateEquipmentRes.resolveStatusLabel(order.getStatusCode()))
+                        .dueDate(order.getDueDate())
+                        .build());
+            }
+        }
+
+        return result;
     }
 }
