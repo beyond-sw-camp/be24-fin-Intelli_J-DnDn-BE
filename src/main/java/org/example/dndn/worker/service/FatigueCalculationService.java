@@ -45,14 +45,6 @@ public class FatigueCalculationService {
     private static final int TRADE_UNKNOWN_POINTS = 10;
     private static final String TRADE_UNKNOWN_KEY = "UNKNOWN";
 
-    /** 직종별 물리·화학 위험 가중치 (5–20점, SUM 은 규격상 {@link #SCORE_CAP} 내로 캡) */
-    private static final Map<Trade, Integer> TRADE_RISK_POINTS =
-            Map.of(
-                    Trade.TILE, 6,
-                    Trade.REBAR, 14,
-                    Trade.CARPENTER, 17,
-                    Trade.WELDER, 20);
-
     private static final List<AttendanceStatus> ONSITE_STATUS =
             List.of(AttendanceStatus.PRESENT, AttendanceStatus.LATE);
 
@@ -163,7 +155,7 @@ public class FatigueCalculationService {
         if (t == null) {
             return TRADE_UNKNOWN_POINTS;
         }
-        return TRADE_RISK_POINTS.getOrDefault(t, TRADE_UNKNOWN_POINTS);
+        return t.fatigueRiskWeight();
     }
 
     /** 한글 라벨·Trade 매칭 설명 보조용 */

@@ -231,4 +231,18 @@ public class StaffingDto {
         private int totalCount;
         private List<AssignedWorkerRes> rows;
     }
+
+    /** STAFFING_001 자동 추천 배치 결과 요약 */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class SaveSummaryRes {
+        /** 이번 호출로 새로 배치한 본사(DIRECT)·WORKER 인원 수 */
+        private int assignedCount;
+        /**
+         * 자동 배치 대상이었으나 구역 정원 부족 등으로 미배치된 본사(DIRECT)·WORKER 인원 수
+         */
+        private int unassignedCount;
+    }
 }

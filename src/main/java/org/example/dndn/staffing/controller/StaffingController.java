@@ -98,6 +98,15 @@ public class StaffingController {
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
+    // STAFFING_001 — 인력 자동 추천 배치(본사 DIRECT·피로도 기준 저위험 공종 우선)
+    @PostMapping("/auto-recommend")
+    public ResponseEntity<BaseResponse<StaffingDto.SaveSummaryRes>> autoRecommend(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
+    ) {
+        StaffingDto.SaveSummaryRes dto = staffingService.autoRecommend(rosterDate);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
+
     // STAFFING_002 — 투입 인원 초기화.
     @PostMapping("/reset")
     public ResponseEntity<BaseResponse<Void>> reset(

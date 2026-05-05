@@ -21,11 +21,14 @@ import org.example.dndn.worker.model.enums.JobRank;
 import org.example.dndn.worker.repository.AttendanceRecordRepository;
 import org.example.dndn.worker.repository.WorkerRepository;
 import org.example.dndn.worker.service.AttendanceDeploymentSyncService;
+import org.example.dndn.worker.service.FatigueCalculationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -55,6 +58,7 @@ public class StaffingService {
     private final WorkerRepository workerRepository;
     private final AttendanceRecordRepository attendanceRecordRepository;
     private final AttendanceDeploymentSyncService attendanceDeploymentSyncService;
+    private final FatigueCalculationService fatigueCalculationService;
 
     // STAFFING_003 — 인력 배치 보드 좌측 기본 구역 트리(ZoneMain · ZoneSub 요약 및 집계)
     public List<StaffingDto.ZoneMainRes> loadZoneMainTree() {
@@ -331,5 +335,120 @@ public class StaffingService {
             attendanceDeploymentSyncService.clearPlacementIfPresent(workerIdx, date);
         }
         assignmentRepository.deleteAll();
+    }
+
+    /**
+     * STAFFING_001 인력 자동 추천 배치.
+     * <ul>
+     *   <li>대상: 당일 명단(PRESENT/LATE)·{@link JobRank#WORKER}·{@link AffiliationKind#DIRECT}(본사) 이면서 아직
+     *       {@code staffing_assignment} 가 없는 인원만(협력사 전문직은 외부 작업지시 범위로 제외).</li>
+     *   <li>배치 전 피로도를 해당 일 기준 재산정·저장한 뒤, 고위험·고득점 작업자를 앞쪽에 두어
+     *       구역별 공종 위험도 상한이 낮은 상세구역부터 순차로 채운다.</li>
+     * </ul>
+     */
+    @Transactional
+    public StaffingDto.SaveSummaryRes autoRecommend(LocalDate rosterDate) {
+        LocalDate date = rosterDate != null ? rosterDate : LocalDate.now();
+
+        List<AttendanceRecord> rosterRows =
+                attendanceRecordRepository.findAllByWorkDateAndWorkerJobRank(
+                        date, JobRank.WORKER, STAFFING_ATTENDANCE_ONSITE);
+
+        List<Long> directUnassignedIds = new ArrayList<>();
+        for (AttendanceRecord ar : rosterRows) {
+            Worker w = ar.getWorker();
+            if (w.getAffiliationKind() != AffiliationKind.DIRECT) {
+                continue;
+            }
+            if (assignmentRepository.existsByWorkerIdx(w.getIdx())) {
+                continue;
+            }
+            directUnassignedIds.add(w.getIdx());
+        }
+
+        if (directUnassignedIds.isEmpty()) {
+            return StaffingDto.SaveSummaryRes.builder().assignedCount(0).unassignedCount(0).build();
+        }
+
+        for (Long wid : directUnassignedIds) {
+            fatigueCalculationService.recalculateAndPersist(wid, date);
+        }
+
+        Map<Long, Worker> workers =
+                workerRepository.findAllById(directUnassignedIds).stream()
+                        .filter(w -> w.getJobRank() == JobRank.WORKER && w.getAffiliationKind() == AffiliationKind.DIRECT)
+                        .collect(Collectors.toMap(Worker::getIdx, w -> w, (a, b) -> a));
+
+        List<Worker> ordered = directUnassignedIds.stream()
+                .map(workers::get)
+                .filter(Objects::nonNull)
+                .sorted(autoRecommendWorkerOrdering())
+                .toList();
+
+        ArrayDeque<Worker> queue = new ArrayDeque<>(ordered);
+
+        List<ZoneSub> zoneSubs = new ArrayList<>(zoneSubRepository.findAllOrderedWithStaffingGraph());
+        zoneSubs.sort(
+                Comparator.<ZoneSub>comparingInt(StaffingService::zoneCeilingTradeRiskScore)
+                        .thenComparingInt(zs -> zs.getZoneMain().getDisplayOrder())
+                        .thenComparingInt(ZoneSub::getDisplayOrder)
+                        .thenComparingLong(ZoneSub::getIdx));
+
+        int assignedNow = 0;
+        for (ZoneSub zs : zoneSubs) {
+            if (queue.isEmpty()) {
+                break;
+            }
+            int remainingSlots = slotCapacityRemaining(zs);
+            if (remainingSlots <= 0) {
+                continue;
+            }
+            ZoneMain zm = zs.getZoneMain();
+            while (remainingSlots > 0 && !queue.isEmpty()) {
+                Worker w = queue.pollFirst();
+                assignmentRepository.save(StaffingAssignment.builder()
+                        .zoneSub(zs)
+                        .workerIdx(w.getIdx())
+                        .confirmed(false)
+                        .build());
+                assignmentRepository.flush();
+                attendanceDeploymentSyncService.applyZonePlacementIfPresent(
+                        w.getIdx(), date, zm.getTitle(), zs.getTitle());
+                assignedNow++;
+                remainingSlots--;
+            }
+        }
+
+        return StaffingDto.SaveSummaryRes.builder()
+                .assignedCount(assignedNow)
+                .unassignedCount(queue.size())
+                .build();
+    }
+
+    private static Comparator<Worker> autoRecommendWorkerOrdering() {
+        Comparator<Worker> byFatigue = Comparator.<Worker>comparingInt(w -> w.isFatigueHighRisk() ? 1 : 0)
+                .thenComparingInt(Worker::getFatigueScoreTotal)
+                .thenComparingLong(Worker::getIdx);
+        return byFatigue.reversed();
+    }
+
+    /** 상세구역 {@code trade_need} 중 필요(need{@literal >}0)한 공종의 위험도 상한(max). 필요행이 없으면 미분류(10). */
+    private static int zoneCeilingTradeRiskScore(ZoneSub zs) {
+        if (zs.getTradeNeeds() == null || zs.getTradeNeeds().isEmpty()) {
+            return Trade.fatigueRiskWeightOrDefault(null);
+        }
+        int max =
+                zs.getTradeNeeds().stream()
+                        .filter(tn -> tn.getNeed() > 0 && tn.getTrade() != null)
+                        .mapToInt(tn -> tn.getTrade().fatigueRiskWeight())
+                        .max()
+                        .orElse(Trade.fatigueRiskWeightOrDefault(null));
+        return max > 0 ? max : Trade.fatigueRiskWeightOrDefault(null);
+    }
+
+    private static int slotCapacityRemaining(ZoneSub zs) {
+        int assignedCount = zs.getAssignments() != null ? zs.getAssignments().size() : 0;
+        int cap = zs.getRequired();
+        return Math.max(0, cap - assignedCount);
     }
 }

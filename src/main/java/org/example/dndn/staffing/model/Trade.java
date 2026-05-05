@@ -11,6 +11,23 @@ public enum Trade {
     WELDER,
     TILE;
 
+    /**
+     * 피로도 산정·자동 배치(STAFFING_001)에서 쓰는 공종별 위험 가중치(5–20 스케일).
+     */
+    public int fatigueRiskWeight() {
+        return switch (this) {
+            case TILE -> 6;
+            case REBAR -> 14;
+            case CARPENTER -> 17;
+            case WELDER -> 20;
+        };
+    }
+
+    /** {@code trade == null} 이면 미분류 공종 기본값(10). */
+    public static int fatigueRiskWeightOrDefault(Trade trade) {
+        return trade == null ? 10 : trade.fatigueRiskWeight();
+    }
+
     // 마스터 공종 문자열이 이 직종에 해당하는지 한글 라벨로 근사 판별.
     public boolean matchesWorker(Worker worker) {
         if (worker == null || worker.getSubLabel() == null) {
