@@ -3,6 +3,7 @@ package org.example.dndn.staffing.model;
 import lombok.*;
 import org.example.dndn.worker.model.entity.Worker;
 import org.example.dndn.worker.model.enums.AffiliationKind;
+import org.example.dndn.worker.model.enums.EmploymentKind;
 
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,20 @@ public class StaffingDto {
     public static class AssignReq {
         private Long subZoneIdx;
         private List<Long> workerIds;
+    }
+
+    // STAFFING_008 — 우측 패널 검색 (소속 DIRECT/PARTNER, 이름·협력사 키워드, 미배치만)
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class PoolSearchReq {
+        /** null 이면 소속 필터 없음 */
+        private AffiliationKind affiliationKind;
+        private String keyword;
+        /** true 이면 배치(staffing_assignment) 없는 명단만 */
+        private boolean unassignedOnly;
     }
 
     // STAFFING_003 — 기본 구역 정보 조회 응답
@@ -147,7 +162,7 @@ public class StaffingDto {
         }
     }
 
-    // STAFFING_006 해당 ZoneSub 에 배치된 작업자 1행
+    // STAFFING_006 해당 ZoneSub 에 배치된 작업자 1행 / STAFFING_008 작업자 현황 1행
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -158,15 +173,31 @@ public class StaffingDto {
         private AffiliationKind affiliationKind;
         private String partnerCompany;
         private String affiliationLine;
+        /** 당일 명단 근태 기준 고용구분(REGULAR 상용 · DAILY 일용); STAFFING_006 에서 선택적으로 null */
+        private EmploymentKind employmentKind;
+        /** 피로도 점수 — 산출 로직 추후 적용 예정(STAFFING_008). 현재는 0 고정. */
         private int fatigueScore;
-        // 기본구역 · 상세구역 배치 문자열
+        // 기본구역 · 상세구역 배치 문자열 ("미투입" 허용)
         private String placement;
         private boolean assigned;
 
         public static AssignedWorkerRes from(Worker worker, StaffingAssignment assignment) {
-            String placementText = assignment.getZoneSub().getZoneMain().getTitle()
-                    + " · "
-                    + assignment.getZoneSub().getTitle();
+            return from(worker, assignment, null);
+        }
+
+        public static AssignedWorkerRes from(
+                Worker worker,
+                StaffingAssignment assignment,
+                EmploymentKind rosterEmploymentKind) {
+            String placementText;
+            boolean isAssigned = assignment != null;
+            if (assignment != null) {
+                placementText = assignment.getZoneSub().getZoneMain().getTitle()
+                        + " · "
+                        + assignment.getZoneSub().getTitle();
+            } else {
+                placementText = "미투입";
+            }
 
             boolean direct = worker.getAffiliationKind() == AffiliationKind.DIRECT;
             String companyLabel = direct
@@ -182,11 +213,22 @@ public class StaffingDto {
                     .name(worker.getName())
                     .affiliationKind(worker.getAffiliationKind())
                     .partnerCompany(worker.getPartnerCompany())
+                    .employmentKind(rosterEmploymentKind)
                     .affiliationLine(line)
                     .fatigueScore(0)
                     .placement(placementText)
-                    .assigned(true)
+                    .assigned(isAssigned)
                     .build();
         }
+    }
+
+    // STAFFING_008 우측 작업자 현황 응답
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class WorkerPoolRes {
+        private int totalCount;
+        private List<AssignedWorkerRes> rows;
     }
 }

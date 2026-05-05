@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.dndn.common.model.BaseResponse;
 import org.example.dndn.staffing.model.StaffingDto;
 import org.example.dndn.staffing.service.StaffingService;
+import org.example.dndn.worker.model.enums.AffiliationKind;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -48,9 +49,11 @@ public class StaffingController {
     // STAFFING_006 — 해당 ZoneSub 배치 작업자 조회
     @GetMapping("/zones/{zoneSubIdx}/workers")
     public ResponseEntity<BaseResponse<List<StaffingDto.AssignedWorkerRes>>> getAssignedWorkers(
-            @PathVariable Long zoneSubIdx
+            @PathVariable Long zoneSubIdx,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
     ) {
-        List<StaffingDto.AssignedWorkerRes> dto = staffingService.loadAssignedWorkersForZoneSub(zoneSubIdx);
+        List<StaffingDto.AssignedWorkerRes> dto =
+                staffingService.loadAssignedWorkersForZoneSub(zoneSubIdx, rosterDate);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
@@ -76,6 +79,23 @@ public class StaffingController {
         staffingService.assignWorkers(zoneSubIdx, req, rosterDate);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(BaseResponse.success("배치 완료", null));
+    }
+
+    // STAFFING_008 — 작업자 현황 (명단 근태 기준 일자 + 미배치 필터 등)
+    @GetMapping("/workers")
+    public ResponseEntity<BaseResponse<StaffingDto.WorkerPoolRes>> getWorkerPool(
+            @RequestParam(required = false) AffiliationKind affiliationKind,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false, defaultValue = "false") boolean unassignedOnly,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
+    ) {
+        StaffingDto.PoolSearchReq req = StaffingDto.PoolSearchReq.builder()
+                .affiliationKind(affiliationKind)
+                .keyword(keyword)
+                .unassignedOnly(unassignedOnly)
+                .build();
+        StaffingDto.WorkerPoolRes dto = staffingService.getWorkerPool(req, rosterDate);
+        return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
     // STAFFING_002 — 투입 인원 초기화.

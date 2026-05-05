@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssignment, Long> {
@@ -35,4 +36,14 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
             order by a.idx asc
             """)
     List<StaffingAssignment> findAssignmentsWithZonesByWorkerOrderByIdxAsc(@Param("workerIdx") Long workerIdx);
+
+    /** STAFFING_008 우측 패널 — 명단(workerIdx 들) 기준 최초 배치 행을 찾을 때 로드(IN 비어 있으면 호출하지 말 것). */
+    @Query("""
+            select a from StaffingAssignment a
+                join fetch a.zoneSub zs
+                join fetch zs.zoneMain zm
+            where a.workerIdx in :workerIdxes
+            order by a.workerIdx asc, a.idx asc
+            """)
+    List<StaffingAssignment> findAllWithZonesByWorkerIdxIn(@Param("workerIdxes") Collection<Long> workerIdxes);
 }
