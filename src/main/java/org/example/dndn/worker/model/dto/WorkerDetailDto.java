@@ -9,9 +9,44 @@ import org.example.dndn.worker.model.enums.JobRank;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 public class WorkerDetailDto {
+
+    /**
+     * MANAGEMENT_004 피로도 산출 상세 — 항목별 점수 및 설명 문자열.
+     * {@link org.example.dndn.worker.service.FatigueCalculationService#recalculateAndPersist(Long, LocalDate)} 가 채운다.
+     */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class FatigueSummaryRes {
+        private LocalDate referenceDate;
+        private LocalDateTime calculatedAt;
+        /** 100점 상한 적용 후 총점 */
+        private int totalScore;
+        /** 상한 적용 전 항목 합 */
+        private int rawScoreSum;
+        /** 상한 초과분(100 초과분, 없으면 0) */
+        private int cappedRemainderLost;
+        /** {@link #totalScore} ≥ 고위험 기준 여부 */
+        private boolean highRiskWorker;
+        private int accidentScore;
+        private boolean accidentOccurredLast30Days;
+        private String accidentDetail;
+        private int streakScore;
+        private int onsiteStreakDays;
+        private String streakDetail;
+        private int overnightScore;
+        private String overnightDetail;
+        private int tradeRiskScore;
+        private String tradeCategoryKey;
+        private String tradeDetail;
+        private int scoreCap;
+        private int highRiskThreshold;
+    }
 
     /** 기본구역·상세구역 한 줄 표기 — 프론트 `formatWorkerZoneDisplay` 와 동일 규칙. */
     public static String formatZoneLine(String zoneMain, String zoneSub) {
@@ -41,11 +76,12 @@ public class WorkerDetailDto {
         private String bloodType;
         private LocalDate registeredAt;
         private String profileImageUrl;
-        private BigDecimal monthTotalMan;
-        /** 서버 로컬 오늘({@code LocalDate.now}) {@code work_date} 근태 행의 고용 구분. 행이 없으면 null. */
         private EmploymentKind employmentKind;
+        private BigDecimal monthTotalMan;
+        /** 피로도·항목별 점수 요약 */
+        private FatigueSummaryRes fatigue;
 
-        public static ProfileRes from(Worker w, EmploymentKind rosterEmploymentKind) {
+        public static ProfileRes from(Worker w, EmploymentKind rosterEmploymentKind, FatigueSummaryRes fatigue) {
             return ProfileRes.builder()
                     .idx(w.getIdx())
                     .name(w.getName())
@@ -61,6 +97,7 @@ public class WorkerDetailDto {
                     .profileImageUrl(w.getProfileImageUrl())
                     .monthTotalMan(w.getMonthTotalMan())
                     .employmentKind(rosterEmploymentKind)
+                    .fatigue(fatigue)
                     .build();
         }
     }
