@@ -32,6 +32,7 @@ public class WorkerService {
     private final SafetyAccidentRepository accidentRepository;
     private final WorkerScenarioFixtureLoader workerScenarioFixtureLoader;
     private final ManagementAttendanceProperties attendanceProps;
+    private final FatigueCalculationService fatigueCalculationService;
 
     // MANAGEMENT_001 인력 데이터 불러오기.
     @Transactional
@@ -63,6 +64,7 @@ public class WorkerService {
 
             mergeScenarioDetailsFromFixture(worker, item, detail);
             normalizeRosterDayPending(worker, rosterDate, detail);
+            fatigueCalculationService.recalculateAndPersist(worker.getIdx(), rosterDate);
         }
 
         return WorkerDto.SyncRes.builder()
