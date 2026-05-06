@@ -25,15 +25,19 @@ public class WorkerDetailService {
     private final WorkerDocumentRepository documentRepository;
     private final WorkerSanctionRepository sanctionRepository;
     private final SafetyAccidentRepository accidentRepository;
+    private final FatigueCalculationService fatigueCalculationService;
 
-    // MANAGEMENT_004 작업자 상세 프로필 조회 (기본 정보 카드)
+    // MANAGEMENT_004 작업자 상세 프로필 조회 (기본 정보 카드) — 열람 시 피로도 재산정·저장 후 응답
+    @Transactional(readOnly = false)
     public WorkerDetailDto.ProfileRes getProfile(Long workerIdx) {
+        WorkerDetailDto.FatigueSummaryRes fatigue =
+                fatigueCalculationService.recalculateAndPersist(workerIdx, LocalDate.now());
         Worker w = findWorker(workerIdx);
         EmploymentKind rosterEk = attendanceRepository
                 .findByWorkerIdxAndWorkDate(workerIdx, LocalDate.now())
                 .map(AttendanceRecord::getEmploymentKind)
                 .orElse(w.getEmploymentKind());
-        return WorkerDetailDto.ProfileRes.from(w, rosterEk);
+        return WorkerDetailDto.ProfileRes.from(w, rosterEk, fatigue);
     }
 
     // MANAGEMENT_005 안전 및 서류 현황 조회
