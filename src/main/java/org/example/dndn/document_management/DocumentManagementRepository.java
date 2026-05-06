@@ -8,5 +8,5 @@ import java.util.List;
 
 @Repository
 public interface DocumentManagementRepository extends JpaRepository<MasterSchedule, Long> {
-    MasterSchedule findByProjectIdx(Long attr0);
+    List<MasterSchedule> findAllByProjectIdx(Long attr0);
 }
