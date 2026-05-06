@@ -7,6 +7,9 @@ import java.time.LocalDate;
 import java.util.List;
 
 public interface SafetyAccidentRepository extends JpaRepository<SafetyAccident, Long> {
+    /** MANAGEMENT_009 안전 사고 이력 — 최근 발생 건 존재(피로도 산정용) */
+    boolean existsByWorkerIdxAndOccurredAtBetween(Long workerIdx, LocalDate fromInclusive, LocalDate toInclusive);
+
     /** MANAGEMENT_009 안전 사고 이력 — 최근 발생 일자 우선 */
     List<SafetyAccident> findAllByWorkerIdxOrderByOccurredAtDesc(Long workerIdx);
 
