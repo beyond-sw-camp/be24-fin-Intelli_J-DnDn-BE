@@ -22,6 +22,9 @@ public enum BaseResponseStatus {
     // 3200번대 로그인 오류
     LOGIN_INVALID_USERINFO(false, 3201, "이메일이나 비밀번호를 확인해주세요."),
 
+    // 3300번대 인력 배치(STAFFING) 오류 — 프론트 모달 매핑
+    ASSIGN_OVERFLOW(false, 3350, "투입 가능 인원을 초과했습니다."),
+
     // 5000번대 서버 오류
     FAIL(false, 5000, "요청이 실패했습니다."),
     AWS_UPLOAD_FAIL(false, 5001, "파일 업로드에 실패했습니다.");

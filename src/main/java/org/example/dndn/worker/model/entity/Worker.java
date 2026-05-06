@@ -9,6 +9,7 @@ import org.example.dndn.worker.model.enums.JobRank;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "worker")
@@ -84,6 +85,54 @@ public class Worker extends BaseEntity {
     /** 당월 누적 공수 캐시값 (실시간 합계는 AttendanceRecord 로 산출) */
     @Column(precision = 5, scale = 1)
     private BigDecimal monthTotalMan;
+
+    /** 피로도/위험 점수(0–100 상한 적용값). 프로필·인력 배치 등에서 참조한다. */
+    @Column(name = "fatigue_score_total", nullable = false)
+    @Builder.Default
+    private int fatigueScoreTotal = 0;
+
+    /** {@code fatigue_score_total ≥ 80} 일 때 고위험 근로자로 분류 */
+    @Column(name = "fatigue_high_risk", nullable = false)
+    @Builder.Default
+    private boolean fatigueHighRisk = false;
+
+    @Column(name = "fatigue_pt_accident", nullable = false)
+    @Builder.Default
+    private int fatiguePtAccident = 0;
+
+    @Column(name = "fatigue_pt_streak", nullable = false)
+    @Builder.Default
+    private int fatiguePtStreak = 0;
+
+    @Column(name = "fatigue_pt_overnight", nullable = false)
+    @Builder.Default
+    private int fatiguePtOvernight = 0;
+
+    @Column(name = "fatigue_pt_trade_risk", nullable = false)
+    @Builder.Default
+    private int fatiguePtTradeRisk = 0;
+
+    /** 마지막 피로도 산정 시각(재계산 직후 갱신) */
+    @Column(name = "fatigue_calculated_at")
+    private LocalDateTime fatigueCalculatedAt;
+
+    public void replaceFatigueSnapshot(
+            int totalCapped,
+            boolean highRisk,
+            int ptAccident,
+            int ptStreak,
+            int ptOvernight,
+            int ptTrade,
+            LocalDateTime calculatedAt
+    ) {
+        this.fatigueScoreTotal = totalCapped;
+        this.fatigueHighRisk = highRisk;
+        this.fatiguePtAccident = ptAccident;
+        this.fatiguePtStreak = ptStreak;
+        this.fatiguePtOvernight = ptOvernight;
+        this.fatiguePtTradeRisk = ptTrade;
+        this.fatigueCalculatedAt = calculatedAt;
+    }
 
     public void updateFromSync(Worker incoming) {
         this.name = incoming.name;
