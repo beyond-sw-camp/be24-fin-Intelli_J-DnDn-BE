@@ -171,7 +171,10 @@ public class StaffingDto {
         private Long workerIdx;
         private String name;
         private AffiliationKind affiliationKind;
+        /** 중간 전문 건설사명 (예: 구산토건, 삼보이앤씨). 본사는 null. */
         private String partnerCompany;
+        /** 공종별 협력업체명 (예: 태양목공, 대한철근). PARTNER 일 때만 사용. */
+        private String partnerCompanyDetail;
         private String affiliationLine;
         /** 당일 명단 근태 기준 고용구분(REGULAR 상용 · DAILY 일용); STAFFING_006 에서 선택적으로 null */
         private EmploymentKind employmentKind;
@@ -213,6 +216,7 @@ public class StaffingDto {
                     .name(worker.getName())
                     .affiliationKind(worker.getAffiliationKind())
                     .partnerCompany(worker.getPartnerCompany())
+                    .partnerCompanyDetail(worker.getPartnerCompanyDetail())
                     .employmentKind(rosterEmploymentKind)
                     .affiliationLine(line)
                     .fatigueScore(worker.getFatigueScoreTotal())

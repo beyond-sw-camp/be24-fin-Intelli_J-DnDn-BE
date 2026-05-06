@@ -115,7 +115,10 @@ public class WorkerDto {
         private String phone;
         private JobRank jobRank;
         private AffiliationKind affiliationKind;
+        /** 중간 전문 건설사명 (예: 구산토건, 삼보이앤씨). 본사는 null. */
         private String partnerCompany;
+        /** 공종별 협력업체명 (예: 태양목공, 대한철근). PARTNER 일 때만 사용. */
+        private String partnerCompanyDetail;
         private String subLabel;
         private String site;
         private EmploymentKind employmentKind;
@@ -131,6 +134,7 @@ public class WorkerDto {
                     .jobRank(w.getJobRank())
                     .affiliationKind(w.getAffiliationKind())
                     .partnerCompany(w.getPartnerCompany())
+                    .partnerCompanyDetail(w.getPartnerCompanyDetail())
                     .subLabel(w.getSubLabel())
                     .site(w.getSite())
                     .employmentKind(a == null ? null : a.getEmploymentKind())
