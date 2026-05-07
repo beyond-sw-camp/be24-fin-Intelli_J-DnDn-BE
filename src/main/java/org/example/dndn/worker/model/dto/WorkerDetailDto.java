@@ -67,7 +67,10 @@ public class WorkerDetailDto {
         private Long idx;
         private String name;
         private AffiliationKind affiliationKind;
+        /** 중간 전문 건설사명 (예: 구산토건, 삼보이앤씨). 본사는 null. */
         private String partnerCompany;
+        /** 공종별 협력업체명 (예: 태양목공, 대한철근). PARTNER 일 때만 사용. */
+        private String partnerCompanyDetail;
         private JobRank jobRank;
         private String site;
         private String phone;
@@ -87,6 +90,7 @@ public class WorkerDetailDto {
                     .name(w.getName())
                     .affiliationKind(w.getAffiliationKind())
                     .partnerCompany(w.getPartnerCompany())
+                    .partnerCompanyDetail(w.getPartnerCompanyDetail())
                     .jobRank(w.getJobRank())
                     .site(w.getSite())
                     .phone(w.getPhone())
