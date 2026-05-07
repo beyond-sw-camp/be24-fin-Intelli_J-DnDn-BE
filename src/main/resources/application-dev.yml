@@ -47,3 +47,7 @@ weather:
     enabled: true
     cron: "0 0/30 * * * *"
     warmup-on-startup: true
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}

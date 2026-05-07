@@ -1,0 +1,76 @@
+package org.example.dndn.auth.service;
+
+import lombok.RequiredArgsConstructor;
+import org.example.dndn.auth.model.dto.AccountDto;
+import org.example.dndn.auth.model.entity.SystemUser;
+import org.example.dndn.auth.repository.SystemUserRepository;
+import org.example.dndn.common.exception.BaseException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class AccountService {
+
+    private final SystemUserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    public List<AccountDto.Res> getAll() {
+        return userRepository.findAll().stream()
+                .map(AccountDto.Res::from)
+                .collect(Collectors.toList());
+    }
+
+    public AccountDto.Res getOne(Long idx) {
+        return AccountDto.Res.from(findById(idx));
+    }
+
+    @Transactional
+    public AccountDto.Res create(AccountDto.CreateReq req) {
+        if (userRepository.existsByLoginId(req.getLoginId())) {
+            throw new BaseException(FAIL);
+        }
+        SystemUser saved = userRepository.save(SystemUser.builder()
+                .loginId(req.getLoginId())
+                .password(passwordEncoder.encode(req.getPassword()))
+                .name(req.getName())
+                .role(req.getRole())
+                .siteCode(req.getSiteCode())
+                .trade(req.getTrade())
+                .active(true)
+                .build());
+        return AccountDto.Res.from(saved);
+    }
+
+    @Transactional
+    public AccountDto.Res update(Long idx, AccountDto.UpdateReq req) {
+        SystemUser user = findById(idx);
+        user.update(req.getName(), req.getRole(), req.getSiteCode(), req.getTrade(), req.getActive());
+        return AccountDto.Res.from(user);
+    }
+
+    @Transactional
+    public void changePassword(Long idx, AccountDto.PasswordReq req) {
+        SystemUser user = findById(idx);
+        user.changePassword(passwordEncoder.encode(req.getNewPassword()));
+    }
+
+    /** 논리 삭제 — 계정 비활성화. */
+    @Transactional
+    public void delete(Long idx) {
+        SystemUser user = findById(idx);
+        user.deactivate();
+    }
+
+    private SystemUser findById(Long idx) {
+        return userRepository.findById(idx)
+                .orElseThrow(() -> new BaseException(FAIL));
+    }
+}
