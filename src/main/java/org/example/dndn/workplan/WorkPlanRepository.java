@@ -24,4 +24,6 @@ public interface WorkPlanRepository extends JpaRepository<WorkPlan, Long> {
 
     // AnalysisService — 특정 TradeProcess에 연결된 WorkPlan 조회
     List<WorkPlan> findAllByTradeProcess_Idx(Long tradeProcessId);
+
+    List<WorkPlan> findAllByParentWorkPlan_Idx(Long parentWorkPlanId);
 }
