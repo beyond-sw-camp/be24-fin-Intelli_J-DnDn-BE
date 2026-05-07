@@ -25,7 +25,7 @@ logging:
 
 weather:
   kma:
-    service-key: ${KMA_SERVICE_KEY}
+    service-key: ${KMA_SERVICE_KEY:bfea66ace1a8a67929c5eece2ac9c4f3f9889693baea1074b23160d75ba6968e}
     village-url: https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst
     mid-land-url: http://apis.data.go.kr/1360000/MidFcstInfoService/getMidLandFcst
     mid-temp-url: http://apis.data.go.kr/1360000/MidFcstInfoService/getMidTa
@@ -39,7 +39,7 @@ weather:
     location-label: 서울 현장
 
   air-korea:
-    service-key: ${AIRKOREA_SERVICE_KEY}
+    service-key: ${AIRKOREA_SERVICE_KEY:bfea66ace1a8a67929c5eece2ac9c4f3f9889693baea1074b23160d75ba6968e}
     sido-url: http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty
     sido-name: 서울
 
