@@ -8,7 +8,11 @@ import org.example.dndn.workorder.model.WorkOrderEquipmentDto;
 import org.example.dndn.workplan.WorkPlanRepository;
 import org.example.dndn.workplan.model.WorkPlanDto;
 import org.example.dndn.workplan.model.entity.WorkPlan;
+import org.example.dndn.workplan.model.entity.WorkPlanEquipment;
+import org.example.dndn.workplan.model.entity.WorkPlanWorker;
+import org.example.dndn.workplan.model.enums.EquipmentType;
 import org.example.dndn.workplan.model.enums.PlanStatus;
+import org.example.dndn.workplan.model.enums.WorkerTrade;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -151,7 +155,7 @@ public class WorkOrderService {
     }
 
     // [WORKORDER_007] 7단계 : 작업 지시서 승인 및 주간 계획 반영 기능
-    // feat : 작업 지시서 승인 시 연결된 주간 계획에 내용과 장비 반영
+    // feat : 작업 지시서 승인 시 연결된 주간 계획에 내용, 인원, 장비 반영
     @Transactional
     public void approveWorkOrder(Long id) {
         WorkOrder workOrder = workOrderRepository.findById(id)
@@ -164,35 +168,50 @@ public class WorkOrderService {
         WorkPlan weeklyPlan = workPlanRepository.findById(workOrder.getWorkPlanId())
                 .orElseThrow(() -> new RuntimeException("주간 작업 계획을 찾을 수 없습니다."));
 
-        // feat : 승인된 작업지시서 내용을 주간 작업 계획에 반영
+        // 1. 기본 정보 및 '비고'에 지시서 내용 반영
+        // feat : 승인된 작업지시서 내용을 주간 작업 계획의 비고에 반영
         weeklyPlan.updateInfo(
-                workOrder.getInstructionContent(),   // 주간 계획의 작업 내용
-                weeklyPlan.getTrade(),               // 기존 공종 유지
-                weeklyPlan.getLocation(),            // 기존 작업 위치 유지
-                workOrder.getDueDate(),              // 작업일
-                workOrder.getDueDate(),              // 작업일
+                weeklyPlan.getName(),
+                weeklyPlan.getTrade(),
+                weeklyPlan.getLocation(),
+                weeklyPlan.getStartDate(),
+                weeklyPlan.getEndDate(),
                 PlanStatus.PLANNED,
                 weeklyPlan.getPartner(),
                 weeklyPlan.getManager(),
                 weeklyPlan.getContact(),
-                "작업지시서 승인 반영"
+                workOrder.getInstructionContent()
         );
 
-        // feat : 작업지시서 장비를 주간 계획 장비로 반영
-        if (workOrder.getEquipments() != null && !workOrder.getEquipments().isEmpty()) {
-            weeklyPlan.replaceEquipment(
-                    workOrder.getEquipments().stream()
-                            .filter(eq -> eq.getEquipmentName() != null && !eq.getEquipmentName().isBlank())
-                            .map(eq -> WorkPlanDto.EquipmentEntry.builder()
-                                    .type(eq.getEquipmentName())
-                                    .count(eq.getEquipmentCount())
-                                    .build()
-                                    .toEntity())
-                            .toList()
-            );
+        //  2. 인원 정보 반영 (replaceWorkers를 사용해야 requiredCount가 자동 계산됨)
+        // feat : 작업지시서의 인원수를 주간 계획에 반영 (Workers 리스트 생성)
+        if (workOrder.getWorkerCount() != null) {
+            WorkPlanWorker worker = WorkPlanWorker.builder()
+                    .workPlan(weeklyPlan)
+                    .trade(WorkerTrade.COMMON) // 기본 직종 설정 (엔티티 필드 상황에 맞게 조정)
+                    .count(workOrder.getWorkerCount())
+                    .build();
+
+            // replaceWorkers 내부에서 recalculateRequiredCount()가 호출되어 인원수가 갱신됩니다.
+            weeklyPlan.replaceWorkers(List.of(worker));
         }
 
-        // feat : 작업 지시서 승인 상태 변경
+        //  3. 장비 정보 반영
+        // feat : 작업지시서 장비를 주간 계획 장비로 교체
+        if (workOrder.getEquipments() != null && !workOrder.getEquipments().isEmpty()) {
+            List<WorkPlanEquipment> newEquipList = workOrder.getEquipments().stream()
+                    .filter(eq -> eq.getEquipmentName() != null && !eq.getEquipmentName().isBlank())
+                    .map(eq -> WorkPlanEquipment.builder()
+                            .workPlan(weeklyPlan)
+                            .type(EquipmentType.fromLabel(eq.getEquipmentName())) // 한글명으로 변환
+                            .count(eq.getEquipmentCount())
+                            .build())
+                    .toList();
+
+            weeklyPlan.replaceEquipment(newEquipList);
+        }
+
         workOrder.setStatusCode("APPROVED");
+        // JPA 감지로 인해 weeklyPlan 변경사항이 자동 저장됩니다.
     }
 }

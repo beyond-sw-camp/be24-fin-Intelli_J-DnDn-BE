@@ -6,7 +6,6 @@ import org.example.dndn.project.service.MasterScheduleService;
 import org.example.dndn.project.model.dto.MasterScheduleDto;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/master-schedule")
@@ -41,18 +40,5 @@ public class MasterScheduleController {
     public ResponseEntity<?> delete(@PathVariable("scheduleId") Long scheduleId) {
         masterScheduleService.delete(scheduleId);
         return ResponseEntity.ok(BaseResponse.success("공정표가 삭제되었습니다."));
-    }
-
-    // 새로 추가
-    // 공정표 파일 업로드
-    @PostMapping("/upload")
-    public ResponseEntity<?> uploadAndExtract(
-            @RequestParam("projectId") Long projectId,
-            @RequestParam("docType") String docType,
-            @RequestParam("file") MultipartFile file
-    ) {
-        return ResponseEntity.ok(BaseResponse.success(
-                masterScheduleService.uploadAndExtract(projectId, docType, file)
-        ));
     }
 }
