@@ -2,6 +2,11 @@ spring:
   application:
     name: dndn
 
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
   datasource:
     driver-class-name: org.mariadb.jdbc.Driver
     url: ${DB_URL}
