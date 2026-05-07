@@ -38,6 +38,13 @@ public class WorkPlanService {
         return workPlanRepository.save(plan).getIdx();
     }
 
+    public List<WorkPlanDto.workPlanRes> listByProject(Long projectId) {
+        return workPlanRepository.findAllByTradeProcess_MasterSchedule_Project_Idx(projectId)
+                .stream()
+                .map(WorkPlanDto.workPlanRes::from)
+                .toList();
+    }
+
     // 작업 계획 단일 조회
     public WorkPlanDto.Res read(Long planId) {
         return WorkPlanDto.Res.from(findPlan(planId));
