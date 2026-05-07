@@ -122,7 +122,7 @@ spec:
             echo "Active: ${activeVersion} → Deploying to: ${inactiveVersion}"
 
             sh "kubectl set image deployment/dndn-backend-${inactiveVersion} backend=${IMAGE_NAME}:${IMAGE_TAG}"
-            sh "kubectl scale deployment/dndn-backend-${inactiveVersion} --replicas=1"
+            sh "kubectl scale deployment/dndn-backend-${inactiveVersion} --replicas=2"
             sh "kubectl rollout status deployment/dndn-backend-${inactiveVersion} --timeout=180s"
 
             // Ingress 전환 (외부 트래픽)
