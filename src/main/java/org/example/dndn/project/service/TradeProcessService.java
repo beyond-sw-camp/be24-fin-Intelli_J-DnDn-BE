@@ -8,6 +8,8 @@ import org.example.dndn.project.repository.MasterScheduleRepository;
 import org.example.dndn.project.repository.TradeProcessRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.example.dndn.ai.extractor.ScheduleDocumentExtractor;
+import java.io.File;
 
 import java.util.List;
 
@@ -18,6 +20,7 @@ public class TradeProcessService {
 
     private final TradeProcessRepository tradeProcessRepository;
     private final MasterScheduleRepository masterScheduleRepository;
+    private final ScheduleDocumentExtractor scheduleDocumentExtractor;
 
     @Transactional
     public Long create(TradeProcessDto.Req dto) {
@@ -36,6 +39,42 @@ public class TradeProcessService {
                 .build();
 
         return tradeProcessRepository.save(tp).getIdx();
+    }
+
+    @Transactional
+    public List<Long> createAll(Long masterScheduleId, List<TradeProcessDto.Req> dtoList) {
+        if (dtoList == null || dtoList.isEmpty()) {
+            return List.of();
+        }
+
+        MasterSchedule schedule = masterScheduleRepository.findById(masterScheduleId)
+                .orElseThrow(() -> new RuntimeException("공정표를 찾을 수 없습니다."));
+
+        List<TradeProcess> entities = dtoList.stream()
+                .map(dto -> TradeProcess.builder()
+                        .masterSchedule(schedule)
+                        .tradeName(dto.getTradeName())
+                        .processName(dto.getProcessName())
+                        .partnerCompany(dto.getPartnerCompany())
+                        .plannedStart(dto.getPlannedStart())
+                        .plannedEnd(dto.getPlannedEnd())
+                        .weightPct(dto.getWeightPct())
+                        .isMilestone(dto.getIsMilestone() != null ? dto.getIsMilestone() : false)
+                        .build())
+                .toList();
+
+        return tradeProcessRepository.saveAll(entities)
+                .stream()
+                .map(TradeProcess::getIdx)
+                .toList();
+    }
+
+    @Transactional
+    public List<Long> analyzeAndSave(Long masterScheduleId, File file) {
+        List<TradeProcessDto.Req> extractedList =
+                scheduleDocumentExtractor.extract(file, masterScheduleId);
+
+        return createAll(masterScheduleId, extractedList);
     }
 
     public TradeProcessDto.Res read(Long tpId) {
