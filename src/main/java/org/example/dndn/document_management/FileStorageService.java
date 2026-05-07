@@ -2,11 +2,16 @@ package org.example.dndn.document_management;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dndn.common.exception.BaseException;
+import org.example.dndn.common.model.BaseResponseStatus;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -34,9 +39,7 @@ public class FileStorageService {
         }
     }
 
-    /**
-     * 파일을 로컬에 저장하고 저장된 경로(절대경로 문자열)를 반환
-     */
+    // 파일을 로컬에 저장하고 저장된 경로(절대경로 문자열)를 반환
     public String store(MultipartFile file, Long projectId) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("업로드 파일이 비어있습니다.");
@@ -71,6 +74,21 @@ public class FileStorageService {
 
         } catch (IOException e) {
             throw new RuntimeException("파일 저장 실패: " + file.getOriginalFilename(), e);
+        }
+    }
+
+    //저장된 파일을 Resource로 읽어옴\
+    public Resource loadAsResource(String fileUrl) {
+        try {
+            Path filePath = Paths.get(fileUrl).normalize();
+            Resource resource = new UrlResource(filePath.toUri());
+
+            if (!resource.exists() || !resource.isReadable()) {
+                throw BaseException.from(BaseResponseStatus.DOCUMENT_FILE_READ_FAIL);
+            }
+            return resource;
+        } catch (MalformedURLException e) {
+            throw BaseException.from(BaseResponseStatus.DOCUMENT_FILE_READ_FAIL);
         }
     }
 

@@ -8,6 +8,7 @@ import org.example.dndn.project.model.entity.MasterSchedule;
 import org.example.dndn.project.model.entity.Project;
 import org.example.dndn.project.model.enums.DocType;
 import org.example.dndn.project.repository.ProjectRepository;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -36,9 +37,7 @@ public class DocumentManagementService {
         return DocumentManagementDto.PageRes.from(page);
     }
 
-    /**
-     * 공정표 현황 - 고정 영역 (MASTER, MILESTONE, WEIGHT 각 최신 1건)
-     */
+    // 공정표 현황 - 고정 영역 (MASTER, MILESTONE, WEIGHT 각 최신 1건)
     public List<DocumentManagementDto.ReadRes> readPinnedSchedules(Long projectId) {
         DocType[] pinnedTypes = { DocType.MASTER, DocType.MILESTONE, DocType.WEIGHT };
 
@@ -81,5 +80,17 @@ public class DocumentManagementService {
             case WEIGHT -> BaseResponseStatus.DOCUMENT_DUPLICATE_WEIGHT;
             default -> BaseResponseStatus.FAIL;
         };
+    }
+
+    public DocumentManagementDto.DownloadRes download(Long idx) {
+        MasterSchedule entity = documentManagementRepository.findById(idx)
+                .orElseThrow(() -> BaseException.from(BaseResponseStatus.DOCUMENT_NOT_FOUND));
+
+        Resource resource = fileStorageService.loadAsResource(entity.getFileUrl());
+
+        return DocumentManagementDto.DownloadRes.builder()
+                .resource(resource)
+                .fileName(entity.getFileName())
+                .build();
     }
 }

@@ -5,13 +5,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.dndn.common.model.BaseResponse;
 import org.example.dndn.document_management.model.DocumentManagementDto;
 import org.example.dndn.project.model.enums.DocType;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Slf4j
@@ -40,5 +45,23 @@ public class DocumentManagementController {
     public BaseResponse upload(@ModelAttribute DocumentManagementDto.UploadReq dto) {
         documentManagementService.upload(dto);
         return BaseResponse.success("성공");
+    }
+
+    // 파일 다운로드 기능
+    // 일반 API와 달리 파일 바이너리를 그대로 스트림으로 내려주기 위해
+    // BaseResponse가 아닌 ResponseEntity<Resource>를 반환
+    @GetMapping("/download/{idx}")
+    public ResponseEntity<Resource> download(@PathVariable Long idx) {
+        DocumentManagementDto.DownloadRes res = documentManagementService.download(idx);
+
+        // 한글 파일명 깨지지 않도록 인코딩
+        String encodedFileName = URLEncoder.encode(res.getFileName(), StandardCharsets.UTF_8)
+                .replaceAll("\\+", "%20");
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename*=UTF-8''" + encodedFileName)
+                .body(res.getResource());
     }
 }

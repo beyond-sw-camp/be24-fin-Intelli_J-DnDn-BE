@@ -7,6 +7,7 @@ import org.example.dndn.common.model.BaseResponse;
 import org.example.dndn.project.model.entity.MasterSchedule;
 import org.example.dndn.project.model.entity.Project;
 import org.example.dndn.project.model.enums.DocType;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.multipart.MultipartFile;
@@ -44,13 +45,13 @@ public class DocumentManagementDto {
 
     @Getter
     @Builder
-    public static class ReadRes{
+    public static class ReadRes {
         public Long idx;
 
         // 현장 번호
         public Long project_id;
 
-         // 문서 종류 (MASTER, MILESTONE, WEIGHT, TRADE_PLAN)
+        // 문서 종류 (MASTER, MILESTONE, WEIGHT, TRADE_PLAN)
         public DocType docType;
 
         // 문서 이름
@@ -84,7 +85,7 @@ public class DocumentManagementDto {
 
     @Setter
     @Getter
-    public static class UploadReq{
+    public static class UploadReq {
         // 현장 프로젝트 번호
         public Long projectId;
         // 문서 파일
@@ -109,5 +110,12 @@ public class DocumentManagementDto {
                     .name(name)
                     .build();
         }
+    }
+
+    @Getter
+    @Builder
+    public static class DownloadRes {
+        private Resource resource;
+        private String fileName;
     }
 }
