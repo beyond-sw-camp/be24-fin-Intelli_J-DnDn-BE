@@ -22,3 +22,6 @@ logging:
     org.hibernate.orm.jdbc.bind: trace
     org.example: debug
     net.ttddyy.observation: DEBUG
+
+openai:
+  api-key: ${OPENAI_API_KEY}

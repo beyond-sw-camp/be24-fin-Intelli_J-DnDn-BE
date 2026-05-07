@@ -47,3 +47,6 @@ weather:
     enabled: true
     cron: "0 0/30 * * * *"
     warmup-on-startup: true
+
+openai:
+  api-key: ${OPENAI_API_KEY}
