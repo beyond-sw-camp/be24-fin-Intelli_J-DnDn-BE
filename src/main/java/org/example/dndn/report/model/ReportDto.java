@@ -40,6 +40,8 @@ public class ReportDto {
         private String todayWork;           // feat : 금일 작업 완료 내용
         private String tomorrowPlan;        // feat : 명일 작업 예정 내용
 
+        private Long tomorrowWorkPlanId;    // feat : 프론트엔드에서 선택한 '덮어쓸 대상 주간계획의 ID'를 받을 필드
+
         // [REPORT_006] 6단계 : 명일 스케줄 투입 인원 연동 기능
         // feat : 옵션 B 추가 데이터 (내일 일정 자동 생성용)
         private Integer tomorrowWorkerCount; // feat : 명일 투입 예정 인원 수
