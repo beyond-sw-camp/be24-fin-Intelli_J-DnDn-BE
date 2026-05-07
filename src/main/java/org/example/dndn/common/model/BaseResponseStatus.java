@@ -25,6 +25,13 @@ public enum BaseResponseStatus {
     // 3300번대 인력 배치(STAFFING) 오류 — 프론트 모달 매핑
     ASSIGN_OVERFLOW(false, 3350, "투입 가능 인원을 초과했습니다."),
 
+    // ★ 3400번대 문서 관리 오류
+    DOCUMENT_DUPLICATE_MASTER(false, 3401, "마스터 공정표는 이미 등록되어 있습니다. 기존 문서를 먼저 삭제해주세요."),
+    DOCUMENT_DUPLICATE_MILESTONE(false, 3402, "마일스톤 공정표는 이미 등록되어 있습니다. 기존 문서를 먼저 삭제해주세요."),
+    DOCUMENT_DUPLICATE_WEIGHT(false, 3403, "보할 공정표는 이미 등록되어 있습니다. 기존 문서를 먼저 삭제해주세요."),
+    DOCUMENT_PROJECT_NOT_FOUND(false, 3404, "존재하지 않는 프로젝트입니다."),
+    DOCUMENT_FILE_EMPTY(false, 3405, "업로드 파일이 비어있습니다."),
+
     // 5000번대 서버 오류
     FAIL(false, 5000, "요청이 실패했습니다."),
     AWS_UPLOAD_FAIL(false, 5001, "파일 업로드에 실패했습니다.");

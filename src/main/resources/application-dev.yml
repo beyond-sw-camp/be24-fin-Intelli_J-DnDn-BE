@@ -52,3 +52,6 @@ weather:
     enabled: true
     cron: "0 0/30 * * * *"
     warmup-on-startup: true
+
+file:
+  upload-dir: ./uploads
