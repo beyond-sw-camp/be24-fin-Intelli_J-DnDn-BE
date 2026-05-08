@@ -40,12 +40,42 @@ public class DailyReportService {
                         .reportDate(dto.getReportDate())
                         .build());
 
-        // feat : 금일 진척률을 포함하여 공사일보 정보 업데이트
-        dailyReport.updateReport(dto.getActualProgress(), dto.getTodayProgress(), dto.getActualWorkerCount(), dto.getIssue(), dto.getTodayWork(), dto.getTomorrowPlan());
+        WorkPlan monthlyPlan = null;
+        if (dto.getMonthlyWorkPlanId() != null) {
+            monthlyPlan = workPlanRepository.findById(dto.getMonthlyWorkPlanId())
+                    .orElseThrow(() -> new RuntimeException("월간 세부계획을 찾을 수 없습니다. id=" + dto.getMonthlyWorkPlanId()));
+        }
+
+        Double monthlyProgressPct = clampPercent(dto.getMonthlyProgressPct() != null
+                ? dto.getMonthlyProgressPct()
+                : dto.getActualProgress());
+        Double progressIncrementPct = clampPercent(dto.getProgressIncrementPct() != null
+                ? dto.getProgressIncrementPct()
+                : 0.0);
+
+        // feat : 금일 진척률과 월간 세부계획 누적 진척률을 포함하여 공사일보 정보 업데이트
+        dailyReport.updateReport(
+                monthlyPlan,
+                monthlyProgressPct,
+                dto.getTodayProgress(),
+                progressIncrementPct,
+                monthlyProgressPct,
+                dto.getActualWorkerCount(),
+                dto.getIssue(),
+                dto.getTodayWork(),
+                dto.getTomorrowPlan()
+        );
         DailyReport savedReport = dailyReportRepository.save(dailyReport);
 
-        // feat : 진척률 100% 미달 시 공정 기간 자동 연장
-        if (dto.getActualProgress() < 100.0) {
+        // feat : 월간 세부계획 누적 진척률 갱신
+        if (monthlyPlan != null) {
+            monthlyPlan.updateActualProgressPct(monthlyProgressPct);
+            workPlanRepository.save(monthlyPlan);
+        }
+
+        // feat : 금일 작업 진척률 100% 미달 시 해당 주간 계획 기간 자동 연장
+        double todayProgress = dto.getTodayProgress() == null ? 0.0 : dto.getTodayProgress();
+        if (todayProgress < 100.0) {
             WorkPlanExtension extension = workPlan.getExtension();
             if (extension == null) {
                 extension = WorkPlanExtension.builder().build();
@@ -121,6 +151,11 @@ public class DailyReportService {
         return savedReport.getIdx();
     }
 
+    private Double clampPercent(Double value) {
+        if (value == null) return 0.0;
+        return Math.max(0.0, Math.min(100.0, value));
+    }
+
     // feat : 특정 일자 공사일보 목록 조회 및 DTO 변환
     @Transactional(readOnly = true)
     public List<ReportDto.Res> getReportsByDate(LocalDate date) {
@@ -131,6 +166,9 @@ public class DailyReportService {
                         .process(r.getWorkPlan().getTrade() != null ? r.getWorkPlan().getTrade().getLabel() : "")
                         .actualProgress(r.getActualProgress())
                         .todayProgress(r.getTodayProgress())
+                        .monthlyWorkPlanId(r.getMonthlyWorkPlan() != null ? r.getMonthlyWorkPlan().getIdx() : null)
+                        .progressIncrementPct(r.getProgressIncrementPct())
+                        .monthlyProgressPct(r.getMonthlyProgressPct())
                         .actualWorkerCount(r.getActualWorkerCount())
                         .issue(r.getIssue())
                         .reportDate(r.getReportDate())

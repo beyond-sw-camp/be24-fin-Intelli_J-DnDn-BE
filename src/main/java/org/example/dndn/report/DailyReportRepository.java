@@ -20,4 +20,9 @@ public interface DailyReportRepository extends JpaRepository<DailyReport, Long> 
             Long workPlanId,
             LocalDate reportDate
     );
+
+    Optional<DailyReport> findTopByMonthlyWorkPlan_IdxAndReportDateLessThanEqualOrderByReportDateDesc(
+            Long monthlyWorkPlanId,
+            LocalDate reportDate
+    );
 }
