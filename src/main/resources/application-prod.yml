@@ -16,9 +16,32 @@ spring:
       hibernate:
         format_sql: true
 
+
+management:
+  endpoint:
+    health:
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: 1.0
+
 logging:
   level:
     org.hibernate.SQL: debug
     org.hibernate.orm.jdbc.bind: trace
     org.example: debug
     net.ttddyy.observation: DEBUG
+
+openai:
+  api-key: ${OPENAI_API_KEY}

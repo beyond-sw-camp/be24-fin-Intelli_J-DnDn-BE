@@ -1,7 +1,7 @@
 package org.example.dndn.project.service;
 
 import lombok.RequiredArgsConstructor;
-import org.example.dndn.project.ScheduleDocumentExtractor;
+import org.example.dndn.ai.extractor.ScheduleDocumentExtractor;
 import org.example.dndn.project.model.dto.MasterScheduleDto;
 import org.example.dndn.project.model.dto.TradeProcessDto;
 import org.example.dndn.project.model.entity.MasterSchedule;

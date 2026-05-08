@@ -32,6 +32,7 @@ public class WorkerService {
     private final SafetyAccidentRepository accidentRepository;
     private final WorkerScenarioFixtureLoader workerScenarioFixtureLoader;
     private final ManagementAttendanceProperties attendanceProps;
+    private final FatigueCalculationService fatigueCalculationService;
 
     // MANAGEMENT_001 인력 데이터 불러오기.
     @Transactional
@@ -63,6 +64,7 @@ public class WorkerService {
 
             mergeScenarioDetailsFromFixture(worker, item, detail);
             normalizeRosterDayPending(worker, rosterDate, detail);
+            fatigueCalculationService.recalculateAndPersist(worker.getIdx(), rosterDate);
         }
 
         return WorkerDto.SyncRes.builder()
@@ -76,7 +78,7 @@ public class WorkerService {
                 .build();
     }
 
-    // 명단 반영 직후 해당 근무일 행을 출근 전(`PENDING`)으로 고정. 인사 JSON 에 당일 근태가 있어도 덮어쓴다.
+    // sync 시 해당 근무일 행을 06:00 출근(PRESENT)으로 고정 생성.
     // `employment_kind` 는 동기화 직전 해당 일 행이 있으면 유지하고, 없으면 {@link Worker#getEmploymentKind()} 마스터 값.
     private void normalizeRosterDayPending(Worker worker, LocalDate rosterDate, SyncDetailAccumulator acc) {
         Long wid = worker.getIdx();
@@ -89,10 +91,10 @@ public class WorkerService {
         attendanceRepository.save(AttendanceRecord.builder()
                 .worker(worker)
                 .workDate(rosterDate)
-                .clockIn(null)
+                .clockIn(LocalTime.of(6, 0))
                 .clockOut(null)
                 .manDays(null)
-                .attendanceStatus(AttendanceStatus.PENDING)
+                .attendanceStatus(AttendanceStatus.PRESENT)
                 .zoneMain(null)
                 .zoneSub(null)
                 .assignedTrade(null)

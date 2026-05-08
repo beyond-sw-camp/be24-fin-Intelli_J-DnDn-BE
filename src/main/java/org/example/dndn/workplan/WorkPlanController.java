@@ -32,6 +32,12 @@ public class WorkPlanController {
         WorkPlanDto.Res dto = workPlanService.read(planId);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
+    @GetMapping("/project/{projectId}")
+    public ResponseEntity<?> listByProject(@PathVariable Long projectId) {
+        return ResponseEntity.ok(BaseResponse.success(
+                workPlanService.listByProject(projectId)
+        ));
+    }
 
     // 작업 계획 목록 조회 (계획 종류 + 공종/상태 필터)
     @GetMapping
