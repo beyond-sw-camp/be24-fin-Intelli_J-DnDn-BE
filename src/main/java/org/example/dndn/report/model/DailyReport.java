@@ -21,9 +21,17 @@ public class DailyReport extends BaseEntity {
     @JoinColumn(name = "work_plan_idx")
     private WorkPlan workPlan; // feat : 연관된 주간 작업 계획 FK
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "monthly_work_plan_idx")
+    private WorkPlan monthlyWorkPlan; // feat : 누적 진척률을 반영할 부모 월간 세부계획 FK
+
     private Double actualProgress; // feat : 전체 누적 진척률
 
     private Double todayProgress; // feat : 금일 입력 진척률 (새로 추가된 컬럼)
+
+    private Double progressIncrementPct; // feat : 금일 작업으로 월간 세부계획에 반영된 증가분
+
+    private Double monthlyProgressPct; // feat : 반영 후 월간 세부계획 누적 진척률
 
     private Integer actualWorkerCount; // feat : 금일 실제 투입 인원 수
 
@@ -39,9 +47,22 @@ public class DailyReport extends BaseEntity {
 
     // [REPORT_003] 3단계 : 공사일보 제출(Upsert) 기본 로직 구현
     // feat : 공사일보 정보 업데이트 메서드 (금일 진척률 반영)
-    public void updateReport(Double actualProgress, Double todayProgress, Integer actualWorkerCount, String issue, String todayWork, String tomorrowPlan) {
+    public void updateReport(
+            WorkPlan monthlyWorkPlan,
+            Double actualProgress,
+            Double todayProgress,
+            Double progressIncrementPct,
+            Double monthlyProgressPct,
+            Integer actualWorkerCount,
+            String issue,
+            String todayWork,
+            String tomorrowPlan
+    ) {
+        this.monthlyWorkPlan = monthlyWorkPlan;
         this.actualProgress = actualProgress;
         this.todayProgress = todayProgress;
+        this.progressIncrementPct = progressIncrementPct;
+        this.monthlyProgressPct = monthlyProgressPct;
         this.actualWorkerCount = actualWorkerCount;
         this.issue = issue;
         this.todayWork = todayWork;
