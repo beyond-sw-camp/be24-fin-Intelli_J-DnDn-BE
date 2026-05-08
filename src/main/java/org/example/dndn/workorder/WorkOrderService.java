@@ -6,7 +6,6 @@ import org.example.dndn.workorder.model.WorkOrderDto;
 import org.example.dndn.workorder.model.WorkOrderEquipment;
 import org.example.dndn.workorder.model.WorkOrderEquipmentDto;
 import org.example.dndn.workplan.WorkPlanRepository;
-import org.example.dndn.workplan.model.WorkPlanDto;
 import org.example.dndn.workplan.model.entity.WorkPlan;
 import org.example.dndn.workplan.model.entity.WorkPlanEquipment;
 import org.example.dndn.workplan.model.entity.WorkPlanWorker;
@@ -16,6 +15,8 @@ import org.example.dndn.workplan.model.enums.WorkerTrade;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Date;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -95,6 +96,36 @@ public class WorkOrderService {
                     .equipments(eqDtos)
                     .build();
         }).collect(Collectors.toList());
+    }
+
+    // [WORKORDER_008] 중장비 입출차/기상관제/ESG 연동용 장비 조회 기능
+    // feat : 작업지시서 장비와 작업구역/상세내역을 화면 연동용으로 반환
+    @Transactional(readOnly = true)
+    public List<WorkOrderDto.GateEquipmentRes> getGateEquipments(LocalDate targetDate) {
+        return workOrderRepository.findGateEquipmentsByTargetDate(targetDate).stream()
+                .map(row -> {
+                    LocalDate workDate = toLocalDate(row[5]);
+                    String title = toStringValue(row[2]);
+                    String workPlanName = toStringValue(row[7]);
+                    String equipmentName = toStringValue(row[9]);
+
+                    return WorkOrderDto.GateEquipmentRes.builder()
+                            .idx(toLong(row[0]))
+                            .workOrderIdx(toLong(row[1]))
+                            .workOrderRef("WO-" + toLong(row[1]))
+                            .title(firstNonBlank(title, workPlanName, "작업 지시서"))
+                            .tradeType(toStringValue(row[3]))
+                            .workDetail(toStringValue(row[4]))
+                            .workDate(workDate)
+                            .workLocation(firstNonBlank(toStringValue(row[6]), "작업구역 미지정"))
+                            .gateIdx(toInteger(row[8]))
+                            .equipmentName(firstNonBlank(equipmentName, "장비 미지정"))
+                            .equipmentType(firstNonBlank(equipmentName, "중장비"))
+                            .equipmentCount(defaultInteger(toInteger(row[10]), 1))
+                            .statusLabel(resolveEquipmentStatus(toStringValue(row[11]), workDate))
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 
     // [WORKORDER_004] 4단계 : 작업 지시서 단건 수정 기능
@@ -214,4 +245,67 @@ public class WorkOrderService {
         workOrder.setStatusCode("APPROVED");
         // JPA 감지로 인해 weeklyPlan 변경사항이 자동 저장됩니다.
     }
+    private Long toLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return Long.parseLong(value.toString());
+    }
+
+    private Integer toInteger(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return Integer.parseInt(value.toString());
+    }
+
+    private Integer defaultInteger(Integer value, Integer defaultValue) {
+        return value == null ? defaultValue : value;
+    }
+
+    private LocalDate toLocalDate(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof LocalDate localDate) {
+            return localDate;
+        }
+        if (value instanceof Date date) {
+            return date.toLocalDate();
+        }
+        return LocalDate.parse(value.toString());
+    }
+
+    private String toStringValue(Object value) {
+        return value == null ? null : value.toString();
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String resolveEquipmentStatus(String statusCode, LocalDate workDate) {
+        if ("COMPLETED".equalsIgnoreCase(statusCode) || "DONE".equalsIgnoreCase(statusCode)) {
+            return "작업중";
+        }
+        if (workDate != null && workDate.isBefore(LocalDate.now())) {
+            return "작업중";
+        }
+        return "입차예정";
+    }
+
 }
