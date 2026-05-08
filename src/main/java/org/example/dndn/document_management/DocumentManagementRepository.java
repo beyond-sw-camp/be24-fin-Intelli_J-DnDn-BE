@@ -1,12 +1,22 @@
 package org.example.dndn.document_management;
 
 import org.example.dndn.project.model.entity.MasterSchedule;
+import org.example.dndn.project.model.enums.DocType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface DocumentManagementRepository extends JpaRepository<MasterSchedule, Long> {
-    List<MasterSchedule> findAllByProjectIdx(Long attr0);
+    // 페이징 + 정렬 지원
+    Page<MasterSchedule> findAllByProjectIdx(Long projectIdx, Pageable pageable);
+
+    Optional<MasterSchedule> findFirstByProjectIdxAndDocTypeOrderByCreatedAtDesc(
+            Long projectIdx, DocType docType);
+
+    boolean existsByProjectIdxAndDocType(Long projectIdx, DocType docType);
 }
