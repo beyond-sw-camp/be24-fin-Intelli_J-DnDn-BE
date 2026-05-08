@@ -16,6 +16,25 @@ spring:
       hibernate:
         format_sql: true
 
+management:
+  endpoint:
+    health:
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: 1.0
+
 logging:
   level:
     org.hibernate.SQL: debug
@@ -47,3 +66,6 @@ weather:
     enabled: true
     cron: "0 0/30 * * * *"
     warmup-on-startup: true
+
+openai:
+  api-key: ${OPENAI_API_KEY}

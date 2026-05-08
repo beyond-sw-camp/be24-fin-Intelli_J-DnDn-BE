@@ -4,8 +4,11 @@ import lombok.RequiredArgsConstructor;
 import org.example.dndn.common.model.BaseResponse;
 import org.example.dndn.workorder.model.WorkOrderDto;
 import org.example.dndn.workorder.model.WorkOrderEquipmentDto;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -28,6 +31,18 @@ public class WorkOrderController {
     @GetMapping
     public ResponseEntity<?> getWorkOrderList() {
         List<WorkOrderDto.Res> list = workOrderService.getWorkOrderList();
+        return ResponseEntity.ok(BaseResponse.success(list));
+    }
+
+    // [WORKORDER_008] 중장비 입출차/기상관제/ESG 연동용 장비 조회 API
+    // feat : 작업 지시서에 등록된 장비와 작업구역/상세내역 조회 API
+    @GetMapping("/gate-equipments")
+    public ResponseEntity<?> getGateEquipments(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate targetDate
+    ) {
+        List<WorkOrderDto.GateEquipmentRes> list = workOrderService.getGateEquipments(targetDate);
         return ResponseEntity.ok(BaseResponse.success(list));
     }
 
