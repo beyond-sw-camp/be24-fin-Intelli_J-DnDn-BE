@@ -17,6 +17,7 @@ public class MasterSchedule extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long idx;
 
+    @Setter
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
@@ -29,6 +30,15 @@ public class MasterSchedule extends BaseEntity {
     private String fileUrl;     // 업로드된 파일 경로
 
     private String fileName;    // 원본 파일명 (표시용)
+
+    // 협력사 여부
+    public Boolean isPartner;
+
+    // 소속 명칭 (본사 or 협력사 이름)
+    public String affiliationName;
+
+    // 작성자 이름
+    public String name;
 
     public void update(DocType docType, String fileUrl, String fileName) {
         this.docType = docType;
