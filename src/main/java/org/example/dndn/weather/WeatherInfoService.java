@@ -12,6 +12,7 @@ import org.example.dndn.weather.model.WeatherInfo;
 import org.example.dndn.weather.model.WeatherInfoDto;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -81,21 +82,38 @@ public class WeatherInfoService {
     @Value("${weather.kma.location-label}")
     private String locationLabel;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = createRestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private RestTemplate createRestTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(10_000);
+        factory.setReadTimeout(20_000);
+        return new RestTemplate(factory);
+    }
 
     // 기상 관제 대시보드 단건 조회
     public WeatherInfoDto.DashboardRes readDashboard(LocalDate reportDate) {
         LocalDate targetDate = reportDate != null ? reportDate : LocalDate.now();
+        LocalDate today = LocalDate.now();
 
         try {
             WeatherInfo cached = weatherInfoRepository.findByReportDate(targetDate).orElse(null);
+
+            // 지난 날짜는 마지막으로 저장된 스냅샷을 고정값처럼 사용한다.
+            if (cached != null && targetDate.isBefore(today)) {
+                return fromSnapshot(cached);
+            }
+
+            // 오늘/미래 날짜는 1시간 이내 스냅샷이면 DB에서 바로 반환한다.
             if (isFreshSnapshot(cached)) {
                 return fromSnapshot(cached);
             }
 
             WeatherInfoDto.DashboardRes response = buildDashboard(targetDate);
-            weatherSnapshotWriter.save(targetDate, locationLabel, response);
+            if (!isEmptyDashboard(response)) {
+                weatherSnapshotWriter.save(targetDate, locationLabel, response);
+            }
             return response;
         } catch (Exception e) {
             return loadSnapshotOrFallback(targetDate);
@@ -110,7 +128,9 @@ public class WeatherInfoService {
     public void refreshSnapshot(LocalDate targetDate) {
         try {
             WeatherInfoDto.DashboardRes response = buildDashboard(targetDate);
-            weatherSnapshotWriter.save(targetDate, locationLabel, response);
+            if (!isEmptyDashboard(response)) {
+                weatherSnapshotWriter.save(targetDate, locationLabel, response);
+            }
         } catch (Exception ignored) {
         }
     }
@@ -293,6 +313,12 @@ public class WeatherInfoService {
             List<WeatherInfoDto.AlertItem> alerts,
             WeatherInfoDto.AirQualityCard airQualityCard
     ) {
+        Optional<WeatherInfoDto.ForecastDay> nearestForecast = findNearestAvailableForecast(targetDate, forecastDays);
+
+        if (nearestForecast.isPresent()) {
+            return buildDerivedDashboard(targetDate, forecastDays, nearestForecast.get(), alerts, airQualityCard);
+        }
+
         WeatherInfoDto.TodayCard todayCard = WeatherInfoDto.TodayCard.builder()
                 .headlineTemp("--°C / --°C")
                 .summary("선택 날짜 예보 정보가 없습니다")
@@ -303,7 +329,7 @@ public class WeatherInfoService {
 
         WeatherInfoDto.WeekCard weekCard = WeatherInfoDto.WeekCard.builder()
                 .summary("예보 범위를 벗어났거나 응답값이 없습니다")
-                .subSummary("지역코드 / 발표시각 / API 응답 상태 확인")
+                .subSummary("기상청 제공 범위 밖 날짜는 실제 예보 대신 대기 상태로 표시합니다")
                 .build();
 
         WeatherInfoDto.RainCard rainCard = WeatherInfoDto.RainCard.builder()
@@ -317,8 +343,112 @@ public class WeatherInfoService {
                 .today(todayCard)
                 .week(weekCard)
                 .rain(rainCard)
-                .airQuality(airQualityCard)
+                .airQuality(airQualityCard != null ? airQualityCard : WeatherInfoDto.AirQualityCard.empty())
                 .analysis(WeatherInfoDto.WeatherAnalysis.empty(targetDate.toString()))
+                .equipmentRisks(new ArrayList<>())
+                .planRisks(new ArrayList<>())
+                .alerts(alerts)
+                .forecastDays(forecastDays.isEmpty() ? buildFallbackForecastDays(targetDate) : forecastDays)
+                .build();
+    }
+
+    private Optional<WeatherInfoDto.ForecastDay> findNearestAvailableForecast(
+            LocalDate targetDate,
+            List<WeatherInfoDto.ForecastDay> forecastDays
+    ) {
+        if (forecastDays == null || forecastDays.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return forecastDays.stream()
+                .filter(this::isAvailableForecastDay)
+                .min(Comparator.comparingLong(day -> Math.abs(
+                        java.time.temporal.ChronoUnit.DAYS.between(
+                                targetDate,
+                                LocalDate.parse(day.getDate())
+                        )
+                )));
+    }
+
+    private boolean isAvailableForecastDay(WeatherInfoDto.ForecastDay day) {
+        if (day == null || day.getDate() == null || day.getDate().isBlank()) {
+            return false;
+        }
+
+        String label = defaultString(day.getWeatherLabel(), "");
+        return !label.contains("예보 범위 외")
+                && !label.contains("기상정보 없음")
+                && (day.getMaxTemp() != null || day.getMinTemp() != null);
+    }
+
+    private WeatherInfoDto.DashboardRes buildDerivedDashboard(
+            LocalDate targetDate,
+            List<WeatherInfoDto.ForecastDay> forecastDays,
+            WeatherInfoDto.ForecastDay nearest,
+            List<WeatherInfoDto.AlertItem> alerts,
+            WeatherInfoDto.AirQualityCard airQualityCard
+    ) {
+        int rainPercent = defaultInt(nearest.getPrecipitationProbability());
+        double windSpeed = defaultDouble(nearest.getWindSpeed());
+        Integer fineDustValue = airQualityCard != null ? airQualityCard.getValue() : null;
+
+        DayWeather selectedDay = DayWeather.builder()
+                .summary(defaultString(nearest.getWeatherLabel(), "기상정보 없음"))
+                .amLabel(defaultString(nearest.getWeatherLabel(), "기상정보 없음"))
+                .pmLabel(defaultString(nearest.getWeatherLabel(), "기상정보 없음"))
+                .minTemp(nearest.getMinTemp())
+                .maxTemp(nearest.getMaxTemp())
+                .precipitationProbability(rainPercent)
+                .maxWindSpeed(windSpeed)
+                .hasRain(defaultString(nearest.getWeatherLabel(), "").contains("비") || rainPercent >= 60)
+                .hasSnow(defaultString(nearest.getWeatherLabel(), "").contains("눈"))
+                .build();
+
+        WeatherInfoDto.TodayCard todayCard = WeatherInfoDto.TodayCard.builder()
+                .headlineTemp(buildHeadlineTemp(nearest.getMaxTemp(), nearest.getMinTemp()))
+                .summary(defaultString(nearest.getWeatherLabel(), "기상정보 없음") + " · 인접 예보 기준")
+                .amLabel(defaultString(nearest.getWeatherLabel(), "기상정보 없음"))
+                .pmLabel(defaultString(nearest.getWeatherLabel(), "기상정보 없음"))
+                .observedAt("인접 예보 기준")
+                .build();
+
+        WeatherInfoDto.WeekCard weekCard = WeatherInfoDto.WeekCard.builder()
+                .summary(buildWindSummary(selectedDay, alerts))
+                .subSummary("선택 날짜 공식 예보가 없어서 가장 가까운 예보값을 기준으로 표시합니다")
+                .build();
+
+        WeatherInfoDto.RainCard rainCard = WeatherInfoDto.RainCard.builder()
+                .label("강수확률")
+                .value(rainPercent + "%")
+                .build();
+
+        WeatherInfoDto.WeatherAnalysis analysis = WeatherInfoDto.WeatherAnalysis.builder()
+                .reportDate(targetDate.toString())
+                .sourceType("DERIVED")
+                .outOfRange(true)
+                .minTemperature(nearest.getMinTemp())
+                .maxTemperature(nearest.getMaxTemp())
+                .avgAmTemperature(null)
+                .avgPmTemperature(null)
+                .precipitationProbability(rainPercent)
+                .maxWindSpeed(windSpeed)
+                .fineDustValue(fineDustValue)
+                .fineDustRisk(fineDustValue != null && fineDustValue >= 80)
+                .hasRain(selectedDay.isHasRain())
+                .hasSnow(selectedDay.isHasSnow())
+                .heatRisk(nearest.getMaxTemp() != null && nearest.getMaxTemp() >= 33)
+                .coldRisk(nearest.getMinTemp() != null && nearest.getMinTemp() <= -5)
+                .windRisk(windSpeed >= 8)
+                .build();
+
+        return WeatherInfoDto.DashboardRes.builder()
+                .reportDate(targetDate.toString())
+                .locationLabel(locationLabel)
+                .today(todayCard)
+                .week(weekCard)
+                .rain(rainCard)
+                .airQuality(airQualityCard != null ? airQualityCard : WeatherInfoDto.AirQualityCard.empty())
+                .analysis(analysis)
                 .equipmentRisks(new ArrayList<>())
                 .planRisks(new ArrayList<>())
                 .alerts(alerts)
@@ -1024,11 +1154,20 @@ public class WeatherInfoService {
         return result;
     }
 
+    private boolean isEmptyDashboard(WeatherInfoDto.DashboardRes response) {
+        if (response == null || response.getAnalysis() == null) {
+            return true;
+        }
+
+        String sourceType = response.getAnalysis().getSourceType();
+        return "EMPTY".equals(sourceType);
+    }
+
     private boolean isFreshSnapshot(WeatherInfo snapshot) {
         if (snapshot == null || snapshot.getUpdatedAt() == null) {
             return false;
         }
-        return snapshot.getUpdatedAt().isAfter(LocalDateTime.now().minusMinutes(30));
+        return snapshot.getUpdatedAt().isAfter(LocalDateTime.now().minusMinutes(60));
     }
 
     private WeatherInfoDto.DashboardRes loadSnapshotOrFallback(LocalDate targetDate) {
