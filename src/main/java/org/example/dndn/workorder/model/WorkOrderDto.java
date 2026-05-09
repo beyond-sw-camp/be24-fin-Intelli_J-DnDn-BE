@@ -16,6 +16,9 @@ public class WorkOrderDto {
         private String tradeType;
         private String title;
         private String instructionContent;
+        private String workDetail;
+        private String workTime;
+        private String safetyContent;
         private LocalDate dueDate;
         private String statusCode;
         private Integer workerCount;
@@ -33,6 +36,9 @@ public class WorkOrderDto {
         private String tradeType;
         private String title;
         private String instructionContent;
+        private String workDetail;
+        private String workTime;
+        private String safetyContent;
         private LocalDate dueDate;
         private String statusCode;
         private Integer workerCount;

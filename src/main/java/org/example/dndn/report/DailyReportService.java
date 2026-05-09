@@ -61,6 +61,7 @@ public class DailyReportService {
                 progressIncrementPct,
                 monthlyProgressPct,
                 dto.getActualWorkerCount(),
+                nonBlank(dto.getLocation(), workPlan.getLocation()),
                 dto.getIssue(),
                 dto.getTodayWork(),
                 dto.getTomorrowPlan()
@@ -156,6 +157,11 @@ public class DailyReportService {
         return Math.max(0.0, Math.min(100.0, value));
     }
 
+    private String nonBlank(String value, String fallback) {
+        if (value != null && !value.isBlank()) return value;
+        return fallback != null ? fallback : "";
+    }
+
     // feat : 특정 일자 공사일보 목록 조회 및 DTO 변환
     @Transactional(readOnly = true)
     public List<ReportDto.Res> getReportsByDate(LocalDate date) {
@@ -170,6 +176,7 @@ public class DailyReportService {
                         .progressIncrementPct(r.getProgressIncrementPct())
                         .monthlyProgressPct(r.getMonthlyProgressPct())
                         .actualWorkerCount(r.getActualWorkerCount())
+                        .location(nonBlank(r.getLocation(), r.getWorkPlan().getLocation()))
                         .issue(r.getIssue())
                         .reportDate(r.getReportDate())
                         .todayWork(r.getTodayWork())
