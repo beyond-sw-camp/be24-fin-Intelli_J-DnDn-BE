@@ -75,12 +75,12 @@ weather:
     enabled: true
     cron: "0 0 * * * *"
     warmup-on-startup: true
+    startup-past-days: 15
+    startup-future-days: 15
+    refresh-future-days: 15
 
 jwt:
   secret: ${JWT_SECRET}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 file:
   upload-dir: ./uploads
-
-openai:
-  api-key: ${OPENAI_API_KEY}
