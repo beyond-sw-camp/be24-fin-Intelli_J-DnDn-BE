@@ -40,6 +40,9 @@ public class WorkOrderService {
                 .tradeType(req.getTradeType())
                 .title(req.getTitle())
                 .instructionContent(req.getInstructionContent())
+                .workDetail(req.getWorkDetail())
+                .workTime(req.getWorkTime())
+                .safetyContent(req.getSafetyContent())
                 .dueDate(req.getDueDate())
                 .statusCode(req.getStatusCode())
                 .workerCount(req.getWorkerCount())
@@ -90,6 +93,9 @@ public class WorkOrderService {
                     .tradeType(order.getTradeType())
                     .title(order.getTitle())
                     .instructionContent(order.getInstructionContent())
+                    .workDetail(firstNonBlank(order.getWorkDetail(), order.getInstructionContent()))
+                    .workTime(order.getWorkTime())
+                    .safetyContent(order.getSafetyContent())
                     .dueDate(order.getDueDate())
                     .statusCode(order.getStatusCode())
                     .workerCount(order.getWorkerCount())
@@ -142,6 +148,9 @@ public class WorkOrderService {
         workOrder.setTradeType(req.getTradeType());
         workOrder.setTitle(req.getTitle());
         workOrder.setInstructionContent(req.getInstructionContent());
+        workOrder.setWorkDetail(req.getWorkDetail());
+        workOrder.setWorkTime(req.getWorkTime());
+        workOrder.setSafetyContent(req.getSafetyContent());
         workOrder.setDueDate(req.getDueDate());
         workOrder.setStatusCode(req.getStatusCode());
         workOrder.setWorkerCount(req.getWorkerCount());
@@ -211,7 +220,7 @@ public class WorkOrderService {
                 weeklyPlan.getPartner(),
                 weeklyPlan.getManager(),
                 weeklyPlan.getContact(),
-                workOrder.getInstructionContent()
+                firstNonBlank(workOrder.getWorkDetail(), workOrder.getInstructionContent())
         );
 
         //  2. 인원 정보 반영 (replaceWorkers를 사용해야 requiredCount가 자동 계산됨)

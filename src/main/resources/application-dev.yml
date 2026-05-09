@@ -6,6 +6,11 @@ spring:
   application:
     name: dndn
 
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
   datasource:
     driver-class-name: org.mariadb.jdbc.Driver
     url: ${DB_URL}
@@ -19,6 +24,25 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+management:
+  endpoint:
+    health:
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: 1.0
 
 logging:
   level:
@@ -51,6 +75,12 @@ weather:
     enabled: true
     cron: "0 0 * * * *"
     warmup-on-startup: true
-    startup-past-days: 15
-    startup-future-days: 15
-    refresh-future-days: 15
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+file:
+  upload-dir: ./uploads
+
+openai:
+  api-key: ${OPENAI_API_KEY}

@@ -23,7 +23,7 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
                     wo.idx AS work_order_idx,
                     wo.title,
                     wo.trade_type,
-                    COALESCE(wo.instruction_content, wp.note, wp.name, '') AS work_detail,
+                    COALESCE(wo.work_detail, wo.instruction_content, wp.note, wp.name, '') AS work_detail,
                     COALESCE(wo.due_date, wp.start_date) AS work_date,
                     wp.location AS work_location,
                     wp.name AS work_plan_name,
