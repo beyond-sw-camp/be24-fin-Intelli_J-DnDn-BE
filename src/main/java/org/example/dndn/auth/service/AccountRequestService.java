@@ -2,6 +2,7 @@ package org.example.dndn.auth.service;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dndn.auth.model.dto.AccountRequestDto;
+import java.util.UUID;
 import org.example.dndn.auth.model.entity.AccountRequest;
 import org.example.dndn.auth.model.entity.SystemUser;
 import org.example.dndn.auth.model.enums.RequestStatus;
@@ -66,9 +67,13 @@ public class AccountRequestService {
             throw new BaseException(FAIL);
         }
 
+        String rawPassword = (req.getInitialPassword() != null && req.getInitialPassword().length() >= 8)
+                ? req.getInitialPassword()
+                : UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+
         userRepository.save(SystemUser.builder()
                 .loginId(request.getRequestedLoginId())
-                .password(passwordEncoder.encode(req.getInitialPassword()))
+                .password(passwordEncoder.encode(rawPassword))
                 .name(request.getRequestedName())
                 .role(request.getRequestedRole())
                 .siteCode(request.getSiteCode())

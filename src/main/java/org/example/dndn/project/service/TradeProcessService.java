@@ -58,6 +58,15 @@ public class TradeProcessService {
                 .toList();
     }
 
+    /**
+     * 계정 생성 시 공종 드롭다운 전용.
+     * 현장(projectId) 기준으로 master_schedule → trade_process 를 조회하여
+     * isMilestone = true 이고 '준공', '착공' 을 제외한 공종명 목록을 반환.
+     */
+    public List<String> listMilestoneTradeNamesByProject(Long projectId) {
+        return tradeProcessRepository.findMilestoneTradeNamesByProjectId(projectId);
+    }
+
     @Transactional
     public void update(Long tpId, TradeProcessDto.Req dto) {
         findTradeProcess(tpId).update(

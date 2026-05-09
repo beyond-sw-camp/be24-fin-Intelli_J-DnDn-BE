@@ -34,10 +34,10 @@ public class AccountRequestDto {
         private String trade;
     }
 
-    /** 승인 시 초기 비밀번호를 관리자가 지정. */
+    /** 승인 시 초기 비밀번호를 관리자가 지정. 미입력 시 임시 비밀번호 자동 생성. */
     @Getter
+    @NoArgsConstructor
     public static class ApproveReq {
-        @NotBlank
         @Size(min = 8, max = 100)
         private String initialPassword;
     }
@@ -55,9 +55,13 @@ public class AccountRequestDto {
         private Long idx;
         private Long requesterIdx;
         private String requesterName;
+        /** 프론트 호환 — requesterName 과 동일 값. */
+        private String name;
         private String requestedName;
         private String requestedLoginId;
         private UserRole requestedRole;
+        /** 프론트 호환 — 요청자(requester) 의 권한. */
+        private UserRole role;
         private String siteCode;
         private String trade;
         private RequestStatus status;
@@ -70,9 +74,11 @@ public class AccountRequestDto {
                     .idx(r.getIdx())
                     .requesterIdx(r.getRequester().getIdx())
                     .requesterName(r.getRequester().getName())
+                    .name(r.getRequester().getName())
                     .requestedName(r.getRequestedName())
                     .requestedLoginId(r.getRequestedLoginId())
                     .requestedRole(r.getRequestedRole())
+                    .role(r.getRequester().getRole())
                     .siteCode(r.getSiteCode())
                     .trade(r.getTrade())
                     .status(r.getStatus())

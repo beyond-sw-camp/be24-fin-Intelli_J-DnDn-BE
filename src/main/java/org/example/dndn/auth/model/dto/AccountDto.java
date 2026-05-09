@@ -34,6 +34,12 @@ public class AccountDto {
 
         @Size(max = 80)
         private String trade;
+
+        @Size(max = 20)
+        private String phone;
+
+        @Size(max = 100)
+        private String email;
     }
 
     @Getter
@@ -53,13 +59,12 @@ public class AccountDto {
 
         @NotNull
         private Boolean active;
-    }
 
-    @Getter
-    public static class PasswordReq {
-        @NotBlank
-        @Size(min = 8, max = 100)
-        private String newPassword;
+        @Size(max = 20)
+        private String phone;
+
+        @Size(max = 100)
+        private String email;
     }
 
     @Getter
@@ -71,6 +76,8 @@ public class AccountDto {
         private UserRole role;
         private String siteCode;
         private String trade;
+        private String phone;
+        private String email;
         private boolean active;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
@@ -83,6 +90,8 @@ public class AccountDto {
                     .role(u.getRole())
                     .siteCode(u.getSiteCode())
                     .trade(u.getTrade())
+                    .phone(u.getPhone())
+                    .email(u.getEmail())
                     .active(u.isActive())
                     .createdAt(u.getCreatedAt())
                     .updatedAt(u.getUpdatedAt())

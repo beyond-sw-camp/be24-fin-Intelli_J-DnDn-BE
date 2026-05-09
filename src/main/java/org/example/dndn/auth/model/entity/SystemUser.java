@@ -6,7 +6,7 @@ import org.example.dndn.auth.model.enums.UserRole;
 import org.example.dndn.common.model.BaseEntity;
 
 @Entity
-@Table(name = "system_user")
+@Table(name = "account")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
@@ -38,15 +38,23 @@ public class SystemUser extends BaseEntity {
     @Column(length = 80)
     private String trade;
 
+    @Column(length = 20)
+    private String phone;
+
+    @Column(length = 100)
+    private String email;
+
     @Column(nullable = false)
     private boolean active;
 
-    public void update(String name, UserRole role, String siteCode, String trade, boolean active) {
+    public void update(String name, UserRole role, String siteCode, String trade, boolean active, String phone, String email) {
         this.name = name;
         this.role = role;
         this.siteCode = siteCode;
         this.trade = trade;
         this.active = active;
+        this.phone = phone;
+        this.email = email;
     }
 
     public void changePassword(String encodedPassword) {

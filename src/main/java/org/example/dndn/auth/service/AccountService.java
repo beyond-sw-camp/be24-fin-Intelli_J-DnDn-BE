@@ -44,6 +44,8 @@ public class AccountService {
                 .role(req.getRole())
                 .siteCode(req.getSiteCode())
                 .trade(req.getTrade())
+                .phone(req.getPhone())
+                .email(req.getEmail())
                 .active(true)
                 .build());
         return AccountDto.Res.from(saved);
@@ -52,14 +54,8 @@ public class AccountService {
     @Transactional
     public AccountDto.Res update(Long idx, AccountDto.UpdateReq req) {
         SystemUser user = findById(idx);
-        user.update(req.getName(), req.getRole(), req.getSiteCode(), req.getTrade(), req.getActive());
+        user.update(req.getName(), req.getRole(), req.getSiteCode(), req.getTrade(), req.getActive(), req.getPhone(), req.getEmail());
         return AccountDto.Res.from(user);
-    }
-
-    @Transactional
-    public void changePassword(Long idx, AccountDto.PasswordReq req) {
-        SystemUser user = findById(idx);
-        user.changePassword(passwordEncoder.encode(req.getNewPassword()));
     }
 
     /** 논리 삭제 — 계정 비활성화. */

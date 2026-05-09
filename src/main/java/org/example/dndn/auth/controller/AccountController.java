@@ -46,15 +46,6 @@ public class AccountController {
         return ResponseEntity.ok(BaseResponse.success(accountService.update(idx, req)));
     }
 
-    /** 비밀번호 변경. */
-    @PutMapping("/{idx}/password")
-    public ResponseEntity<BaseResponse<Void>> changePassword(
-            @PathVariable Long idx,
-            @Valid @RequestBody AccountDto.PasswordReq req) {
-        accountService.changePassword(idx, req);
-        return ResponseEntity.ok(BaseResponse.success(null));
-    }
-
     /** 계정 비활성화 (논리 삭제). */
     @DeleteMapping("/{idx}")
     public ResponseEntity<BaseResponse<Void>> delete(@PathVariable Long idx) {

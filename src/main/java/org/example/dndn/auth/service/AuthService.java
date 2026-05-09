@@ -6,11 +6,13 @@ import org.example.dndn.auth.model.entity.SystemUser;
 import org.example.dndn.auth.repository.SystemUserRepository;
 import org.example.dndn.auth.security.JwtProvider;
 import org.example.dndn.common.exception.BaseException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
+import static org.example.dndn.common.model.BaseResponseStatus.LOGIN_INVALID_USERINFO;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +22,27 @@ public class AuthService {
     private final SystemUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+
+    @Transactional
+    public void changePassword(AuthDto.ChangePasswordReq req) {
+        Long userIdx = getAuthenticatedIdx();
+        SystemUser user = userRepository.findById(userIdx)
+                .orElseThrow(() -> new BaseException(FAIL));
+
+        if (!passwordEncoder.matches(req.getCurrentPassword(), user.getPassword())) {
+            throw new BaseException(LOGIN_INVALID_USERINFO);
+        }
+
+        user.changePassword(passwordEncoder.encode(req.getNewPassword()));
+    }
+
+    private Long getAuthenticatedIdx() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof Long)) {
+            throw new BaseException(FAIL);
+        }
+        return (Long) auth.getPrincipal();
+    }
 
     public AuthDto.LoginRes login(AuthDto.LoginReq req) {
         SystemUser user = userRepository.findByLoginId(req.getLoginId())
