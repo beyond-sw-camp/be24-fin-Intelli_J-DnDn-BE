@@ -23,6 +23,7 @@ public class AnalysisDto {
         private Double actualPct;       // 실제 진척률 (DailyReport 누적)
         private String actualSource;    // DAILY_REPORT | NONE
         private LocalDate latestReportDate;
+        private LocalDate analysisDate;
         private Double diff;            // plannedPct - actualPct (양수 = 지연)
         private String status;          // 정상 / 주의 / 지연 위험 / 지연
         private String risk;            // 낮음 / 보통 / 높음 / 매우 높음
@@ -75,6 +76,7 @@ public class AnalysisDto {
         private String actualSource;    // DAILY_REPORT | NONE
         private LocalDate latestReportDate;
         private Long dailyReportId;
+        private LocalDate analysisDate;
         private Double diff;
         private String status;
         private String risk;

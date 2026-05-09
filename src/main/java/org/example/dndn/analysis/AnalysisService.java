@@ -13,8 +13,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -23,30 +27,43 @@ public class AnalysisService {
 
     private static final String ACTUAL_SOURCE_DAILY_REPORT = "DAILY_REPORT";
     private static final String ACTUAL_SOURCE_NONE = "NONE";
+    private static final ZoneId ANALYSIS_ZONE = ZoneId.of("Asia/Seoul");
+    private static final LocalTime DEFAULT_WORK_END_TIME = LocalTime.of(18, 0);
+    private static final Pattern WORK_TIME_RANGE_PATTERN = Pattern.compile(
+            "(\\d{1,2}:\\d{2})\\s*(?:~|\\uFF5E)\\s*(\\d{1,2}:\\d{2})"
+    );
 
     private final TradeProcessRepository tradeProcessRepository;
     private final WorkPlanRepository workPlanRepository;
     private final DailyReportRepository dailyReportRepository;
 
-    // ─────────────────────────────────────────────
-    // 1. 공정 진척률 비교
-    // TradeProcess 기준
-    // 예: 기초 콘크리트 타설 전체 진척률
-    // ─────────────────────────────────────────────
+    // ?????????????????????????????????????????????
+    // 1. 怨듭젙 吏꾩쿃瑜?鍮꾧탳
+    // TradeProcess 湲곗?
+    // ?? 湲곗큹 肄섑겕由ы듃 ????꾩껜 吏꾩쿃瑜?
+    // ?????????????????????????????????????????????
 
     public List<AnalysisDto.ProcessProgressRes> getProgressList(Long projectId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(ANALYSIS_ZONE);
 
         return tradeProcessRepository
                 .findAllByMasterSchedule_Project_Idx(projectId)
                 .stream()
+                .filter(tp -> !isMilestoneProcess(tp))
                 .map(tp -> buildProgressRes(tp, today))
                 .toList();
     }
 
+    private boolean isMilestoneProcess(TradeProcess tradeProcess) {
+        if (tradeProcess == null) return false;
+        if (Boolean.TRUE.equals(tradeProcess.getIsMilestone())) return true;
+        return "마일스톤".equals(String.valueOf(tradeProcess.getTradeName()).trim());
+    }
+
     private AnalysisDto.ProcessProgressRes buildProgressRes(TradeProcess tp, LocalDate today) {
-        double plannedPct = calcPlannedPct(tp.getPlannedStart(), tp.getPlannedEnd(), today);
         ActualProgressSnapshot actualProgress = calcActualProgressByTradeProcess(tp.getIdx(), today);
+        LocalDate referenceDate = resolveReferenceDateForTradeProcess(tp.getIdx(), actualProgress, today);
+        double plannedPct = calcPlannedPct(tp.getPlannedStart(), tp.getPlannedEnd(), referenceDate);
         double actualPct = actualProgress.actualPct();
         double diff = roundPct(plannedPct - actualPct);
 
@@ -54,7 +71,7 @@ public class AnalysisService {
                 diff,
                 tp.getPlannedStart(),
                 tp.getPlannedEnd(),
-                today,
+                referenceDate,
                 actualPct
         );
 
@@ -62,7 +79,7 @@ public class AnalysisService {
                 diff,
                 tp.getPlannedStart(),
                 tp.getPlannedEnd(),
-                today,
+                referenceDate,
                 actualPct
         );
 
@@ -74,37 +91,38 @@ public class AnalysisService {
                 .plannedStart(tp.getPlannedStart())
                 .plannedEnd(tp.getPlannedEnd())
                 .actualStart(tp.getPlannedStart())
-                .forecastEnd(calcForecastEnd(tp.getPlannedStart(), tp.getPlannedEnd(), actualPct, today))
+                .forecastEnd(calcForecastEnd(tp.getPlannedStart(), tp.getPlannedEnd(), actualPct, referenceDate))
                 .plannedPct(plannedPct)
                 .actualPct(actualPct)
                 .actualSource(actualProgress.source())
                 .latestReportDate(actualProgress.reportDate())
+                .analysisDate(referenceDate)
                 .diff(diff)
                 .status(status)
                 .risk(risk)
-                .actualWorkers(calcActualWorkersByTradeProcess(tp.getIdx(), today))
+                .actualWorkers(calcActualWorkersByTradeProcess(tp.getIdx(), referenceDate))
                 .build();
     }
 
-    // ─────────────────────────────────────────────
-    // 2. 지연 위험 세부 작업
-    // MONTHLY WorkPlan 기준
-    // 예: 101동 기초 콘크리트 타설
+    // ?????????????????????????????????????????????
+    // 2. 吏???꾪뿕 ?몃? ?묒뾽
+    // MONTHLY WorkPlan 湲곗?
+    // ?? 101??湲곗큹 肄섑겕由ы듃 ???
     //
-    // 자식 WEEKLY WorkPlan
-    // 예: 5/1 점검, 5/2 장비 반입, 5/3 1구간 타설
-    // ─────────────────────────────────────────────
+    // ?먯떇 WEEKLY WorkPlan
+    // ?? 5/1 ?먭?, 5/2 ?λ퉬 諛섏엯, 5/3 1援ш컙 ???
+    // ?????????????????????????????????????????????
 
     public List<AnalysisDto.DelayRiskDetailRes> getDelayRiskTasks(Long projectId, Long tradeProcessId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(ANALYSIS_ZONE);
 
         return workPlanRepository
                 .findAllByTradeProcess_MasterSchedule_Project_Idx(projectId)
                 .stream()
-                // 101동 기초 콘크리트 타설 같은 세부 작업
+                // 101??湲곗큹 肄섑겕由ы듃 ???媛숈? ?몃? ?묒뾽
                 .filter(wp -> wp.getPlanType() == PlanType.MONTHLY)
 
-                // 특정 공정 선택 시 해당 공정의 세부 작업만 조회
+                // ?뱀젙 怨듭젙 ?좏깮 ???대떦 怨듭젙???몃? ?묒뾽留?議고쉶
                 .filter(wp -> tradeProcessId == null
                         || (wp.getTradeProcess() != null
                         && wp.getTradeProcess().getIdx().equals(tradeProcessId)))
@@ -113,7 +131,7 @@ public class AnalysisService {
                 .filter(task -> isDelayRiskTask(
                         task.getDate(),
                         task.getEffectiveEnd(),
-                        today,
+                        task.getAnalysisDate() != null ? task.getAnalysisDate() : today,
                         task.getDiff(),
                         task.getActualPct()
                 ))
@@ -121,13 +139,14 @@ public class AnalysisService {
     }
 
     private AnalysisDto.DelayRiskDetailRes buildDelayRiskTaskRes(WorkPlan parentPlan, LocalDate today) {
+        ActualProgressSnapshot actualProgress = getActualProgressByMonthlyPlan(parentPlan, today);
+        LocalDate referenceDate = resolveReferenceDateForMonthlyPlan(parentPlan, actualProgress, today);
         double plannedPct = calcPlannedPct(
                 parentPlan.getStartDate(),
                 parentPlan.effectiveEndDate(),
-                today
+                referenceDate
         );
 
-        ActualProgressSnapshot actualProgress = getActualProgressByMonthlyPlan(parentPlan, today);
         double actualPct = actualProgress.actualPct();
         double diff = roundPct(plannedPct - actualPct);
 
@@ -135,7 +154,7 @@ public class AnalysisService {
                 diff,
                 parentPlan.getStartDate(),
                 parentPlan.effectiveEndDate(),
-                today,
+                referenceDate,
                 actualPct
         );
 
@@ -143,20 +162,20 @@ public class AnalysisService {
                 diff,
                 parentPlan.getStartDate(),
                 parentPlan.effectiveEndDate(),
-                today,
+                referenceDate,
                 actualPct
         );
 
         List<WorkPlan> childPlans = workPlanRepository.findAllByParentWorkPlan_Idx(parentPlan.getIdx());
 
         int actualWorkers = childPlans.stream()
-                .mapToInt(child -> getLatestActualWorkersByWorkPlan(child.getIdx(), today))
+                .mapToInt(child -> getLatestActualWorkersByWorkPlan(child.getIdx(), referenceDate))
                 .sum();
 
-        String latestIssue = getLatestIssueFromChildPlans(parentPlan.getIdx(), today);
+        String latestIssue = getLatestIssueFromChildPlans(parentPlan.getIdx(), referenceDate);
         String cause = actualProgress.hasDailyReport()
                 ? latestIssue
-                : "공사일보의 월간 세부계획 진척률 미작성";
+                : "\uacf5\uc0ac\uc77c\ubcf4 \uae30\uc900 \uc6d4\uac04 \uc138\ubd80\uacc4\ud68d \uc9c4\ucc99\ub960 \ubbf8\uc791\uc131";
 
         return AnalysisDto.DelayRiskDetailRes.builder()
                 .workPlanId(parentPlan.getIdx())
@@ -180,6 +199,7 @@ public class AnalysisService {
                 .actualSource(actualProgress.source())
                 .latestReportDate(actualProgress.reportDate())
                 .dailyReportId(actualProgress.reportId())
+                .analysisDate(referenceDate)
                 .diff(diff)
                 .status(status)
                 .risk(risk)
@@ -200,9 +220,107 @@ public class AnalysisService {
                 .build();
     }
 
-    // ─────────────────────────────────────────────
-    // 3. 실제 진척률 계산
-    // ─────────────────────────────────────────────
+    // ?????????????????????????????????????????????
+    // 3. ?ㅼ젣 吏꾩쿃瑜?怨꾩궛
+    // ?????????????????????????????????????????????
+
+    private LocalDate resolveReferenceDateForTradeProcess(
+            Long tradeProcessId,
+            ActualProgressSnapshot actualProgress,
+            LocalDate today
+    ) {
+        if (hasDailyReportOn(actualProgress, today)) return today;
+
+        LocalTime workEndTime = resolveTradeProcessWorkEndTime(tradeProcessId, today);
+        if (LocalTime.now(ANALYSIS_ZONE).isBefore(workEndTime)) {
+            return trustedReferenceDate(actualProgress, today);
+        }
+
+        return today;
+    }
+
+    private LocalDate resolveReferenceDateForMonthlyPlan(
+            WorkPlan monthlyPlan,
+            ActualProgressSnapshot actualProgress,
+            LocalDate today
+    ) {
+        if (hasDailyReportOn(actualProgress, today)) return today;
+
+        LocalTime workEndTime = resolveMonthlyPlanWorkEndTime(monthlyPlan, today);
+        if (LocalTime.now(ANALYSIS_ZONE).isBefore(workEndTime)) {
+            return trustedReferenceDate(actualProgress, today);
+        }
+
+        return today;
+    }
+
+    private boolean hasDailyReportOn(ActualProgressSnapshot actualProgress, LocalDate date) {
+        return actualProgress != null
+                && actualProgress.hasDailyReport()
+                && date != null
+                && date.equals(actualProgress.reportDate());
+    }
+
+    private LocalDate trustedReferenceDate(ActualProgressSnapshot actualProgress, LocalDate today) {
+        if (actualProgress != null && actualProgress.reportDate() != null) {
+            return actualProgress.reportDate();
+        }
+        return today.minusDays(1);
+    }
+
+    private LocalTime resolveTradeProcessWorkEndTime(Long tradeProcessId, LocalDate date) {
+        if (tradeProcessId == null) return DEFAULT_WORK_END_TIME;
+
+        return workPlanRepository.findAllByTradeProcess_Idx(tradeProcessId)
+                .stream()
+                .filter(wp -> wp.getPlanType() == PlanType.MONTHLY)
+                .map(monthlyPlan -> resolveMonthlyPlanWorkEndTime(monthlyPlan, date))
+                .max(LocalTime::compareTo)
+                .orElse(DEFAULT_WORK_END_TIME);
+    }
+
+    private LocalTime resolveMonthlyPlanWorkEndTime(WorkPlan monthlyPlan, LocalDate date) {
+        if (monthlyPlan == null || monthlyPlan.getIdx() == null) return DEFAULT_WORK_END_TIME;
+
+        return workPlanRepository.findAllByParentWorkPlan_Idx(monthlyPlan.getIdx())
+                .stream()
+                .filter(child -> containsDate(child, date))
+                .map(child -> parseWorkEndTime(child.getNote()))
+                .filter(time -> time != null)
+                .max(LocalTime::compareTo)
+                .orElse(DEFAULT_WORK_END_TIME);
+    }
+
+    private boolean containsDate(WorkPlan workPlan, LocalDate date) {
+        if (workPlan == null || date == null) return false;
+        LocalDate start = workPlan.getStartDate();
+        LocalDate end = workPlan.getEndDate();
+        if (start == null || end == null) return false;
+        return !date.isBefore(start) && !date.isAfter(end);
+    }
+
+    private LocalTime parseWorkEndTime(String note) {
+        if (note == null || note.isBlank()) return null;
+
+        Matcher matcher = WORK_TIME_RANGE_PATTERN.matcher(note);
+        LocalTime latestEnd = null;
+        while (matcher.find()) {
+            LocalTime parsedEnd = parseTime(matcher.group(2));
+            if (parsedEnd != null) {
+                latestEnd = parsedEnd;
+            }
+        }
+        return latestEnd;
+    }
+
+    private LocalTime parseTime(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return LocalTime.parse(value.trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
     private ActualProgressSnapshot calcActualProgressByTradeProcess(Long tradeProcessId, LocalDate today) {
         List<WorkPlan> plans = workPlanRepository.findAllByTradeProcess_Idx(tradeProcessId);
@@ -266,9 +384,9 @@ public class AnalysisService {
         return roundPct(clamped);
     }
 
-    // ─────────────────────────────────────────────
-    // 4. 실제 투입 인원 / 이슈
-    // ─────────────────────────────────────────────
+    // ?????????????????????????????????????????????
+    // 4. ?ㅼ젣 ?ъ엯 ?몄썝 / ?댁뒋
+    // ?????????????????????????????????????????????
 
     private int calcActualWorkersByTradeProcess(Long tradeProcessId, LocalDate today) {
         return workPlanRepository.findAllByTradeProcess_Idx(tradeProcessId)
@@ -313,9 +431,9 @@ public class AnalysisService {
                 .orElse("");
     }
 
-    // ─────────────────────────────────────────────
-    // 5. 계획 진척률 / 예상 종료일
-    // ─────────────────────────────────────────────
+    // ?????????????????????????????????????????????
+    // 5. 怨꾪쉷 吏꾩쿃瑜?/ ?덉긽 醫낅즺??
+    // ?????????????????????????????????????????????
 
     private double calcPlannedPct(LocalDate start, LocalDate end, LocalDate today) {
         if (start == null || end == null) return 0.0;
@@ -384,40 +502,40 @@ public class AnalysisService {
     }
 
     private String resolveFollowEffect(WorkPlan workPlan, String risk) {
-        if ("매우 높음".equals(risk) || "높음".equals(risk)) {
-            return "후속 공정 영향 검토 필요";
+        if ("\ub9e4\uc6b0 \ub192\uc74c".equals(risk) || "\ub192\uc74c".equals(risk)) {
+            return "\ud6c4\uc18d \uacf5\uc815 \uc601\ud5a5 \uac80\ud1a0 \ud544\uc694";
         }
-        return "영향 낮음";
+        return "\uc601\ud5a5 \ub0ae\uc74c";
     }
 
-    // ─────────────────────────────────────────────
-    // 6. 상태 / 위험도 판단
-    // ─────────────────────────────────────────────
+    // ?????????????????????????????????????????????
+    // 6. ?곹깭 / ?꾪뿕???먮떒
+    // ?????????????????????????????????????????????
 
     private String classifyStatus(double diff, LocalDate start, LocalDate end, LocalDate today, double actualPct) {
-        if (actualPct >= 100) return "완료";
+        if (actualPct >= 100) return "\uc644\ub8cc";
 
-        if (isOverdueNotDone(end, today, actualPct)) return "지연";
-        if (diff >= 15) return "지연";
-        if (diff >= 10) return "지연 위험";
-        if (isNearDeadlineAndLow(start, end, today, actualPct)) return "지연 위험";
-        if (diff >= 5) return "주의";
-        if (diff > 0) return "주의";
+        if (isOverdueNotDone(end, today, actualPct)) return "\uc9c0\uc5f0";
+        if (diff >= 15) return "\uc9c0\uc5f0";
+        if (diff >= 10) return "\uc9c0\uc5f0 \uc704\ud5d8";
+        if (isNearDeadlineAndLow(start, end, today, actualPct)) return "\uc9c0\uc5f0 \uc704\ud5d8";
+        if (diff >= 5) return "\uc8fc\uc758";
+        if (diff > 0) return "\uc8fc\uc758";
 
-        return "정상";
+        return "\uc815\uc0c1";
     }
 
     private String classifyRisk(double diff, LocalDate start, LocalDate end, LocalDate today, double actualPct) {
-        if (actualPct >= 100) return "낮음";
+        if (actualPct >= 100) return "\ub0ae\uc74c";
 
-        if (isOverdueNotDone(end, today, actualPct)) return "매우 높음";
-        if (diff >= 20) return "매우 높음";
-        if (diff >= 15) return "높음";
-        if (diff >= 10) return "보통";
-        if (isNearDeadlineAndLow(start, end, today, actualPct)) return "보통";
-        if (diff > 0) return "보통";
+        if (isOverdueNotDone(end, today, actualPct)) return "\ub9e4\uc6b0 \ub192\uc74c";
+        if (diff >= 20) return "\ub9e4\uc6b0 \ub192\uc74c";
+        if (diff >= 15) return "\ub192\uc74c";
+        if (diff >= 10) return "\ubcf4\ud1b5";
+        if (isNearDeadlineAndLow(start, end, today, actualPct)) return "\ubcf4\ud1b5";
+        if (diff > 0) return "\ubcf4\ud1b5";
 
-        return "낮음";
+        return "\ub0ae\uc74c";
     }
 
     private boolean isDelayRiskTask(
@@ -432,7 +550,7 @@ public class AnalysisService {
 
         if (start == null || end == null) return false;
 
-        // 아직 시작 전인 세부 작업은 지연 위험으로 보지 않음
+        // ?꾩쭅 ?쒖옉 ?꾩씤 ?몃? ?묒뾽? 吏???꾪뿕?쇰줈 蹂댁? ?딆쓬
         if (today.isBefore(start)) return false;
 
         return safeDiff > 0
