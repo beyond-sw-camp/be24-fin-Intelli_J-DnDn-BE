@@ -15,4 +15,14 @@ public interface DailyReportRepository extends JpaRepository<DailyReport, Long> 
     // [REPORT_003] 3단계 : 공사일보 제출(Upsert) 기본 로직 구현
     // feat : 중복 방지를 위한 특정 주간계획의 특정 날짜 공사일보 조회 쿼리 추가
     Optional<DailyReport> findByWorkPlan_IdxAndReportDate(Long workPlanId, LocalDate reportDate);
+
+    Optional<DailyReport> findTopByWorkPlan_IdxAndReportDateLessThanEqualOrderByReportDateDesc(
+            Long workPlanId,
+            LocalDate reportDate
+    );
+
+    Optional<DailyReport> findTopByMonthlyWorkPlan_IdxAndReportDateLessThanEqualOrderByReportDateDesc(
+            Long monthlyWorkPlanId,
+            LocalDate reportDate
+    );
 }

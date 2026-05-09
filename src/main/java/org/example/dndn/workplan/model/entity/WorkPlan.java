@@ -8,6 +8,7 @@ import org.example.dndn.workplan.model.enums.PlanStatus;
 import org.example.dndn.workplan.model.enums.PlanType;
 import org.example.dndn.workplan.model.enums.WorkTrade;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -60,7 +61,11 @@ public class WorkPlan extends BaseEntity {
     private String partner; // 협력사명
     private String manager; // 담당자명
     private String contact; // 담당자 연락처
+    @Column(columnDefinition = "TEXT")
     private String note;    // 비고
+
+    @Column(name = "actual_progress_pct")
+    private BigDecimal actualProgressPct = BigDecimal.ZERO;
 
     @OneToMany(mappedBy = "workPlan", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
@@ -192,5 +197,12 @@ public class WorkPlan extends BaseEntity {
                 .filter(c -> c != null)
                 .mapToInt(Integer::intValue)
                 .sum();
+    }
+    public void updateActualProgressPct(Double actualProgressPct) {
+        double value = actualProgressPct == null
+                ? 0.0
+                : Math.max(0.0, Math.min(100.0, actualProgressPct));
+
+        this.actualProgressPct = java.math.BigDecimal.valueOf(value);
     }
 }

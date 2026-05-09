@@ -28,6 +28,10 @@ public class ReportDto {
 
         private Double todayProgress;       // feat : 금일 입력된 진척률 (예: 사용자가 입력한 90%)
 
+        private Long monthlyWorkPlanId;     // feat : 누적 진척률을 반영할 부모 월간 세부계획 ID
+        private Double progressIncrementPct; // feat : 금일 작업으로 월간 세부계획에 반영되는 증가분
+        private Double monthlyProgressPct;   // feat : 반영 후 월간 세부계획 누적 진척률
+
         @NotNull(message = "actualWorkerCount is required")
         private Integer actualWorkerCount;  // feat : 금일 실제 투입 인원 수
 
@@ -39,6 +43,8 @@ public class ReportDto {
 
         private String todayWork;           // feat : 금일 작업 완료 내용
         private String tomorrowPlan;        // feat : 명일 작업 예정 내용
+
+        private Long tomorrowWorkPlanId;    // feat : 프론트엔드에서 선택한 '덮어쓸 대상 주간계획의 ID'를 받을 필드
 
         // [REPORT_006] 6단계 : 명일 스케줄 투입 인원 연동 기능
         // feat : 옵션 B 추가 데이터 (내일 일정 자동 생성용)
@@ -57,6 +63,9 @@ public class ReportDto {
         private String process;             // feat : 공정명 (예: 전기 공정)
         private Double actualProgress;      // feat : 전체 누적 진척률
         private Double todayProgress;       // feat : 금일 입력된 진척률
+        private Long monthlyWorkPlanId;     // feat : 누적 진척률을 반영한 부모 월간 세부계획 ID
+        private Double progressIncrementPct; // feat : 금일 작업으로 월간 세부계획에 반영된 증가분
+        private Double monthlyProgressPct;   // feat : 반영 후 월간 세부계획 누적 진척률
         private Integer actualWorkerCount;  // feat : 금일 실제 투입 인원 수
         private String issue;               // feat : 특이사항 및 이슈
         private LocalDate reportDate;       // feat : 공사일보 작성 일자

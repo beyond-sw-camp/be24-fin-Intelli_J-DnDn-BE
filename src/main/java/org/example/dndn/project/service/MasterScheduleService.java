@@ -1,21 +1,30 @@
 package org.example.dndn.project.service;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dndn.ai.extractor.ScheduleDocumentExtractor;
 import org.example.dndn.project.model.dto.MasterScheduleDto;
+import org.example.dndn.project.model.dto.TradeProcessDto;
 import org.example.dndn.project.model.entity.MasterSchedule;
 import org.example.dndn.project.model.entity.Project;
+import org.example.dndn.project.model.entity.TradeProcess;
 import org.example.dndn.project.model.enums.DocType;
 import org.example.dndn.project.repository.MasterScheduleRepository;
 import org.example.dndn.project.repository.ProjectRepository;
 import org.example.dndn.project.repository.TradeProcessRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class MasterScheduleService {
+    private final ScheduleDocumentExtractor scheduleDocumentExtractor;
     private final TradeProcessRepository tradeProcessRepository;
     private final MasterScheduleRepository masterScheduleRepository;
     private final ProjectRepository projectRepository;
@@ -63,4 +72,73 @@ public class MasterScheduleService {
         return masterScheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new RuntimeException("공정표를 찾을 수 없습니다."));
     }
-} 
+
+    // 새로 추가
+    @Transactional
+    public List<TradeProcessDto.Res> uploadAndExtract(
+            Long projectId,
+            String docTypeLabel,
+            MultipartFile file
+    ) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("현장을 찾을 수 없습니다."));
+
+        DocType docType = DocType.fromLabel(docTypeLabel);
+        if (docType == null) {
+            throw new RuntimeException("알 수 없는 공정표 종류입니다: " + docTypeLabel);
+        }
+
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("업로드된 파일이 없습니다.");
+        }
+
+        try {
+            String uploadDir = System.getProperty("user.dir") + "/uploads/master-schedule/";
+            Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
+
+            Files.createDirectories(uploadPath);
+
+            String originalFileName = file.getOriginalFilename();
+            String storedFileName = UUID.randomUUID() + "_" + originalFileName;
+
+            Path filePath = uploadPath.resolve(storedFileName).normalize();
+
+            file.transferTo(filePath.toFile());
+
+            MasterSchedule schedule = MasterSchedule.builder()
+                    .project(project)
+                    .docType(docType)
+                    .fileUrl(filePath.toString())
+                    .fileName(originalFileName)
+                    .build();
+
+            MasterSchedule savedSchedule = masterScheduleRepository.save(schedule);
+
+            List<TradeProcessDto.Req> extractedList =
+                    scheduleDocumentExtractor.extract(filePath.toFile(), savedSchedule.getIdx());
+
+            List<TradeProcess> tradeProcesses = extractedList.stream()
+                    .map(dto -> TradeProcess.builder()
+                            .masterSchedule(savedSchedule)
+                            .tradeName(dto.getTradeName())
+                            .processName(dto.getProcessName())
+                            .partnerCompany(dto.getPartnerCompany())
+                            .plannedStart(dto.getPlannedStart())
+                            .plannedEnd(dto.getPlannedEnd())
+                            .weightPct(dto.getWeightPct())
+                            .isMilestone(dto.getIsMilestone() != null ? dto.getIsMilestone() : false)
+                            .build())
+                    .toList();
+
+            List<TradeProcess> savedTradeProcesses =
+                    tradeProcessRepository.saveAll(tradeProcesses);
+
+            return savedTradeProcesses.stream()
+                    .map(TradeProcessDto.Res::from)
+                    .toList();
+
+        } catch (Exception e) {
+            throw new RuntimeException("공정표 업로드 및 AI 분석 중 오류가 발생했습니다.", e);
+        }
+    }
+}

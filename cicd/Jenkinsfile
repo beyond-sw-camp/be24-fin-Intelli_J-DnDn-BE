@@ -97,6 +97,7 @@ spec:
       }
     }
 
+    /*
     stage('Deploy to Kubernetes') {
       steps {
         container('kubectl'){
@@ -104,6 +105,37 @@ spec:
               // Deployment 재시작을 통해 최신 이미지 Pull 유도
               sh "kubectl set image deployment/dndn-backend backend=${IMAGE_NAME}:${IMAGE_TAG}"
               sh "kubectl rollout restart deployment/dndn-backend"
+          }
+        }
+      }
+    }*/
+    stage('Deploy to Kubernetes') {
+      steps {
+        container('kubectl') {
+          script {
+            def activeService = sh(
+              script: "kubectl get ingress backend-ingress -o jsonpath='{.spec.rules[0].http.paths[0].backend.service.name}'",
+              returnStdout: true
+            ).trim()
+            def activeVersion   = activeService.contains('blue') ? 'blue' : 'green'
+            def inactiveVersion = activeVersion == 'blue' ? 'green' : 'blue'
+            echo "Active: ${activeVersion} → Deploying to: ${inactiveVersion}"
+
+            sh "kubectl set image deployment/dndn-backend-${inactiveVersion} backend=${IMAGE_NAME}:${IMAGE_TAG}"
+            sh "kubectl scale deployment/dndn-backend-${inactiveVersion} --replicas=2"
+            sh "kubectl rollout status deployment/dndn-backend-${inactiveVersion} --timeout=180s"
+
+            // Ingress 전환 (외부 트래픽)
+            sh """
+              kubectl patch ingress backend-ingress --type=json \
+                -p='[{"op":"replace","path":"/spec/rules/0/http/paths/0/backend/service/name","value":"backend-service-${inactiveVersion}"}]'
+            """
+
+            // stable backend-service selector 전환 (프론트 nginx proxy_pass용)
+            sh "kubectl patch svc backend-service -p '{\"spec\":{\"selector\":{\"type\":\"backend\",\"version\":\"${inactiveVersion}\"}}}'"
+
+            sh "kubectl scale deployment/dndn-backend-${activeVersion} --replicas=0"
+            echo "Switched to: ${inactiveVersion}"
           }
         }
       }
