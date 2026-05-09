@@ -33,6 +33,14 @@ public class WorkOrder extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String instructionContent;
 
+    @Column(columnDefinition = "TEXT")
+    private String workDetail;
+
+    private String workTime;
+
+    @Column(columnDefinition = "TEXT")
+    private String safetyContent;
+
     private LocalDate dueDate;
     private String statusCode;
 
