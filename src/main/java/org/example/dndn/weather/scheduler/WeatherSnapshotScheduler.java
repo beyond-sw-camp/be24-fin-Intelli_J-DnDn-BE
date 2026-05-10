@@ -51,6 +51,11 @@ public class WeatherSnapshotScheduler {
                 weatherInfoService.refreshSnapshot(today.plusDays(i));
             } catch (Exception ignored) {
             }
+<<<<<<< Updated upstream
+=======
+
+            cursor = cursor.plusDays(1);
+>>>>>>> Stashed changes
         }
     }
 }
