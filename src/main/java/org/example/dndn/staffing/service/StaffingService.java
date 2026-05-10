@@ -1,6 +1,7 @@
 package org.example.dndn.staffing.service;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dndn.auth.security.AuthAccessService;
 import org.example.dndn.common.exception.BaseException;
 import org.example.dndn.staffing.model.StaffingAssignment;
 import org.example.dndn.staffing.model.StaffingDto;
@@ -22,6 +23,11 @@ import org.example.dndn.worker.repository.AttendanceRecordRepository;
 import org.example.dndn.worker.repository.WorkerRepository;
 import org.example.dndn.worker.service.AttendanceDeploymentSyncService;
 import org.example.dndn.worker.service.FatigueCalculationService;
+import org.example.dndn.workplan.WorkPlanRepository;
+import org.example.dndn.workplan.model.entity.WorkPlan;
+import org.example.dndn.workplan.model.entity.WorkPlanWorker;
+import org.example.dndn.workplan.model.enums.PlanType;
+import org.example.dndn.workplan.model.enums.WorkerTrade;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +44,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.example.dndn.common.model.BaseResponseStatus.ASSIGN_OVERFLOW;
 import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
@@ -50,6 +58,7 @@ public class StaffingService {
     /** 명단·스냅샷 조회 시 “출근 처리됨”으로 볼 근태(지각 포함). */
     private static final List<AttendanceStatus> STAFFING_ATTENDANCE_ONSITE =
             List.of(AttendanceStatus.PRESENT, AttendanceStatus.LATE);
+    private static final Pattern TIME_TOKEN = Pattern.compile("\\b\\d{1,2}:\\d{2}\\b");
 
     private final StaffingAssignmentRepository assignmentRepository;
     private final ZoneMainRepository zoneMainRepository;
@@ -59,20 +68,37 @@ public class StaffingService {
     private final AttendanceRecordRepository attendanceRecordRepository;
     private final AttendanceDeploymentSyncService attendanceDeploymentSyncService;
     private final FatigueCalculationService fatigueCalculationService;
+    private final WorkPlanRepository workPlanRepository;
+    private final AuthAccessService authAccessService;
 
     // STAFFING_003 — 인력 배치 보드 좌측 기본 구역 트리(ZoneMain · ZoneSub 요약 및 집계)
-    public List<StaffingDto.ZoneMainRes> loadZoneMainTree() {
+    @Transactional
+    public List<StaffingDto.ZoneMainRes> loadZoneMainTree(LocalDate rosterDate) {
+        LocalDate date = normalizeDate(rosterDate);
+        List<ZoneSub> scheduleSubZones = syncScheduleZonesFromWorkPlans(date);
+        if (!scheduleSubZones.isEmpty()) {
+            return buildZoneMainResponses(scheduleSubZones, date);
+        }
         return zoneMainRepository.findAllByOrderByDisplayOrderAsc().stream()
                 .map(StaffingDto.ZoneMainRes::from)
                 .toList();
     }
 
+    public List<StaffingDto.ZoneMainRes> loadZoneMainTree() {
+        return loadZoneMainTree(LocalDate.now());
+    }
+
     /** STAFFING_004 — 상세 구역(ZoneSub) 단건 및 직종별 충원률 원천 데이터 */
-    public StaffingDto.ZoneSubRes loadZoneSubDetail(Long zoneSubIdx) {
+    public StaffingDto.ZoneSubRes loadZoneSubDetail(Long zoneSubIdx, LocalDate rosterDate) {
+        LocalDate date = normalizeDate(rosterDate);
         ZoneSub zs = zoneSubRepository.findWithStaffingRelationsByIdx(zoneSubIdx)
                 .orElseThrow(() -> new BaseException(FAIL));
-        EnumMap<Trade, Integer> filledByTrade = countAssignmentsByTrade(zs);
-        return StaffingDto.ZoneSubRes.from(zs, filledByTrade);
+        EnumMap<Trade, Integer> filledByTrade = countAssignmentsByTrade(zs, date);
+        return buildZoneSubResponse(zs, date, filledByTrade);
+    }
+
+    public StaffingDto.ZoneSubRes loadZoneSubDetail(Long zoneSubIdx) {
+        return loadZoneSubDetail(zoneSubIdx, LocalDate.now());
     }
 
     // STAFFING_005 — 상세 구역 이름·직종별 필요 인원 갱신. 전부 삭제 후 요청 목록으로 재등록
@@ -110,11 +136,12 @@ public class StaffingService {
     // STAFFING_006 GET — 해당 ZoneSub 에 배치된 작업자 목록 (명단 일자 기준 상용/일용 스냅샷 선택)
     public List<StaffingDto.AssignedWorkerRes> loadAssignedWorkersForZoneSub(
             Long zoneSubIdx, LocalDate rosterDate) {
-        LocalDate date = rosterDate != null ? rosterDate : LocalDate.now();
+        LocalDate date = normalizeDate(rosterDate);
         if (!zoneSubRepository.existsById(zoneSubIdx)) {
             throw new BaseException(FAIL);
         }
-        List<StaffingAssignment> rows = assignmentRepository.findAllByZoneSubWithHierarchy(zoneSubIdx);
+        List<StaffingAssignment> rows =
+                assignmentRepository.findAllByZoneSubAndWorkDateWithHierarchy(zoneSubIdx, date);
         if (rows.isEmpty()) {
             return List.of();
         }
@@ -147,16 +174,17 @@ public class StaffingService {
     // STAFFING_006 DELETE — 해당 ZoneSub 에서 배치 행만 삭제(근태 구역은 최종배치 /staffing/save 시에만 반영).
     @Transactional
     public void unassignWorkerFromZoneSub(Long zoneSubIdx, Long workerIdx, LocalDate rosterDate) {
-        if (!assignmentRepository.existsByZoneSub_IdxAndWorkerIdx(zoneSubIdx, workerIdx)) {
+        LocalDate date = normalizeDate(rosterDate);
+        if (!assignmentRepository.existsByZoneSub_IdxAndWorkerIdxAndWorkDate(zoneSubIdx, workerIdx, date)) {
             return;
         }
-        assignmentRepository.deleteByZoneSub_IdxAndWorkerIdx(zoneSubIdx, workerIdx);
+        assignmentRepository.deleteByZoneSub_IdxAndWorkerIdxAndWorkDate(zoneSubIdx, workerIdx, date);
         assignmentRepository.flush();
     }
 
     // STAFFING_008 근태 명단 필터 — PRESENT·LATE(지각)만 포함
     public StaffingDto.WorkerPoolRes getWorkerPool(StaffingDto.PoolSearchReq req, LocalDate rosterDate) {
-        LocalDate date = rosterDate != null ? rosterDate : LocalDate.now();
+        LocalDate date = normalizeDate(rosterDate);
         if (req == null) {
             req = StaffingDto.PoolSearchReq.builder().build();
         }
@@ -172,12 +200,12 @@ public class StaffingService {
 
         Map<Long, StaffingAssignment> firstAssignByWorker = new LinkedHashMap<>();
         if (!workerIds.isEmpty()) {
-            for (StaffingAssignment a : assignmentRepository.findAllWithZonesByWorkerIdxIn(workerIds)) {
+            for (StaffingAssignment a : assignmentRepository.findAllWithZonesByWorkerIdxInAndWorkDate(workerIds, date)) {
                 firstAssignByWorker.putIfAbsent(a.getWorkerIdx(), a);
             }
         }
 
-        HashSet<Long> staffedIdxes = new HashSet<>(assignmentRepository.findDistinctAssignedWorkerIdxes());
+        HashSet<Long> staffedIdxes = new HashSet<>(assignmentRepository.findDistinctAssignedWorkerIdxesByWorkDate(date));
 
         String kw = req.getKeyword() == null ? "" : req.getKeyword().trim().toLowerCase();
         AffiliationKind affFilter = req.getAffiliationKind();
@@ -210,6 +238,7 @@ public class StaffingService {
     // STAFFING_007 — 미투입({@code JobRank.WORKER})만 상세 구역에 초안 배치. staffing_assignment 만 저장; 근태 구역은 POST /staffing/save.
     @Transactional
     public void assignWorkers(Long zoneSubIdx, StaffingDto.AssignReq req, LocalDate rosterDate) {
+        LocalDate date = normalizeDate(rosterDate);
         if (req == null) {
             throw new BaseException(FAIL);
         }
@@ -228,10 +257,10 @@ public class StaffingService {
             if (workerIdx == null) {
                 throw new BaseException(FAIL);
             }
-            if (assignmentRepository.existsByZoneSub_IdxAndWorkerIdx(zoneSubIdx, workerIdx)) {
+            if (assignmentRepository.existsByZoneSub_IdxAndWorkerIdxAndWorkDate(zoneSubIdx, workerIdx, date)) {
                 continue;
             }
-            if (assignmentRepository.existsByWorkerIdx(workerIdx)) {
+            if (assignmentRepository.existsByWorkerIdxAndWorkDate(workerIdx, date)) {
                 throw new BaseException(FAIL);
             }
 
@@ -246,7 +275,7 @@ public class StaffingService {
             return;
         }
 
-        int assigned = zs.getAssignments().size();
+        int assigned = assignmentRepository.countByZoneSub_IdxAndWorkDate(zoneSubIdx, date);
         int remaining = Math.max(0, zs.getRequired() - assigned);
         if (toBind.size() > remaining) {
             throw new BaseException(ASSIGN_OVERFLOW);
@@ -256,6 +285,7 @@ public class StaffingService {
             assignmentRepository.save(StaffingAssignment.builder()
                     .zoneSub(zs)
                     .workerIdx(workerIdx)
+                    .workDate(date)
                     .confirmed(false)
                     .build());
         }
@@ -278,8 +308,9 @@ public class StaffingService {
         return out;
     }
 
-    private EnumMap<Trade, Integer> countAssignmentsByTrade(ZoneSub zs) {
-        List<StaffingAssignment> assigns = zs.getAssignments();
+    private EnumMap<Trade, Integer> countAssignmentsByTrade(ZoneSub zs, LocalDate workDate) {
+        List<StaffingAssignment> assigns =
+                assignmentRepository.findAllByZoneSubAndWorkDateWithHierarchy(zs.getIdx(), workDate);
         if (assigns.isEmpty()) {
             return new EnumMap<>(Trade.class);
         }
@@ -306,11 +337,11 @@ public class StaffingService {
     // STAFFING_002 — 투입 인원 초기화
     @Transactional
     public void resetBoard(LocalDate rosterDate) {
-        LocalDate date = rosterDate != null ? rosterDate : LocalDate.now();
-        for (Long workerIdx : assignmentRepository.findDistinctAssignedWorkerIdxes()) {
+        LocalDate date = normalizeDate(rosterDate);
+        for (Long workerIdx : assignmentRepository.findDistinctAssignedWorkerIdxesByWorkDate(date)) {
             attendanceDeploymentSyncService.clearPlacementIfPresent(workerIdx, date);
         }
-        assignmentRepository.deleteAll();
+        assignmentRepository.deleteAllByWorkDate(date);
     }
 
     /**
@@ -319,8 +350,8 @@ public class StaffingService {
      */
     @Transactional
     public StaffingDto.SaveSummaryRes finalizePlacementsToAttendance(LocalDate rosterDate) {
-        LocalDate date = rosterDate != null ? rosterDate : LocalDate.now();
-        List<StaffingAssignment> all = assignmentRepository.findAllWithZoneHierarchyOrderByIdxAsc();
+        LocalDate date = normalizeDate(rosterDate);
+        List<StaffingAssignment> all = assignmentRepository.findAllWithZoneHierarchyByWorkDateOrderByIdxAsc(date);
         if (all.isEmpty()) {
             return StaffingDto.SaveSummaryRes.builder().assignedCount(0).unassignedCount(0).build();
         }
@@ -350,7 +381,7 @@ public class StaffingService {
      */
     @Transactional
     public StaffingDto.SaveSummaryRes autoRecommend(LocalDate rosterDate) {
-        LocalDate date = rosterDate != null ? rosterDate : LocalDate.now();
+        LocalDate date = normalizeDate(rosterDate);
 
         List<AttendanceRecord> rosterRows =
                 attendanceRecordRepository.findAllByWorkDateAndWorkerJobRank(
@@ -362,7 +393,7 @@ public class StaffingService {
             if (w.getAffiliationKind() != AffiliationKind.DIRECT) {
                 continue;
             }
-            if (assignmentRepository.existsByWorkerIdx(w.getIdx())) {
+            if (assignmentRepository.existsByWorkerIdxAndWorkDate(w.getIdx(), date)) {
                 continue;
             }
             directUnassignedIds.add(w.getIdx());
@@ -389,7 +420,11 @@ public class StaffingService {
 
         ArrayDeque<Worker> queue = new ArrayDeque<>(ordered);
 
-        List<ZoneSub> zoneSubs = new ArrayList<>(zoneSubRepository.findAllOrderedWithStaffingGraph());
+        List<ZoneSub> synced = syncScheduleZonesFromWorkPlans(date);
+        List<ZoneSub> zoneSubs = new ArrayList<>(
+                synced.isEmpty()
+                        ? zoneSubRepository.findAllOrderedWithStaffingGraph()
+                        : synced);
         zoneSubs.sort(
                 Comparator.<ZoneSub>comparingInt(StaffingService::zoneCeilingTradeRiskScore)
                         .thenComparingInt(zs -> zs.getZoneMain().getDisplayOrder())
@@ -401,7 +436,7 @@ public class StaffingService {
             if (queue.isEmpty()) {
                 break;
             }
-            int remainingSlots = slotCapacityRemaining(zs);
+            int remainingSlots = slotCapacityRemaining(zs, date);
             if (remainingSlots <= 0) {
                 continue;
             }
@@ -410,6 +445,7 @@ public class StaffingService {
                 assignmentRepository.save(StaffingAssignment.builder()
                         .zoneSub(zs)
                         .workerIdx(w.getIdx())
+                        .workDate(date)
                         .confirmed(false)
                         .build());
                 assignedNow++;
@@ -445,9 +481,278 @@ public class StaffingService {
         return max > 0 ? max : Trade.fatigueRiskWeightOrDefault(null);
     }
 
-    private static int slotCapacityRemaining(ZoneSub zs) {
-        int assignedCount = zs.getAssignments() != null ? zs.getAssignments().size() : 0;
+    private int slotCapacityRemaining(ZoneSub zs, LocalDate workDate) {
+        int assignedCount = assignmentRepository.countByZoneSub_IdxAndWorkDate(zs.getIdx(), workDate);
         int cap = zs.getRequired();
         return Math.max(0, cap - assignedCount);
+    }
+
+    private LocalDate normalizeDate(LocalDate rosterDate) {
+        return rosterDate != null ? rosterDate : LocalDate.now();
+    }
+
+    private List<ZoneSub> syncScheduleZonesFromWorkPlans(LocalDate date) {
+        List<WorkPlan> weeklyPlans = workPlanRepository.findAllByPlanTypeWithStaffingGraph(PlanType.WEEKLY).stream()
+                .filter(authAccessService::canAccessWorkPlan)
+                .filter(plan -> isActiveOnDate(plan, date))
+                .sorted(Comparator
+                        .comparing((WorkPlan plan) -> safeDate(plan.getStartDate()))
+                        .thenComparing(plan -> nullToEmpty(plan.getName()))
+                        .thenComparing(WorkPlan::getIdx))
+                .toList();
+
+        if (weeklyPlans.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, ZoneMain> groupByKey = new LinkedHashMap<>();
+        int groupOrder = 0;
+        int subOrder = 0;
+        for (WorkPlan plan : weeklyPlans) {
+            String groupKey = scheduleGroupKey(plan);
+            ZoneMain group = groupByKey.get(groupKey);
+            if (group == null) {
+                group = zoneMainRepository.findBySourceKey(groupKey)
+                        .orElseGet(() -> ZoneMain.builder()
+                                .title(scheduleGroupTitle(plan))
+                                .displayOrder(groupByKey.size())
+                                .scheduleGenerated(true)
+                                .sourceKey(groupKey)
+                                .build());
+                group.updateScheduleGroup(scheduleGroupTitle(plan), groupOrder++, groupKey);
+                group = zoneMainRepository.save(group);
+                groupByKey.put(groupKey, group);
+            }
+
+            ZoneSub sub = zoneSubRepository.findByWorkPlanIdx(plan.getIdx()).orElse(null);
+            if (sub == null) {
+                sub = ZoneSub.builder()
+                        .zoneMain(group)
+                        .title(nullToDefault(plan.getName(), "작업"))
+                        .required(resolveRequiredCount(plan))
+                        .displayOrder(subOrder)
+                        .workPlanIdx(plan.getIdx())
+                        .workDate(date)
+                        .location(plan.getLocation())
+                        .tradeName(resolveTradeName(plan))
+                        .workTime(resolveWorkTime(plan.getNote()))
+                        .build();
+            }
+            sub.updateFromWorkPlan(
+                    group,
+                    nullToDefault(plan.getName(), "작업"),
+                    resolveRequiredCount(plan),
+                    subOrder++,
+                    plan.getIdx(),
+                    date,
+                    plan.getLocation(),
+                    resolveTradeName(plan),
+                    resolveWorkTime(plan.getNote()));
+            sub = zoneSubRepository.save(sub);
+            replaceTradeNeedsFromWorkPlan(sub, plan);
+        }
+        zoneSubRepository.flush();
+        return zoneSubRepository.findAllScheduleSubZonesByWorkDate(date);
+    }
+
+    private void replaceTradeNeedsFromWorkPlan(ZoneSub sub, WorkPlan plan) {
+        tradeNeedRepository.deleteAllByZoneSub_Idx(sub.getIdx());
+        tradeNeedRepository.flush();
+
+        EnumMap<Trade, Integer> needs = new EnumMap<>(Trade.class);
+        if (plan.getWorkers() != null) {
+            for (WorkPlanWorker worker : plan.getWorkers()) {
+                Trade trade = mapWorkerTrade(worker.getTrade());
+                int count = Math.max(0, worker.getCount() != null ? worker.getCount() : 0);
+                if (trade != null && count > 0) {
+                    needs.merge(trade, count, Integer::sum);
+                }
+            }
+        }
+
+        int required = resolveRequiredCount(plan);
+        int needTotal = needs.values().stream().mapToInt(Integer::intValue).sum();
+        if (required > 0 && needTotal == 0) {
+            needs.put(Trade.TILE, required);
+        }
+
+        for (Map.Entry<Trade, Integer> entry : needs.entrySet()) {
+            if (entry.getValue() <= 0) continue;
+            tradeNeedRepository.save(TradeNeed.builder()
+                    .zoneSub(sub)
+                    .trade(entry.getKey())
+                    .need(entry.getValue())
+                    .build());
+        }
+    }
+
+    private List<StaffingDto.ZoneMainRes> buildZoneMainResponses(List<ZoneSub> subZones, LocalDate date) {
+        Map<Long, List<ZoneSub>> grouped = subZones.stream()
+                .collect(Collectors.groupingBy(
+                        zs -> zs.getZoneMain().getIdx(),
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+
+        List<StaffingDto.ZoneMainRes> result = new ArrayList<>();
+        for (List<ZoneSub> rows : grouped.values()) {
+            if (rows.isEmpty()) continue;
+            ZoneMain main = rows.get(0).getZoneMain();
+            List<StaffingDto.ZoneSubSummaryRes> summaries = rows.stream()
+                    .map(zs -> buildZoneSubSummary(zs, date))
+                    .toList();
+            int totalAssigned = summaries.stream().mapToInt(StaffingDto.ZoneSubSummaryRes::getAssignedCount).sum();
+            int totalRequired = summaries.stream().mapToInt(StaffingDto.ZoneSubSummaryRes::getRequired).sum();
+            result.add(StaffingDto.ZoneMainRes.builder()
+                    .idx(main.getIdx())
+                    .title(main.getTitle())
+                    .source("WORK_PLAN")
+                    .totalAssigned(totalAssigned)
+                    .totalRequired(totalRequired)
+                    .subZones(summaries)
+                    .build());
+        }
+        return result;
+    }
+
+    private StaffingDto.ZoneSubSummaryRes buildZoneSubSummary(ZoneSub zs, LocalDate date) {
+        return StaffingDto.ZoneSubSummaryRes.builder()
+                .idx(zs.getIdx())
+                .workPlanId(zs.getWorkPlanIdx())
+                .title(zs.getTitle())
+                .location(zs.getLocation())
+                .tradeName(zs.getTradeName())
+                .workTime(zs.getWorkTime())
+                .workDate(zs.getWorkDate())
+                .required(zs.getRequired())
+                .assignedCount(assignmentRepository.countByZoneSub_IdxAndWorkDate(zs.getIdx(), date))
+                .build();
+    }
+
+    private StaffingDto.ZoneSubRes buildZoneSubResponse(
+            ZoneSub zs,
+            LocalDate date,
+            EnumMap<Trade, Integer> filledByTrade) {
+        return StaffingDto.ZoneSubRes.builder()
+                .idx(zs.getIdx())
+                .zoneMainIdx(zs.getZoneMain().getIdx())
+                .workPlanId(zs.getWorkPlanIdx())
+                .title(zs.getTitle())
+                .location(zs.getLocation())
+                .tradeName(zs.getTradeName())
+                .workTime(zs.getWorkTime())
+                .workDate(zs.getWorkDate())
+                .required(zs.getRequired())
+                .assignedCount(assignmentRepository.countByZoneSub_IdxAndWorkDate(zs.getIdx(), date))
+                .tradeNeeds(zs.getTradeNeeds().stream()
+                        .map(tn -> StaffingDto.TradeNeedRes.from(
+                                tn, filledByTrade.getOrDefault(tn.getTrade(), 0)))
+                        .toList())
+                .build();
+    }
+
+    private boolean isActiveOnDate(WorkPlan plan, LocalDate date) {
+        if (plan == null || plan.getStartDate() == null) {
+            return false;
+        }
+        LocalDate end = plan.effectiveEndDate() != null ? plan.effectiveEndDate() : plan.getEndDate();
+        if (end == null) {
+            end = plan.getStartDate();
+        }
+        return !date.isBefore(plan.getStartDate()) && !date.isAfter(end);
+    }
+
+    private String scheduleGroupKey(WorkPlan plan) {
+        if (plan.getParentWorkPlan() != null && plan.getParentWorkPlan().getIdx() != null) {
+            return "MONTHLY_WORK_PLAN:" + plan.getParentWorkPlan().getIdx();
+        }
+        if (plan.getTradeProcess() != null && plan.getTradeProcess().getIdx() != null) {
+            return "TRADE_PROCESS:" + plan.getTradeProcess().getIdx();
+        }
+        return "TRADE:" + nullToDefault(resolveTradeName(plan), "UNKNOWN");
+    }
+
+    private String scheduleGroupTitle(WorkPlan plan) {
+        if (plan.getParentWorkPlan() != null && notBlank(plan.getParentWorkPlan().getName())) {
+            return plan.getParentWorkPlan().getName();
+        }
+        if (plan.getTradeProcess() != null && notBlank(plan.getTradeProcess().getProcessName())) {
+            return plan.getTradeProcess().getProcessName();
+        }
+        return nullToDefault(resolveTradeName(plan), "일정 미분류");
+    }
+
+    private int resolveRequiredCount(WorkPlan plan) {
+        if (plan.getRequiredCount() != null && plan.getRequiredCount() > 0) {
+            return plan.getRequiredCount();
+        }
+        if (plan.getWorkers() == null) {
+            return 0;
+        }
+        return plan.getWorkers().stream()
+                .map(WorkPlanWorker::getCount)
+                .filter(Objects::nonNull)
+                .mapToInt(Integer::intValue)
+                .sum();
+    }
+
+    private String resolveTradeName(WorkPlan plan) {
+        if (plan.getTrade() != null && notBlank(plan.getTrade().getLabel())) {
+            return plan.getTrade().getLabel();
+        }
+        if (plan.getTradeProcess() != null && notBlank(plan.getTradeProcess().getTradeName())) {
+            return plan.getTradeProcess().getTradeName();
+        }
+        return "";
+    }
+
+    private String resolveWorkTime(String note) {
+        Matcher matcher = TIME_TOKEN.matcher(nullToEmpty(note));
+        List<String> tokens = new ArrayList<>();
+        while (matcher.find()) {
+            tokens.add(matcher.group());
+        }
+        if (tokens.size() >= 4) {
+            return normalizeTime(tokens.get(tokens.size() - 2)) + " ~ " + normalizeTime(tokens.get(tokens.size() - 1));
+        }
+        if (tokens.size() >= 2) {
+            return normalizeTime(tokens.get(0)) + " ~ " + normalizeTime(tokens.get(1));
+        }
+        return "";
+    }
+
+    private static String normalizeTime(String time) {
+        String[] parts = time.split(":");
+        if (parts.length != 2) {
+            return time;
+        }
+        return parts[0].length() == 1 ? "0" + time : time;
+    }
+
+    private Trade mapWorkerTrade(WorkerTrade trade) {
+        if (trade == null) {
+            return null;
+        }
+        return switch (trade) {
+            case REBAR -> Trade.REBAR;
+            case WELDER -> Trade.WELDER;
+            case CARPENTER, FORMWORK -> Trade.CARPENTER;
+            default -> Trade.TILE;
+        };
+    }
+
+    private static LocalDate safeDate(LocalDate date) {
+        return date != null ? date : LocalDate.MAX;
+    }
+
+    private static boolean notBlank(String text) {
+        return text != null && !text.isBlank();
+    }
+
+    private static String nullToEmpty(String text) {
+        return text == null ? "" : text;
+    }
+
+    private static String nullToDefault(String text, String fallback) {
+        return notBlank(text) ? text : fallback;
     }
 }

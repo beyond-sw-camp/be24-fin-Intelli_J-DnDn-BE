@@ -5,6 +5,7 @@ import org.example.dndn.worker.model.entity.Worker;
 import org.example.dndn.worker.model.enums.AffiliationKind;
 import org.example.dndn.worker.model.enums.EmploymentKind;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -73,6 +74,7 @@ public class StaffingDto {
     public static class ZoneMainRes {
         private Long idx;
         private String title;
+        private String source;
         private int totalAssigned;
         private int totalRequired;
         private List<ZoneSubSummaryRes> subZones;
@@ -84,6 +86,7 @@ public class StaffingDto {
             return ZoneMainRes.builder()
                     .idx(zm.getIdx())
                     .title(zm.getTitle())
+                    .source(zm.isScheduleGenerated() ? "WORK_PLAN" : "MANUAL")
                     .totalAssigned(assigned)
                     .totalRequired(required)
                     .subZones(zm.getZoneSubs().stream().map(ZoneSubSummaryRes::from).toList())
@@ -98,14 +101,24 @@ public class StaffingDto {
     @Builder
     public static class ZoneSubSummaryRes {
         private Long idx;
+        private Long workPlanId;
         private String title;
+        private String location;
+        private String tradeName;
+        private String workTime;
+        private LocalDate workDate;
         private int required;
         private int assignedCount;
 
         public static ZoneSubSummaryRes from(ZoneSub zs) {
             return ZoneSubSummaryRes.builder()
                     .idx(zs.getIdx())
+                    .workPlanId(zs.getWorkPlanIdx())
                     .title(zs.getTitle())
+                    .location(zs.getLocation())
+                    .tradeName(zs.getTradeName())
+                    .workTime(zs.getWorkTime())
+                    .workDate(zs.getWorkDate())
                     .required(zs.getRequired())
                     .assignedCount(zs.getAssignments().size())
                     .build();
@@ -120,7 +133,12 @@ public class StaffingDto {
     public static class ZoneSubRes {
         private Long idx;
         private Long zoneMainIdx;
+        private Long workPlanId;
         private String title;
+        private String location;
+        private String tradeName;
+        private String workTime;
+        private LocalDate workDate;
         private int required;
         private int assignedCount;
         private List<TradeNeedRes> tradeNeeds;
@@ -130,7 +148,12 @@ public class StaffingDto {
             return ZoneSubRes.builder()
                     .idx(zs.getIdx())
                     .zoneMainIdx(zs.getZoneMain().getIdx())
+                    .workPlanId(zs.getWorkPlanIdx())
                     .title(zs.getTitle())
+                    .location(zs.getLocation())
+                    .tradeName(zs.getTradeName())
+                    .workTime(zs.getWorkTime())
+                    .workDate(zs.getWorkDate())
                     .required(zs.getRequired())
                     .assignedCount(zs.getAssignments().size())
                     .tradeNeeds(zs.getTradeNeeds().stream()
