@@ -18,8 +18,6 @@ public class AuthDto {
         private String password;
         // 프론트 로그인 화면에서 선택한 탭(현장 / 관리자) 정보.
         private LoginMode loginMode;
-        // 현장 로그인 탭에서 사용자가 선택한 프로젝트(현장) idx.
-        private Long siteProjectId;
     }
 
     @Getter
