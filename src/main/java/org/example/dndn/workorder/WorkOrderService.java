@@ -1,6 +1,7 @@
 package org.example.dndn.workorder;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dndn.auth.security.AuthAccessService;
 import org.example.dndn.workorder.model.WorkOrder;
 import org.example.dndn.workorder.model.WorkOrderDto;
 import org.example.dndn.workorder.model.WorkOrderEquipment;
@@ -28,11 +29,14 @@ public class WorkOrderService {
     private final WorkOrderRepository workOrderRepository;
     private final WorkOrderEquipmentRepository workOrderEquipmentRepository;
     private final WorkPlanRepository workPlanRepository;
+    private final AuthAccessService authAccessService;
 
     // [WORKORDER_001] 1단계 : 작업 지시서 기본 작성 기능
     // feat : 작업 지시서 신규 생성
     @Transactional
     public void createWorkOrder(WorkOrderDto.Req req) {
+        assertRequestAccess(req);
+
         WorkOrder workOrder = WorkOrder.builder()
                 .siteIdx(req.getSiteIdx())
                 .partnerCompanyIdx(req.getPartnerCompanyIdx())
@@ -40,6 +44,9 @@ public class WorkOrderService {
                 .tradeType(req.getTradeType())
                 .title(req.getTitle())
                 .instructionContent(req.getInstructionContent())
+                .workDetail(req.getWorkDetail())
+                .workTime(req.getWorkTime())
+                .safetyContent(req.getSafetyContent())
                 .dueDate(req.getDueDate())
                 .statusCode(req.getStatusCode())
                 .workerCount(req.getWorkerCount())
@@ -72,7 +79,9 @@ public class WorkOrderService {
     // feat : 작업 지시서 목록 전체 조회
     @Transactional(readOnly = true)
     public List<WorkOrderDto.Res> getWorkOrderList() {
-        return workOrderRepository.findAll().stream().map(order -> {
+        return workOrderRepository.findAll().stream()
+                .filter(this::canAccessWorkOrder)
+                .map(order -> {
             List<WorkOrderEquipmentDto> eqDtos = order.getEquipments().stream()
                     .map(eq -> WorkOrderEquipmentDto.builder()
                             .idx(eq.getIdx())
@@ -90,6 +99,9 @@ public class WorkOrderService {
                     .tradeType(order.getTradeType())
                     .title(order.getTitle())
                     .instructionContent(order.getInstructionContent())
+                    .workDetail(firstNonBlank(order.getWorkDetail(), order.getInstructionContent()))
+                    .workTime(order.getWorkTime())
+                    .safetyContent(order.getSafetyContent())
                     .dueDate(order.getDueDate())
                     .statusCode(order.getStatusCode())
                     .workerCount(order.getWorkerCount())
@@ -103,6 +115,8 @@ public class WorkOrderService {
     @Transactional(readOnly = true)
     public List<WorkOrderDto.GateEquipmentRes> getGateEquipments(LocalDate targetDate) {
         return workOrderRepository.findGateEquipmentsByTargetDate(targetDate).stream()
+                .filter(row -> authAccessService.canAccessProjectId(toLong(row[12]))
+                        && authAccessService.canAccessTradeName(toStringValue(row[3])))
                 .map(row -> {
                     LocalDate workDate = toLocalDate(row[5]);
                     String title = toStringValue(row[2]);
@@ -136,12 +150,18 @@ public class WorkOrderService {
                 .orElseThrow(() -> new RuntimeException("작업 지시서를 찾을 수 없습니다."));
 
         // feat : 기본 정보 업데이트
+        assertWorkOrderAccess(workOrder);
+        assertRequestAccess(req);
+
         workOrder.setSiteIdx(req.getSiteIdx());
         workOrder.setPartnerCompanyIdx(req.getPartnerCompanyIdx());
         workOrder.setWorkPlanId(req.getWorkPlanId());
         workOrder.setTradeType(req.getTradeType());
         workOrder.setTitle(req.getTitle());
         workOrder.setInstructionContent(req.getInstructionContent());
+        workOrder.setWorkDetail(req.getWorkDetail());
+        workOrder.setWorkTime(req.getWorkTime());
+        workOrder.setSafetyContent(req.getSafetyContent());
         workOrder.setDueDate(req.getDueDate());
         workOrder.setStatusCode(req.getStatusCode());
         workOrder.setWorkerCount(req.getWorkerCount());
@@ -171,6 +191,7 @@ public class WorkOrderService {
     // feat : 초안 생성 시 장비만 별도로 조회하여 반환
     @Transactional(readOnly = true)
     public List<WorkOrderEquipmentDto> getDraftEquipments(Long planIdx) {
+        workPlanRepository.findById(planIdx).ifPresent(authAccessService::assertWorkPlanAccess);
         List<Object[]> results = workOrderRepository.findEquipmentsByPlanIdx(planIdx);
 
         return results.stream().map(row -> {
@@ -192,6 +213,8 @@ public class WorkOrderService {
         WorkOrder workOrder = workOrderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("작업 지시서를 찾을 수 없습니다."));
 
+        assertWorkOrderAccess(workOrder);
+
         if (workOrder.getWorkPlanId() == null) {
             throw new RuntimeException("연결된 주간 작업 계획이 없습니다.");
         }
@@ -201,6 +224,8 @@ public class WorkOrderService {
 
         // 1. 기본 정보 및 '비고'에 지시서 내용 반영
         // feat : 승인된 작업지시서 내용을 주간 작업 계획의 비고에 반영
+        authAccessService.assertWorkPlanAccess(weeklyPlan);
+
         weeklyPlan.updateInfo(
                 weeklyPlan.getName(),
                 weeklyPlan.getTrade(),
@@ -211,7 +236,7 @@ public class WorkOrderService {
                 weeklyPlan.getPartner(),
                 weeklyPlan.getManager(),
                 weeklyPlan.getContact(),
-                workOrder.getInstructionContent()
+                firstNonBlank(workOrder.getWorkDetail(), workOrder.getInstructionContent())
         );
 
         //  2. 인원 정보 반영 (replaceWorkers를 사용해야 requiredCount가 자동 계산됨)
@@ -245,6 +270,33 @@ public class WorkOrderService {
         workOrder.setStatusCode("APPROVED");
         // JPA 감지로 인해 weeklyPlan 변경사항이 자동 저장됩니다.
     }
+    private void assertRequestAccess(WorkOrderDto.Req req) {
+        if (req == null) {
+            return;
+        }
+        authAccessService.assertProjectAccess(req.getSiteIdx());
+        authAccessService.assertTradeAccess(req.getTradeType());
+        if (req.getWorkPlanId() != null) {
+            WorkPlan workPlan = workPlanRepository.findById(req.getWorkPlanId())
+                    .orElseThrow(() -> new RuntimeException("WorkPlan not found. id=" + req.getWorkPlanId()));
+            authAccessService.assertWorkPlanAccess(workPlan);
+        }
+    }
+
+    private void assertWorkOrderAccess(WorkOrder workOrder) {
+        if (!canAccessWorkOrder(workOrder)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.FORBIDDEN,
+                    "No permission for this site or trade.");
+        }
+    }
+
+    private boolean canAccessWorkOrder(WorkOrder workOrder) {
+        return workOrder != null
+                && authAccessService.canAccessProjectId(workOrder.getSiteIdx())
+                && authAccessService.canAccessTradeName(workOrder.getTradeType());
+    }
+
     private Long toLong(Object value) {
         if (value == null) {
             return null;

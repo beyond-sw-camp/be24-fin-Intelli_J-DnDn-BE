@@ -1,6 +1,7 @@
 package org.example.dndn.project.service;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dndn.auth.security.AuthAccessService;
 import org.example.dndn.project.model.entity.MasterSchedule;
 import org.example.dndn.project.model.entity.TradeProcess;
 import org.example.dndn.project.model.dto.TradeProcessDto;
@@ -21,11 +22,15 @@ public class TradeProcessService {
     private final TradeProcessRepository tradeProcessRepository;
     private final MasterScheduleRepository masterScheduleRepository;
     private final ScheduleDocumentExtractor scheduleDocumentExtractor;
+    private final AuthAccessService authAccessService;
 
     @Transactional
     public Long create(TradeProcessDto.Req dto) {
         MasterSchedule schedule = masterScheduleRepository.findById(dto.getMasterScheduleId())
                 .orElseThrow(() -> new RuntimeException("공정표를 찾을 수 없습니다."));
+
+        authAccessService.assertProjectAccess(schedule.getProject() != null ? schedule.getProject().getIdx() : null);
+        authAccessService.assertTradeAccess(dto.getTradeName());
 
         TradeProcess tp = TradeProcess.builder()
                 .masterSchedule(schedule)
@@ -50,7 +55,10 @@ public class TradeProcessService {
         MasterSchedule schedule = masterScheduleRepository.findById(masterScheduleId)
                 .orElseThrow(() -> new RuntimeException("공정표를 찾을 수 없습니다."));
 
+        authAccessService.assertProjectAccess(schedule.getProject() != null ? schedule.getProject().getIdx() : null);
+
         List<TradeProcess> entities = dtoList.stream()
+                .peek(dto -> authAccessService.assertTradeAccess(dto.getTradeName()))
                 .map(dto -> TradeProcess.builder()
                         .masterSchedule(schedule)
                         .tradeName(dto.getTradeName())
@@ -78,28 +86,62 @@ public class TradeProcessService {
     }
 
     public TradeProcessDto.Res read(Long tpId) {
-        return TradeProcessDto.Res.from(findTradeProcess(tpId));
+        TradeProcess tradeProcess = findTradeProcess(tpId);
+        authAccessService.assertTradeProcessAccess(tradeProcess);
+        return TradeProcessDto.Res.from(tradeProcess);
     }
 
     // 현장별 공정 목록 (공종 필터 선택) — WorkPlan 등록 시 선택용으로도 사용
     public List<TradeProcessDto.Res> listByProject(Long projectId, String tradeName) {
-        List<TradeProcess> list = (tradeName == null || tradeName.isBlank())
-                ? tradeProcessRepository.findAllByMasterSchedule_Project_Idx(projectId)
-                : tradeProcessRepository.findAllByMasterSchedule_Project_IdxAndTradeName(projectId, tradeName);
+        return listByProject(projectId, tradeName, false);
+    }
 
-        return list.stream().map(TradeProcessDto.Res::from).toList();
+    public List<TradeProcessDto.Res> listByProject(Long projectId, String tradeName, boolean includeAllTrades) {
+        authAccessService.assertProjectAccess(projectId);
+        String effectiveTrade = includeAllTrades ? tradeName : authAccessService.effectiveTrade(tradeName);
+        List<TradeProcess> list = tradeProcessRepository.findAllByMasterSchedule_Project_Idx(projectId);
+
+        return list.stream()
+                .filter(tp -> authAccessService.tradeMatches(tp.getTradeName(), effectiveTrade))
+                .filter(tp -> includeAllTrades || authAccessService.canAccessTradeProcess(tp))
+                .map(TradeProcessDto.Res::from)
+                .toList();
     }
 
     // 공정표별 공정 목록
     public List<TradeProcessDto.Res> listBySchedule(Long scheduleId) {
+        return listBySchedule(scheduleId, false);
+    }
+
+    public List<TradeProcessDto.Res> listBySchedule(Long scheduleId, boolean includeAllTrades) {
+        MasterSchedule schedule = masterScheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new RuntimeException("怨듭젙?쒕? 李얠쓣 ???놁뒿?덈떎."));
+        authAccessService.assertProjectAccess(schedule.getProject() != null ? schedule.getProject().getIdx() : null);
+
         return tradeProcessRepository.findAllByMasterSchedule_Idx(scheduleId).stream()
+                .filter(tp -> includeAllTrades || authAccessService.canAccessTradeProcess(tp))
                 .map(TradeProcessDto.Res::from)
+                .toList();
+    }
+
+    /**
+     * 계정 생성 시 공종 드롭다운 전용.
+     * 현장(projectId) 기준으로 master_schedule → trade_process 를 조회하여
+     * isMilestone = true 이고 '준공', '착공' 을 제외한 공종명 목록을 반환.
+     */
+    public List<String> listMilestoneTradeNamesByProject(Long projectId) {
+        authAccessService.assertProjectAccess(projectId);
+        return tradeProcessRepository.findMilestoneTradeNamesByProjectId(projectId).stream()
+                .filter(authAccessService::canAccessTradeName)
                 .toList();
     }
 
     @Transactional
     public void update(Long tpId, TradeProcessDto.Req dto) {
-        findTradeProcess(tpId).update(
+        TradeProcess tradeProcess = findTradeProcess(tpId);
+        authAccessService.assertTradeProcessAccess(tradeProcess);
+        authAccessService.assertTradeAccess(dto.getTradeName());
+        tradeProcess.update(
                 dto.getTradeName(),
                 dto.getProcessName(),
                 dto.getPartnerCompany(),
@@ -112,7 +154,9 @@ public class TradeProcessService {
 
     @Transactional
     public void delete(Long tpId) {
-        tradeProcessRepository.delete(findTradeProcess(tpId));
+        TradeProcess tradeProcess = findTradeProcess(tpId);
+        authAccessService.assertTradeProcessAccess(tradeProcess);
+        tradeProcessRepository.delete(tradeProcess);
     }
 
     private TradeProcess findTradeProcess(Long tpId) {

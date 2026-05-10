@@ -7,6 +7,7 @@ import org.example.dndn.workplan.model.entity.WorkPlanExtension;
 import org.example.dndn.workplan.model.entity.WorkPlanWorker;
 import org.example.dndn.workplan.model.enums.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -225,6 +226,8 @@ public class WorkPlanDto {
         // ── 1단계 추가 ───────────────────────────────────────────────────────
         private Long tradeProcessId;
         private String tradeProcessName;
+        private Long parentWorkPlanId;
+        private String parentWorkPlanName;
         // ────────────────────────────────────────────────────────────────────
         private Long idx;
         private String name;
@@ -244,8 +247,13 @@ public class WorkPlanDto {
         private String manager;
         private String contact;
         private String note;
+        private BigDecimal actualProgressPct;
 
         public static workPlanRes from(WorkPlan entity) {
+            return from(entity, entity.getActualProgressPct());
+        }
+
+        public static workPlanRes from(WorkPlan entity, BigDecimal actualProgressPct) {
             String period = "";
             if (entity.getStartDate() != null && entity.getEndDate() != null) {
                 period = entity.getStartDate().format(DATE_FORMATTER)
@@ -260,6 +268,10 @@ public class WorkPlanDto {
                             ? entity.getTradeProcess().getIdx() : null)
                     .tradeProcessName(entity.getTradeProcess() != null
                             ? entity.getTradeProcess().getProcessName() : null)
+                    .parentWorkPlanId(entity.getParentWorkPlan() != null
+                            ? entity.getParentWorkPlan().getIdx() : null)
+                    .parentWorkPlanName(entity.getParentWorkPlan() != null
+                            ? entity.getParentWorkPlan().getName() : null)
                     // ────────────────────────────────────────────────────────
                     .idx(entity.getIdx())
                     .name(entity.getName())
@@ -279,6 +291,7 @@ public class WorkPlanDto {
                     .manager(entity.getManager())
                     .contact(entity.getContact())
                     .note(entity.getNote())
+                    .actualProgressPct(actualProgressPct != null ? actualProgressPct : BigDecimal.ZERO)
                     .build();
         }
     }
