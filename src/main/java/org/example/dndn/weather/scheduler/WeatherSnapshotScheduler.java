@@ -71,6 +71,7 @@ public class WeatherSnapshotScheduler {
             } catch (Exception e) {
                 log.warn("[기상 스냅샷] 갱신 실패 - date={}, message={}", cursor, e.getMessage());
             }
+
             cursor = cursor.plusDays(1);
         }
     }

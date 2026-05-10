@@ -5,6 +5,8 @@ import org.example.dndn.auth.model.entity.SystemUser;
 import org.example.dndn.auth.security.AuthAccessService;
 import org.example.dndn.esg.model.EsgDailySnapshot;
 import org.example.dndn.esg.model.EsgDashboardDto;
+import org.example.dndn.esg.model.EsgMetricInput;
+import org.example.dndn.esg.model.EsgZoneDailySnapshot;
 import org.example.dndn.project.model.entity.Project;
 import org.example.dndn.project.repository.ProjectRepository;
 import org.springframework.http.HttpStatus;
@@ -30,12 +32,15 @@ public class EsgDashboardService {
 
     private final ProjectRepository projectRepository;
     private final EsgDailySnapshotRepository esgDailySnapshotRepository;
+    private final EsgZoneDailySnapshotRepository esgZoneDailySnapshotRepository;
+    private final EsgMetricInputRepository esgMetricInputRepository;
     private final AuthAccessService authAccessService;
 
     public EsgDashboardDto.DashboardResponseDto readDashboard(LocalDate reportDate, Long projectId) {
         LocalDate targetDate = resolveReportDate(reportDate);
-        List<Project> projects = findAccessibleProjects();
-        Project currentProject = resolveCurrentProject(projects, projectId);
+        List<Project> accessibleProjects = findAccessibleProjects();
+        List<Project> rankingProjects = findRankingProjects();
+        Project currentProject = resolveCurrentProject(accessibleProjects, projectId);
         Map<Long, EsgDailySnapshot> snapshotMap = esgDailySnapshotRepository.findAllByReportDate(targetDate)
                 .stream()
                 .collect(Collectors.toMap(
@@ -43,8 +48,12 @@ public class EsgDashboardService {
                         Function.identity(),
                         (left, right) -> right
                 ));
+        List<EsgZoneDailySnapshot> currentZoneSnapshots = esgZoneDailySnapshotRepository
+                .findAllByProject_IdxAndReportDate(currentProject.getIdx(), targetDate);
+        List<EsgMetricInput> currentMetricInputs = esgMetricInputRepository
+                .findAllByProject_IdxAndReportDate(currentProject.getIdx(), targetDate);
 
-        List<EsgDashboardDto.RankingResponseDto> rankings = projects.stream()
+        List<EsgDashboardDto.RankingResponseDto> rankings = rankingProjects.stream()
                 .map(project -> EsgDashboardDto.RankingResponseDto.from(
                         project,
                         snapshotMap.get(project.getIdx()),
@@ -58,8 +67,17 @@ public class EsgDashboardService {
 
         return EsgDashboardDto.DashboardResponseDto.builder()
                 .currentProject(EsgDashboardDto.ProjectResponseDto.from(currentProject, targetDate))
-                .currentSnapshot(EsgDashboardDto.SnapshotResponseDto.from(snapshotMap.get(currentProject.getIdx())))
-                .projects(projects.stream()
+                .currentSnapshot(EsgDashboardDto.SnapshotResponseDto.from(
+                        snapshotMap.get(currentProject.getIdx()),
+                        currentZoneSnapshots
+                ))
+                .currentZoneSnapshots(currentZoneSnapshots.stream()
+                        .map(EsgDashboardDto.ZoneSnapshotResponseDto::from)
+                        .toList())
+                .currentMetricInputs(currentMetricInputs.stream()
+                        .map(EsgDashboardDto.MetricInputResponseDto::from)
+                        .toList())
+                .projects(rankingProjects.stream()
                         .map(project -> EsgDashboardDto.ProjectResponseDto.from(project, targetDate))
                         .toList())
                 .rankings(rankings)
@@ -101,12 +119,65 @@ public class EsgDashboardService {
                 request.getSnapshotJson()
         );
 
-        return EsgDashboardDto.SnapshotResponseDto.from(esgDailySnapshotRepository.save(snapshot));
+        EsgDailySnapshot savedSnapshot = esgDailySnapshotRepository.save(snapshot);
+        List<EsgZoneDailySnapshot> savedZoneSnapshots = replaceZoneSnapshots(project, targetDate, request.getZones());
+
+        return EsgDashboardDto.SnapshotResponseDto.from(savedSnapshot, savedZoneSnapshots);
+    }
+
+    private List<EsgZoneDailySnapshot> replaceZoneSnapshots(
+            Project project,
+            LocalDate targetDate,
+            List<EsgDashboardDto.SaveZoneSnapshotRequestDto> requests
+    ) {
+        esgZoneDailySnapshotRepository.deleteByProject_IdxAndReportDate(project.getIdx(), targetDate);
+
+        if (requests == null || requests.isEmpty()) {
+            return List.of();
+        }
+
+        List<EsgZoneDailySnapshot> snapshots = requests.stream()
+                .filter(request -> request.getZoneName() != null && !request.getZoneName().isBlank())
+                .map(request -> {
+                    EsgZoneDailySnapshot snapshot = EsgZoneDailySnapshot.builder()
+                            .project(project)
+                            .reportDate(targetDate)
+                            .zoneName(request.getZoneName().trim())
+                            .build();
+                    snapshot.update(
+                            request.getZoneName().trim(),
+                            normalizeText(request.getZoneType(), "work"),
+                            normalizeScore(request.getEnvironmentScore()),
+                            normalizeScore(request.getSocialScore()),
+                            normalizeScore(request.getGovernanceScore()),
+                            normalizeScore(request.getTotalScore()),
+                            normalizeLevel(request.getLevel()),
+                            normalizePositiveDouble(request.getCarbonKg()),
+                            normalizePositiveDouble(request.getPowerSavingKwh()),
+                            normalizePositiveInteger(request.getRiskCount()),
+                            normalizePercent(request.getMissionRate()),
+                            normalizePositiveInteger(request.getEquipmentCount()),
+                            normalizePositiveInteger(request.getHighRiskEquipmentCount()),
+                            normalizePercentDouble(request.getContributionWeight()),
+                            normalizeScore(request.getContributionScore()),
+                            request.getSnapshotJson()
+                    );
+                    return snapshot;
+                })
+                .toList();
+
+        return esgZoneDailySnapshotRepository.saveAll(snapshots);
     }
 
     private List<Project> findAccessibleProjects() {
         return projectRepository.findAll().stream()
                 .filter(project -> authAccessService.canAccessProjectId(project.getIdx()))
+                .sorted(Comparator.comparing(Project::getIdx))
+                .toList();
+    }
+
+    private List<Project> findRankingProjects() {
+        return projectRepository.findAll().stream()
                 .sorted(Comparator.comparing(Project::getIdx))
                 .toList();
     }
@@ -146,6 +217,13 @@ public class EsgDashboardService {
         return reportDate != null ? reportDate : LocalDate.now();
     }
 
+    private String normalizeText(String value, String fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        return value.trim();
+    }
+
     private Double normalizeScore(Double value) {
         if (value == null || value.isNaN() || value.isInfinite()) {
             return 0.0;
@@ -155,9 +233,9 @@ public class EsgDashboardService {
 
     private Integer normalizeLevel(Integer value) {
         if (value == null) {
-            return 1;
+            return 0;
         }
-        return Math.max(1, Math.min(7, value));
+        return Math.max(0, Math.min(7, value));
     }
 
     private Double normalizePositiveDouble(Double value) {
@@ -179,5 +257,12 @@ public class EsgDashboardService {
             return 0;
         }
         return Math.max(0, Math.min(100, value));
+    }
+
+    private Double normalizePercentDouble(Double value) {
+        if (value == null || value.isNaN() || value.isInfinite()) {
+            return 0.0;
+        }
+        return Math.max(0.0, Math.min(100.0, Math.round(value * 10.0) / 10.0));
     }
 }
