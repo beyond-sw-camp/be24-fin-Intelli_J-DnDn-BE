@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
+import org.example.dndn.auth.model.enums.LoginMode;
 import org.example.dndn.auth.model.enums.UserRole;
 
 public class AuthDto {
@@ -15,6 +16,12 @@ public class AuthDto {
         private String loginId;
         @NotBlank
         private String password;
+
+        /**
+         * 프론트 로그인 화면에서 선택한 탭(현장 / 관리자) 정보.
+         * 구버전 클라이언트(미전송) 호환을 위해 필수값은 아니며, 값이 있을 때만 역할 검증을 수행한다.
+         */
+        private LoginMode loginMode;
     }
 
     @Getter
