@@ -57,6 +57,9 @@ public class DocumentManagementDto {
         // 문서 이름
         public String fileName;
 
+        // ★ 추가: 파일 저장 경로 (프론트에서 파일 존재 여부 판별용)
+        public String fileUrl;
+
         // 협력사 여부
         public Boolean isPartner;
 
@@ -75,6 +78,7 @@ public class DocumentManagementDto {
                     .project_id(entity.getProject().getIdx())
                     .docType(entity.getDocType())
                     .fileName(entity.getFileName())
+                    .fileUrl(entity.getFileUrl())       // ★ 추가
                     .createAt(entity.getCreatedAt())
                     .isPartner(entity.isPartner)
                     .affiliationName(entity.getAffiliationName())
