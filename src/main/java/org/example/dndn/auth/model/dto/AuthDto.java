@@ -33,6 +33,7 @@ public class AuthDto {
     public static class LoginRes {
         private String accessToken;
         private Long userIdx;
+        private Long projectId;
         private String name;
         private UserRole role;
         private String siteCode;

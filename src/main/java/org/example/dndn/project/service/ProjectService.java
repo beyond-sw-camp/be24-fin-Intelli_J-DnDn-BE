@@ -1,6 +1,7 @@
 package org.example.dndn.project.service;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dndn.auth.security.AuthAccessService;
 import org.example.dndn.project.model.entity.Project;
 import org.example.dndn.project.model.dto.ProjectDto;
 import org.example.dndn.project.repository.ProjectRepository;
@@ -15,6 +16,7 @@ import java.util.List;
 public class ProjectService {
 
     private final ProjectRepository projectRepository;
+    private final AuthAccessService authAccessService;
 
     @Transactional
     public Long create(ProjectDto.Req dto) {
@@ -22,17 +24,20 @@ public class ProjectService {
     }
 
     public ProjectDto.Res read(Long projectId) {
+        authAccessService.assertProjectAccess(projectId);
         return ProjectDto.Res.from(findProject(projectId));
     }
 
     public List<ProjectDto.Res> list() {
         return projectRepository.findAll().stream()
+                .filter(project -> authAccessService.canAccessProjectId(project.getIdx()))
                 .map(ProjectDto.Res::from)
                 .toList();
     }
 
     @Transactional
     public void update(Long projectId, ProjectDto.Req dto) {
+        authAccessService.assertProjectAccess(projectId);
         findProject(projectId).update(
                 dto.getName(),
                 dto.getLocation(),
@@ -43,6 +48,7 @@ public class ProjectService {
 
     @Transactional
     public void delete(Long projectId) {
+        authAccessService.assertProjectAccess(projectId);
         projectRepository.delete(findProject(projectId));
     }
 

@@ -1,6 +1,7 @@
 package org.example.dndn.workplan;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dndn.auth.security.AuthAccessService;
 import org.example.dndn.project.repository.TradeProcessRepository;
 import org.example.dndn.project.model.entity.TradeProcess;
 import org.example.dndn.report.DailyReportRepository;
@@ -27,6 +28,7 @@ public class WorkPlanService {
 
     private final WorkPlanRepository workPlanRepository;
     private final DailyReportRepository dailyReportRepository;
+    private final AuthAccessService authAccessService;
     // ── 1단계 추가 ─────────────────────────────────────────────────────────
     private final TradeProcessRepository tradeProcessRepository;
     // ────────────────────────────────────────────────────────────────────────
@@ -38,31 +40,44 @@ public class WorkPlanService {
 
         linkTradeProcessIfPresent(plan, dto.getTradeProcessId());
         linkParentWorkPlanIfPresent(plan, dto.getParentWorkPlanId());
+        authAccessService.assertWorkPlanAccess(plan);
 
         return workPlanRepository.save(plan).getIdx();
     }
 
     public List<WorkPlanDto.workPlanRes> listByProject(Long projectId) {
+        return listByProject(projectId, false);
+    }
+
+    public List<WorkPlanDto.workPlanRes> listByProject(Long projectId, boolean includeAllTrades) {
+        authAccessService.assertProjectAccess(projectId);
         return workPlanRepository.findAllByTradeProcess_MasterSchedule_Project_Idx(projectId)
                 .stream()
+                .filter(plan -> includeAllTrades || authAccessService.canAccessWorkPlan(plan))
                 .map(this::toWorkPlanResWithReportProgress)
                 .toList();
     }
 
     // 작업 계획 단일 조회
     public WorkPlanDto.Res read(Long planId) {
-        return WorkPlanDto.Res.from(findPlan(planId));
+        WorkPlan plan = findPlan(planId);
+        authAccessService.assertWorkPlanAccess(plan);
+        return WorkPlanDto.Res.from(plan);
     }
 
     // 작업 계획 목록 조회 (계획 종류 + 공종/상태 필터)
-    public List<WorkPlanDto.workPlanRes> list(String planType, String trade, String status) {
+    public List<WorkPlanDto.workPlanRes> list(Long projectId, String planType, String trade, String status) {
         PlanType type = PlanType.fromLabel(planType);
         WorkTrade tradeEnum = WorkTrade.fromLabel(trade);
         PlanStatus statusEnum = (status == null || status.isBlank())
                 ? null : PlanStatus.fromLabel(status);
+        String effectiveTrade = authAccessService.effectiveTrade(trade);
 
         List<WorkPlan> plans;
-        if (tradeEnum != null && statusEnum != null) {
+        if (projectId != null) {
+            authAccessService.assertProjectAccess(projectId);
+            plans = workPlanRepository.findAllByTradeProcess_MasterSchedule_Project_Idx(projectId);
+        } else if (tradeEnum != null && statusEnum != null) {
             plans = workPlanRepository.findAllByPlanTypeAndTradeAndStatus(type, tradeEnum, statusEnum);
         } else if (tradeEnum != null) {
             plans = workPlanRepository.findAllByPlanTypeAndTrade(type, tradeEnum);
@@ -72,13 +87,22 @@ public class WorkPlanService {
             plans = workPlanRepository.findAllByPlanType(type);
         }
 
-        return plans.stream().map(this::toWorkPlanResWithReportProgress).toList();
+        return plans.stream()
+                .filter(plan -> plan.getPlanType() == type)
+                .filter(plan -> statusEnum == null || plan.getStatus() == statusEnum)
+                .filter(plan -> authAccessService.tradeMatches(
+                        authAccessService.workPlanTradeName(plan),
+                        effectiveTrade))
+                .filter(authAccessService::canAccessWorkPlan)
+                .map(this::toWorkPlanResWithReportProgress)
+                .toList();
     }
 
     // 작업 계획 정보 수정
     @Transactional
     public void update(Long planId, WorkPlanDto.Req dto) {
         WorkPlan plan = findPlan(planId);
+        authAccessService.assertWorkPlanAccess(plan);
 
         plan.updateInfo(
                 dto.getName(),
@@ -107,12 +131,14 @@ public class WorkPlanService {
 
         linkTradeProcessIfPresent(plan, dto.getTradeProcessId());
         linkParentWorkPlanIfPresent(plan, dto.getParentWorkPlanId());
+        authAccessService.assertWorkPlanAccess(plan);
     }
 
     // 일정 연장 등록/수정
     @Transactional
     public void extend(Long planId, WorkPlanDto.ExtReq dto) {
         WorkPlan plan = findPlan(planId);
+        authAccessService.assertWorkPlanAccess(plan);
         WorkPlanExtension extension = plan.getExtension();
 
         if (extension == null) {
@@ -167,6 +193,7 @@ public class WorkPlanService {
 
             linkTradeProcessIfPresent(plan, dto.getTradeProcessId());
             linkParentWorkPlanIfPresent(plan, dto.getParentWorkPlanId());
+            authAccessService.assertWorkPlanAccess(plan);
 
             savedIds.add(workPlanRepository.save(plan).getIdx());
         }
@@ -177,13 +204,17 @@ public class WorkPlanService {
     // 작업 착수 처리
     @Transactional
     public void start(Long planId) {
-        findPlan(planId).markStarted(LocalDate.now());
+        WorkPlan plan = findPlan(planId);
+        authAccessService.assertWorkPlanAccess(plan);
+        plan.markStarted(LocalDate.now());
     }
 
     // 작업 계획 삭제
     @Transactional
     public void delete(Long planId) {
-        workPlanRepository.delete(findPlan(planId));
+        WorkPlan plan = findPlan(planId);
+        authAccessService.assertWorkPlanAccess(plan);
+        workPlanRepository.delete(plan);
     }
 
 
@@ -232,6 +263,7 @@ public class WorkPlanService {
         TradeProcess tradeProcess = tradeProcessRepository.findById(tradeProcessId)
                 .orElseThrow(() -> new RuntimeException("공정을 찾을 수 없습니다. id=" + tradeProcessId));
 
+        authAccessService.assertTradeProcessAccess(tradeProcess);
         plan.linkTradeProcess(tradeProcess);
     }
 
@@ -241,6 +273,7 @@ public class WorkPlanService {
         WorkPlan parent = workPlanRepository.findById(parentWorkPlanId)
                 .orElseThrow(() -> new RuntimeException("상위 작업 계획을 찾을 수 없습니다. id=" + parentWorkPlanId));
 
+        authAccessService.assertWorkPlanAccess(parent);
         plan.linkParentWorkPlan(parent);
     }
 

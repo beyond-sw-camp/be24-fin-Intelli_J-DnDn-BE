@@ -1,6 +1,7 @@
 package org.example.dndn.analysis;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dndn.auth.security.AuthAccessService;
 import org.example.dndn.analysis.model.AnalysisDto;
 import org.example.dndn.project.model.entity.TradeProcess;
 import org.example.dndn.project.repository.TradeProcessRepository;
@@ -36,6 +37,7 @@ public class AnalysisService {
     private final TradeProcessRepository tradeProcessRepository;
     private final WorkPlanRepository workPlanRepository;
     private final DailyReportRepository dailyReportRepository;
+    private final AuthAccessService authAccessService;
 
     // ?????????????????????????????????????????????
     // 1. 怨듭젙 吏꾩쿃瑜?鍮꾧탳
@@ -44,11 +46,13 @@ public class AnalysisService {
     // ?????????????????????????????????????????????
 
     public List<AnalysisDto.ProcessProgressRes> getProgressList(Long projectId) {
+        authAccessService.assertProjectAccess(projectId);
         LocalDate today = LocalDate.now(ANALYSIS_ZONE);
 
         return tradeProcessRepository
                 .findAllByMasterSchedule_Project_Idx(projectId)
                 .stream()
+                .filter(authAccessService::canAccessTradeProcess)
                 .filter(tp -> !isMilestoneProcess(tp))
                 .map(tp -> buildProgressRes(tp, today))
                 .toList();
@@ -114,13 +118,15 @@ public class AnalysisService {
     // ?????????????????????????????????????????????
 
     public List<AnalysisDto.DelayRiskDetailRes> getDelayRiskTasks(Long projectId, Long tradeProcessId) {
+        authAccessService.assertProjectAccess(projectId);
         LocalDate today = LocalDate.now(ANALYSIS_ZONE);
 
         return workPlanRepository
                 .findAllByTradeProcess_MasterSchedule_Project_Idx(projectId)
                 .stream()
                 // 101??湲곗큹 肄섑겕由ы듃 ???媛숈? ?몃? ?묒뾽
-                .filter(wp -> wp.getPlanType() == PlanType.MONTHLY)
+                .filter(authAccessService::canAccessWorkPlan)
+                .filter(this::isRootMonthlyPlan)
 
                 // ?뱀젙 怨듭젙 ?좏깮 ???대떦 怨듭젙???몃? ?묒뾽留?議고쉶
                 .filter(wp -> tradeProcessId == null
@@ -229,7 +235,9 @@ public class AnalysisService {
             ActualProgressSnapshot actualProgress,
             LocalDate today
     ) {
-        if (hasDailyReportOn(actualProgress, today)) return today;
+        if (actualProgress != null && actualProgress.reportDate() != null) {
+            return actualProgress.reportDate();
+        }
 
         LocalTime workEndTime = resolveTradeProcessWorkEndTime(tradeProcessId, today);
         if (LocalTime.now(ANALYSIS_ZONE).isBefore(workEndTime)) {
@@ -244,7 +252,9 @@ public class AnalysisService {
             ActualProgressSnapshot actualProgress,
             LocalDate today
     ) {
-        if (hasDailyReportOn(actualProgress, today)) return today;
+        if (actualProgress != null && actualProgress.reportDate() != null) {
+            return actualProgress.reportDate();
+        }
 
         LocalTime workEndTime = resolveMonthlyPlanWorkEndTime(monthlyPlan, today);
         if (LocalTime.now(ANALYSIS_ZONE).isBefore(workEndTime)) {
@@ -273,7 +283,7 @@ public class AnalysisService {
 
         return workPlanRepository.findAllByTradeProcess_Idx(tradeProcessId)
                 .stream()
-                .filter(wp -> wp.getPlanType() == PlanType.MONTHLY)
+                .filter(this::isRootMonthlyPlan)
                 .map(monthlyPlan -> resolveMonthlyPlanWorkEndTime(monthlyPlan, date))
                 .max(LocalTime::compareTo)
                 .orElse(DEFAULT_WORK_END_TIME);
@@ -328,7 +338,7 @@ public class AnalysisService {
         if (plans.isEmpty()) return ActualProgressSnapshot.none();
 
         List<ActualProgressSnapshot> snapshots = plans.stream()
-                .filter(wp -> wp.getPlanType() == PlanType.MONTHLY)
+                .filter(this::isRootMonthlyPlan)
                 .map(wp -> getActualProgressByMonthlyPlan(wp, today))
                 .filter(ActualProgressSnapshot::hasDailyReport)
                 .toList();
@@ -391,7 +401,7 @@ public class AnalysisService {
     private int calcActualWorkersByTradeProcess(Long tradeProcessId, LocalDate today) {
         return workPlanRepository.findAllByTradeProcess_Idx(tradeProcessId)
                 .stream()
-                .filter(wp -> wp.getPlanType() == PlanType.MONTHLY)
+                .filter(this::isRootMonthlyPlan)
                 .flatMap(parent -> workPlanRepository.findAllByParentWorkPlan_Idx(parent.getIdx()).stream())
                 .mapToInt(child -> getLatestActualWorkersByWorkPlan(child.getIdx(), today))
                 .sum();
@@ -434,6 +444,12 @@ public class AnalysisService {
     // ?????????????????????????????????????????????
     // 5. 怨꾪쉷 吏꾩쿃瑜?/ ?덉긽 醫낅즺??
     // ?????????????????????????????????????????????
+
+    private boolean isRootMonthlyPlan(WorkPlan workPlan) {
+        return workPlan != null
+                && workPlan.getPlanType() == PlanType.MONTHLY
+                && workPlan.getParentWorkPlan() == null;
+    }
 
     private double calcPlannedPct(LocalDate start, LocalDate end, LocalDate today) {
         if (start == null || end == null) return 0.0;

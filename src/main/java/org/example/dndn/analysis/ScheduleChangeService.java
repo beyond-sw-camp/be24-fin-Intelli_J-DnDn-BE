@@ -3,6 +3,7 @@ package org.example.dndn.analysis;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.example.dndn.auth.security.AuthAccessService;
 import org.example.dndn.analysis.model.ScheduleChange;
 import org.example.dndn.analysis.model.ScheduleChangeDto;
 import org.example.dndn.analysis.model.ScheduleChangeStatus;
@@ -39,6 +40,7 @@ public class ScheduleChangeService {
     private final ProjectRepository projectRepository;
     private final TradeProcessRepository tradeProcessRepository;
     private final WorkPlanRepository workPlanRepository;
+    private final AuthAccessService authAccessService;
 
     // ── 요청 등록 (공정 책임자) ────────────────────────────────────────────
 
@@ -47,10 +49,16 @@ public class ScheduleChangeService {
         Project project = projectRepository.findById(dto.getProjectId())
                 .orElseThrow(() -> new RuntimeException("현장을 찾을 수 없습니다."));
 
+        authAccessService.assertProjectAccess(project.getIdx());
+
         TradeProcess tradeProcess = null;
         if (dto.getTradeProcessId() != null) {
             tradeProcess = tradeProcessRepository.findById(dto.getTradeProcessId())
                     .orElseThrow(() -> new RuntimeException("공정을 찾을 수 없습니다."));
+        }
+
+        if (tradeProcess != null) {
+            authAccessService.assertTradeProcessAccess(tradeProcess);
         }
 
         WorkPlan workPlan = null;
@@ -62,7 +70,12 @@ public class ScheduleChangeService {
             }
         }
 
+        if (workPlan != null) {
+            authAccessService.assertWorkPlanAccess(workPlan);
+        }
+
         String resolvedProcess = resolveProcess(dto, tradeProcess, workPlan);
+        authAccessService.assertTradeAccess(resolvedProcess);
         Optional<ScheduleChange> duplicate = findDuplicatePendingRequest(
                 project.getIdx(), dto, resolvedProcess, tradeProcess, workPlan);
         if (duplicate.isPresent()) {
@@ -106,22 +119,24 @@ public class ScheduleChangeService {
      */
     public List<ScheduleChangeDto.Res> listRequests(
             Long projectId, String process, String requester) {
+        authAccessService.assertProjectAccess(projectId);
+        String effectiveProcess = authAccessService.effectiveTrade(process);
 
         List<ScheduleChange> requests;
         List<ScheduleChangeStatus> activeStatuses = List.of(
                 ScheduleChangeStatus.PENDING,
                 ScheduleChangeStatus.APPROVED);
 
-        if (requester != null && !requester.isBlank()) {
+        if (requester != null && !requester.isBlank() && effectiveProcess != null && !effectiveProcess.isBlank()) {
             // 공정 책임자: 본인 요청만
             requests = changeRepository
                     .findAllByProject_IdxAndProcessAndRequesterAndStatusInOrderByCreatedAtDesc(
-                            projectId, process, requester, activeStatuses);
-        } else if (process != null && !process.isBlank()) {
+                            projectId, effectiveProcess, requester, activeStatuses);
+        } else if (effectiveProcess != null && !effectiveProcess.isBlank()) {
             // 총 책임자 + 공종 필터
             requests = changeRepository
                     .findAllByProject_IdxAndProcessAndStatusInOrderByCreatedAtDesc(
-                            projectId, process, activeStatuses);
+                            projectId, effectiveProcess, activeStatuses);
         } else {
             // 총 책임자 + 전체
             requests = changeRepository
@@ -129,41 +144,54 @@ public class ScheduleChangeService {
                             projectId, activeStatuses);
         }
 
-        return deduplicateRequests(requests).stream().map(ScheduleChangeDto.Res::from).toList();
+        return deduplicateRequests(requests).stream()
+                .filter(this::canAccessChange)
+                .filter(request -> requester == null || requester.isBlank() || requester.equals(request.getRequester()))
+                .map(ScheduleChangeDto.Res::from)
+                .toList();
     }
 
     /**
      * 변경 이력 — 처리 완료(APPROVED, APPLIED, REJECTED)된 항목
      */
     public List<ScheduleChangeDto.Res> listHistory(Long projectId, String process) {
+        authAccessService.assertProjectAccess(projectId);
+        String effectiveProcess = authAccessService.effectiveTrade(process);
         List<ScheduleChangeStatus> doneStatuses = List.of(
                 ScheduleChangeStatus.APPROVED,
                 ScheduleChangeStatus.APPLIED,
                 ScheduleChangeStatus.REJECTED);
 
-        List<ScheduleChange> history = (process != null && !process.isBlank())
+        List<ScheduleChange> history = (effectiveProcess != null && !effectiveProcess.isBlank())
                 ? changeRepository
                 .findAllByProject_IdxAndProcessAndStatusInOrderByProcessedAtDesc(
-                        projectId, process, doneStatuses)
+                        projectId, effectiveProcess, doneStatuses)
                 : changeRepository
                 .findAllByProject_IdxAndStatusInOrderByProcessedAtDesc(
                         projectId, doneStatuses);
 
-        return history.stream().map(ScheduleChangeDto.Res::from).toList();
+        return history.stream()
+                .filter(this::canAccessChange)
+                .map(ScheduleChangeDto.Res::from)
+                .toList();
     }
 
     // ── 승인 (총 책임자) ───────────────────────────────────────────────────
 
     @Transactional
     public void approve(Long requestId, ScheduleChangeDto.ApproveReq dto) {
-        findRequest(requestId).approve(dto.getApprover());
+        ScheduleChange request = findRequest(requestId);
+        assertChangeAccess(request);
+        request.approve(dto.getApprover());
     }
 
     // ── 반려 (총 책임자) ───────────────────────────────────────────────────
 
     @Transactional
     public void reject(Long requestId, ScheduleChangeDto.RejectReq dto) {
-        findRequest(requestId).reject(dto.getApprover(), dto.getRejectReason());
+        ScheduleChange request = findRequest(requestId);
+        assertChangeAccess(request);
+        request.reject(dto.getApprover(), dto.getRejectReason());
     }
 
     // ── 공정표 반영 (총 책임자) ────────────────────────────────────────────
@@ -179,6 +207,7 @@ public class ScheduleChangeService {
     @Transactional
     public void applyToSchedule(Long requestId) {
         ScheduleChange request = findRequest(requestId);
+        assertChangeAccess(request);
         if (request.getStatus() == ScheduleChangeStatus.APPLIED) {
             throw new IllegalStateException("이미 공정표에 반영된 요청입니다.");
         }
@@ -196,6 +225,7 @@ public class ScheduleChangeService {
             TradeProcess tradeProcess = request.getTradeProcess();
 
             workPlanRepository.findAllByTradeProcess_Idx(tradeProcess.getIdx()).stream()
+                    .filter(authAccessService::canAccessWorkPlan)
                     .forEach(wp -> syncWorkPlanExtension(wp, request));
         }
 
@@ -206,6 +236,27 @@ public class ScheduleChangeService {
     }
 
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────
+
+    private void assertChangeAccess(ScheduleChange request) {
+        if (!canAccessChange(request)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.FORBIDDEN,
+                    "No permission for this site or trade.");
+        }
+    }
+
+    private boolean canAccessChange(ScheduleChange request) {
+        if (request == null) return false;
+        Long projectId = request.getProject() != null ? request.getProject().getIdx() : null;
+        if (!authAccessService.canAccessProjectId(projectId)) return false;
+        if (request.getTradeProcess() != null && !authAccessService.canAccessTradeProcess(request.getTradeProcess())) {
+            return false;
+        }
+        if (request.getWorkPlan() != null && !authAccessService.canAccessWorkPlan(request.getWorkPlan())) {
+            return false;
+        }
+        return authAccessService.canAccessTradeName(request.getProcess());
+    }
 
     private Optional<ScheduleChange> findDuplicatePendingRequest(
             Long projectId,
@@ -323,6 +374,7 @@ public class ScheduleChangeService {
             WorkPlan workPlan = workPlanRepository.findById(workPlanId)
                     .orElseThrow(() -> new RuntimeException("변경 대상 작업 계획을 찾을 수 없습니다. id=" + workPlanId));
 
+            authAccessService.assertWorkPlanAccess(workPlan);
             applyDetailChangeToWorkPlan(workPlan, detail);
         }
     }

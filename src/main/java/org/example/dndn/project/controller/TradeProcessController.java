@@ -32,9 +32,10 @@ public class TradeProcessController {
     @GetMapping
     public ResponseEntity<?> list(
             @RequestParam("projectId") Long projectId,
-            @RequestParam(value = "tradeName", required = false) String tradeName) {
+            @RequestParam(value = "tradeName", required = false) String tradeName,
+            @RequestParam(value = "includeAllTrades", defaultValue = "false") boolean includeAllTrades) {
         return ResponseEntity.ok(BaseResponse.success(
-                tradeProcessService.listByProject(projectId, tradeName)));
+                tradeProcessService.listByProject(projectId, tradeName, includeAllTrades)));
     }
 
     /**
@@ -51,9 +52,11 @@ public class TradeProcessController {
     // 공정표별 공정 목록
     // GET /trade-process/by-schedule/1
     @GetMapping("/by-schedule/{scheduleId}")
-    public ResponseEntity<?> listBySchedule(@PathVariable("scheduleId") Long scheduleId) {
+    public ResponseEntity<?> listBySchedule(
+            @PathVariable("scheduleId") Long scheduleId,
+            @RequestParam(value = "includeAllTrades", defaultValue = "false") boolean includeAllTrades) {
         return ResponseEntity.ok(BaseResponse.success(
-                tradeProcessService.listBySchedule(scheduleId)));
+                tradeProcessService.listBySchedule(scheduleId, includeAllTrades)));
     }
 
     @PutMapping("/{tpId}")

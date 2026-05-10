@@ -3,7 +3,11 @@ package org.example.dndn.analysis;
 import org.example.dndn.analysis.model.ScheduleChange;
 import org.example.dndn.analysis.model.ScheduleChangeStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface ScheduleChangeRepository extends JpaRepository<ScheduleChange, Long> {
@@ -38,4 +42,8 @@ public interface ScheduleChangeRepository extends JpaRepository<ScheduleChange, 
     // 공종 필터 + 이력
     List<ScheduleChange> findAllByProject_IdxAndProcessAndStatusInOrderByProcessedAtDesc(
             Long projectId, String process, List<ScheduleChangeStatus> statuses);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update ScheduleChange sc set sc.tradeProcess = null where sc.tradeProcess.idx in :tradeProcessIds")
+    int clearTradeProcessByIds(@Param("tradeProcessIds") Collection<Long> tradeProcessIds);
 }
