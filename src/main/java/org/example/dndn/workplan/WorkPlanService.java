@@ -3,6 +3,8 @@ package org.example.dndn.workplan;
 import lombok.RequiredArgsConstructor;
 import org.example.dndn.project.repository.TradeProcessRepository;
 import org.example.dndn.project.model.entity.TradeProcess;
+import org.example.dndn.report.DailyReportRepository;
+import org.example.dndn.report.model.DailyReport;
 import org.example.dndn.workplan.model.*;
 import org.example.dndn.workplan.model.entity.WorkPlan;
 import org.example.dndn.workplan.model.entity.WorkPlanExtension;
@@ -12,6 +14,7 @@ import org.example.dndn.workplan.model.enums.WorkTrade;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -23,6 +26,7 @@ import java.util.List;
 public class WorkPlanService {
 
     private final WorkPlanRepository workPlanRepository;
+    private final DailyReportRepository dailyReportRepository;
     // ── 1단계 추가 ─────────────────────────────────────────────────────────
     private final TradeProcessRepository tradeProcessRepository;
     // ────────────────────────────────────────────────────────────────────────
@@ -41,7 +45,7 @@ public class WorkPlanService {
     public List<WorkPlanDto.workPlanRes> listByProject(Long projectId) {
         return workPlanRepository.findAllByTradeProcess_MasterSchedule_Project_Idx(projectId)
                 .stream()
-                .map(WorkPlanDto.workPlanRes::from)
+                .map(this::toWorkPlanResWithReportProgress)
                 .toList();
     }
 
@@ -68,7 +72,7 @@ public class WorkPlanService {
             plans = workPlanRepository.findAllByPlanType(type);
         }
 
-        return plans.stream().map(WorkPlanDto.workPlanRes::from).toList();
+        return plans.stream().map(this::toWorkPlanResWithReportProgress).toList();
     }
 
     // 작업 계획 정보 수정
@@ -186,6 +190,36 @@ public class WorkPlanService {
     private WorkPlan findPlan(Long planId) {
         return workPlanRepository.findById(planId)
                 .orElseThrow(() -> new RuntimeException("작업 계획을 찾을 수 없습니다."));
+    }
+
+    // Prefer the latest submitted daily report progress over the cached monthly plan value.
+    private WorkPlanDto.workPlanRes toWorkPlanResWithReportProgress(WorkPlan plan) {
+        return WorkPlanDto.workPlanRes.from(plan, resolveActualProgressPct(plan));
+    }
+
+    private BigDecimal resolveActualProgressPct(WorkPlan plan) {
+        BigDecimal stored = plan.getActualProgressPct() != null
+                ? plan.getActualProgressPct()
+                : BigDecimal.ZERO;
+
+        return dailyReportRepository
+                .findTopByMonthlyWorkPlan_IdxAndReportDateLessThanEqualOrderByReportDateDesc(
+                        plan.getIdx(),
+                        LocalDate.now()
+                )
+                .map(report -> extractMonthlyProgressPct(report, stored))
+                .orElse(stored);
+    }
+
+    private BigDecimal extractMonthlyProgressPct(DailyReport report, BigDecimal fallback) {
+        Double progress = report.getMonthlyProgressPct() != null
+                ? report.getMonthlyProgressPct()
+                : report.getActualProgress();
+
+        if (progress == null) return fallback;
+
+        double clamped = Math.max(0.0, Math.min(100.0, progress));
+        return BigDecimal.valueOf(clamped);
     }
 
     /**
