@@ -23,6 +23,8 @@ public enum BaseResponseStatus {
     LOGIN_INVALID_USERINFO(false, 3201, "이메일이나 비밀번호를 확인해주세요."),
     LOGIN_ROLE_NOT_ALLOWED_FOR_SITE(false, 3202, "현장 로그인은 현장 권한 계정만 사용할 수 있습니다."),
     LOGIN_ROLE_NOT_ALLOWED_FOR_ADMIN(false, 3203, "관리자 로그인은 본사 또는 시스템 관리자 계정만 사용할 수 있습니다."),
+    LOGIN_SITE_NOT_MATCHED(false, 3204, "현재 투입중인 현장을 선택해 주세요."),
+    LOGIN_NO_ASSIGNED_SITE(false, 3205, "현재 투입된 현장이 없는 계정입니다. 관리자에게 문의해 주세요."),
 
     // 3300번대 인력 배치(STAFFING) 오류 — 프론트 모달 매핑
     ASSIGN_OVERFLOW(false, 3350, "투입 가능 인원을 초과했습니다."),

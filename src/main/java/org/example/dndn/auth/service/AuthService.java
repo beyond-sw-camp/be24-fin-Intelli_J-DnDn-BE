@@ -20,8 +20,10 @@ import java.util.Set;
 
 import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
 import static org.example.dndn.common.model.BaseResponseStatus.LOGIN_INVALID_USERINFO;
+import static org.example.dndn.common.model.BaseResponseStatus.LOGIN_NO_ASSIGNED_SITE;
 import static org.example.dndn.common.model.BaseResponseStatus.LOGIN_ROLE_NOT_ALLOWED_FOR_ADMIN;
 import static org.example.dndn.common.model.BaseResponseStatus.LOGIN_ROLE_NOT_ALLOWED_FOR_SITE;
+import static org.example.dndn.common.model.BaseResponseStatus.LOGIN_SITE_NOT_MATCHED;
 
 @Service
 @RequiredArgsConstructor
@@ -83,16 +85,37 @@ public class AuthService {
         // 보안/안정성 차원에서 프론트 검증 외에 백엔드에서 한 번 더 보장한다.
         validateLoginMode(user.getRole(), req.getLoginMode());
 
+        Long userProjectId = resolveProjectId(user.getSiteCode());
+
+        // 현장 로그인 탭에서 사용자가 특정 현장을 선택해 보냈을 때만 추가 검증한다.
+        if (req.getLoginMode() == LoginMode.SITE && req.getSiteProjectId() != null) {
+            validateSiteSelection(userProjectId, req.getSiteProjectId());
+        }
+
         String token = jwtProvider.generate(user.getIdx(), user.getLoginId(), user.getRole());
         return AuthDto.LoginRes.builder()
                 .accessToken(token)
                 .userIdx(user.getIdx())
-                .projectId(resolveProjectId(user.getSiteCode()))
+                .projectId(userProjectId)
                 .name(user.getName())
                 .role(user.getRole())
                 .siteCode(user.getSiteCode())
                 .trade(user.getTrade())
                 .build();
+    }
+
+    /**
+     * 사용자가 선택한 현장(projectId)이 계정에 배정된 현장과 동일한지 검증.
+     * - 계정에 배정된 현장이 없으면 로그인 자체를 막는다.
+     * - 다른 현장을 선택했다면 “현재 투입 중인 현장을 선택해 주세요.” 안내.
+     */
+    private void validateSiteSelection(Long userProjectId, Long selectedProjectId) {
+        if (userProjectId == null) {
+            throw new BaseException(LOGIN_NO_ASSIGNED_SITE);
+        }
+        if (!userProjectId.equals(selectedProjectId)) {
+            throw new BaseException(LOGIN_SITE_NOT_MATCHED);
+        }
     }
 
     /**
