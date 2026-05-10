@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,4 +22,26 @@ public interface ZoneSubRepository extends JpaRepository<ZoneSub, Long> {
     @EntityGraph(attributePaths = {"zoneMain", "tradeNeeds"})
     @Query("SELECT zs FROM ZoneSub zs JOIN zs.zoneMain zm ORDER BY zm.displayOrder ASC, zs.displayOrder ASC, zs.idx ASC")
     List<ZoneSub> findAllOrderedWithStaffingGraph();
+
+    Optional<ZoneSub> findByWorkPlanIdx(Long workPlanIdx);
+
+    @EntityGraph(attributePaths = {"zoneMain", "tradeNeeds"})
+    @Query("""
+            SELECT zs FROM ZoneSub zs
+                JOIN zs.zoneMain zm
+            WHERE zs.workDate = :workDate
+              AND zs.workPlanIdx IS NOT NULL
+            ORDER BY zm.displayOrder ASC, zs.displayOrder ASC, zs.idx ASC
+            """)
+    List<ZoneSub> findAllScheduleSubZonesByWorkDate(@Param("workDate") LocalDate workDate);
+
+    @EntityGraph(attributePaths = {"zoneMain", "tradeNeeds"})
+    @Query("""
+            SELECT zs FROM ZoneSub zs
+                JOIN zs.zoneMain zm
+            WHERE zs.workDate = :workDate
+              AND zs.workPlanIdx IS NOT NULL
+            ORDER BY zs.displayOrder ASC, zs.idx ASC
+            """)
+    List<ZoneSub> findScheduleSubZonesForAutoRecommend(@Param("workDate") LocalDate workDate);
 }

@@ -35,10 +35,17 @@ public enum Trade {
         }
         String s = worker.getSubLabel().trim().toLowerCase(Locale.ROOT);
         return switch (this) {
-            case CARPENTER -> s.contains("목공");
+            case CARPENTER -> s.contains("목공") || s.contains("목수") || s.contains("형틀");
             case REBAR -> s.contains("철근");
             case WELDER -> s.contains("용접");
-            case TILE -> s.contains("타일");
+            case TILE -> s.contains("타일")
+                    || s.contains("인부")
+                    || s.contains("보통공")
+                    || s.contains("토공")
+                    || s.contains("굴착")
+                    || s.contains("배수")
+                    || s.contains("정리")
+                    || s.contains("장비");
         };
     }
 

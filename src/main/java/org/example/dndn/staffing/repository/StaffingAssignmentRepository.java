@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 
@@ -12,6 +13,9 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
 
     @Query("select distinct a.workerIdx from StaffingAssignment a")
     List<Long> findDistinctAssignedWorkerIdxes();
+
+    @Query("select distinct a.workerIdx from StaffingAssignment a where a.workDate = :workDate")
+    List<Long> findDistinctAssignedWorkerIdxesByWorkDate(@Param("workDate") LocalDate workDate);
 
     @Query("""
             select distinct a from StaffingAssignment a
@@ -22,11 +26,31 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
             """)
     List<StaffingAssignment> findAllByZoneSubWithHierarchy(@Param("zoneSubIdx") Long zoneSubIdx);
 
+    @Query("""
+            select distinct a from StaffingAssignment a
+                join fetch a.zoneSub zs
+                join fetch zs.zoneMain zm
+            where zs.idx = :zoneSubIdx
+              and a.workDate = :workDate
+            order by a.idx asc
+            """)
+    List<StaffingAssignment> findAllByZoneSubAndWorkDateWithHierarchy(
+            @Param("zoneSubIdx") Long zoneSubIdx,
+            @Param("workDate") LocalDate workDate);
+
     void deleteByZoneSub_IdxAndWorkerIdx(Long zoneSubIdx, Long workerIdx);
+
+    void deleteByZoneSub_IdxAndWorkerIdxAndWorkDate(Long zoneSubIdx, Long workerIdx, LocalDate workDate);
 
     boolean existsByZoneSub_IdxAndWorkerIdx(Long zoneSubIdx, Long workerIdx);
 
+    boolean existsByZoneSub_IdxAndWorkerIdxAndWorkDate(Long zoneSubIdx, Long workerIdx, LocalDate workDate);
+
     boolean existsByWorkerIdx(Long workerIdx);
+
+    boolean existsByWorkerIdxAndWorkDate(Long workerIdx, LocalDate workDate);
+
+    int countByZoneSub_IdxAndWorkDate(Long zoneSubIdx, LocalDate workDate);
 
     @Query("""
             select a from StaffingAssignment a
@@ -47,6 +71,18 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
             """)
     List<StaffingAssignment> findAllWithZonesByWorkerIdxIn(@Param("workerIdxes") Collection<Long> workerIdxes);
 
+    @Query("""
+            select a from StaffingAssignment a
+                join fetch a.zoneSub zs
+                join fetch zs.zoneMain zm
+            where a.workerIdx in :workerIdxes
+              and a.workDate = :workDate
+            order by a.workerIdx asc, a.idx asc
+            """)
+    List<StaffingAssignment> findAllWithZonesByWorkerIdxInAndWorkDate(
+            @Param("workerIdxes") Collection<Long> workerIdxes,
+            @Param("workDate") LocalDate workDate);
+
     /** 최종배치 시 전체 배치 행 + 구역 계층 로드 */
     @Query("""
             select a from StaffingAssignment a
@@ -55,4 +91,16 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
             order by a.idx asc
             """)
     List<StaffingAssignment> findAllWithZoneHierarchyOrderByIdxAsc();
+
+    @Query("""
+            select a from StaffingAssignment a
+                join fetch a.zoneSub zs
+                join fetch zs.zoneMain zm
+            where a.workDate = :workDate
+            order by a.idx asc
+            """)
+    List<StaffingAssignment> findAllWithZoneHierarchyByWorkDateOrderByIdxAsc(
+            @Param("workDate") LocalDate workDate);
+
+    void deleteAllByWorkDate(LocalDate workDate);
 }
