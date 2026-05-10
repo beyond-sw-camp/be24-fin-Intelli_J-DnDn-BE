@@ -11,10 +11,6 @@ import lombok.Setter;
 import org.example.dndn.weather.model.WeatherInfo;
 import org.example.dndn.weather.model.WeatherInfoDto;
 import org.springframework.beans.factory.annotation.Value;
-<<<<<<< Updated upstream
-=======
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
->>>>>>> Stashed changes
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -94,7 +90,6 @@ public class WeatherInfoService {
 
         try {
             WeatherInfo cached = weatherInfoRepository.findByReportDate(targetDate).orElse(null);
-<<<<<<< Updated upstream
             if (isFreshSnapshot(cached)) {
                 return fromSnapshot(cached);
             }
@@ -102,35 +97,6 @@ public class WeatherInfoService {
             WeatherInfoDto.DashboardRes response = buildDashboard(targetDate);
             weatherSnapshotWriter.save(targetDate, locationLabel, response);
             return response;
-=======
-            WeatherInfoDto.DashboardRes cachedDashboard = cached != null ? fromSnapshot(cached) : null;
-
-            // 지난 날짜는 "확정 기상 데이터"만 고정값으로 사용한다.
-            // DERIVED는 DB에 남아 있어도 확정값으로 인정하지 않고, ASOS/실제 데이터 갱신을 한 번 시도한다.
-            if (targetDate.isBefore(today) && cachedDashboard != null) {
-                if (isConfirmedWeather(cachedDashboard)) {
-                    return cachedDashboard;
-                }
-
-                WeatherInfoDto.DashboardRes refreshed = tryBuildDashboard(targetDate);
-                if (refreshed != null && !isEmptyDashboard(refreshed)) {
-                    saveSnapshotWithPolicy(targetDate, refreshed, cachedDashboard);
-                    return selectDashboardForResponse(refreshed, cachedDashboard);
-                }
-
-                return cachedDashboard;
-            }
-
-            // 오늘/미래 날짜는 빠른 화면 표시를 위해 DERIVED 캐시도 fresh cache로 허용한다.
-            // 단, EMPTY는 캐시로 사용하지 않는다.
-            if (cached != null && isFreshSnapshot(cached) && cachedDashboard != null && !isEmptyDashboard(cachedDashboard)) {
-                return cachedDashboard;
-            }
-
-            WeatherInfoDto.DashboardRes response = buildDashboard(targetDate);
-            saveSnapshotWithPolicy(targetDate, response, cachedDashboard);
-            return selectDashboardForResponse(response, cachedDashboard);
->>>>>>> Stashed changes
         } catch (Exception e) {
             return loadSnapshotOrFallback(targetDate);
         }
@@ -141,104 +107,12 @@ public class WeatherInfoService {
         return readDashboard(reportDate).toTodaySimpleRes();
     }
 
-    // 스케줄러용 강제 갱신
     public void refreshSnapshot(LocalDate targetDate) {
         try {
-            WeatherInfo cached = weatherInfoRepository.findByReportDate(targetDate).orElse(null);
-            WeatherInfoDto.DashboardRes cachedDashboard = cached != null ? fromSnapshot(cached) : null;
-
             WeatherInfoDto.DashboardRes response = buildDashboard(targetDate);
-<<<<<<< Updated upstream
             weatherSnapshotWriter.save(targetDate, locationLabel, response);
-=======
-            saveSnapshotWithPolicy(targetDate, response, cachedDashboard);
->>>>>>> Stashed changes
         } catch (Exception ignored) {
         }
-    }
-
-    private WeatherInfoDto.DashboardRes tryBuildDashboard(LocalDate targetDate) {
-        try {
-            return buildDashboard(targetDate);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private WeatherInfoDto.DashboardRes selectDashboardForResponse(
-            WeatherInfoDto.DashboardRes response,
-            WeatherInfoDto.DashboardRes cachedDashboard
-    ) {
-        if (response == null || isEmptyDashboard(response)) {
-            return cachedDashboard != null ? cachedDashboard : response;
-        }
-
-        if (cachedDashboard != null && isAsosDaily(cachedDashboard)) {
-            return cachedDashboard;
-        }
-
-        if (cachedDashboard != null && isConfirmedWeather(cachedDashboard) && !isConfirmedWeather(response)) {
-            return cachedDashboard;
-        }
-
-        return response;
-    }
-
-    private void saveSnapshotWithPolicy(
-            LocalDate targetDate,
-            WeatherInfoDto.DashboardRes response,
-            WeatherInfoDto.DashboardRes cachedDashboard
-    ) {
-        if (response == null || response.getAnalysis() == null) {
-            return;
-        }
-
-        if (isEmptyDashboard(response)) {
-            return;
-        }
-
-        // ASOS는 과거 날짜의 실측 확정값이므로 더 낮은 신뢰도의 데이터로 덮지 않는다.
-        if (cachedDashboard != null && isAsosDaily(cachedDashboard)) {
-            return;
-        }
-
-        // 기존에 실제 예보/관측값이 있으면 DERIVED/EMPTY로 덮어쓰지 않는다.
-        if (cachedDashboard != null && isConfirmedWeather(cachedDashboard) && !isConfirmedWeather(response)) {
-            return;
-        }
-
-        // 저장 가능 케이스:
-        // 1. 기존 데이터 없음
-        // 2. 기존 DERIVED -> 새 DERIVED 갱신
-        // 3. 기존 DERIVED -> 새 KMA/ASOS 확정값으로 교체
-        // 4. 기존 KMA -> 새 KMA 갱신
-        weatherSnapshotWriter.save(targetDate, locationLabel, response);
-    }
-
-    private boolean isConfirmedWeather(WeatherInfoDto.DashboardRes dashboard) {
-        if (dashboard == null || dashboard.getAnalysis() == null) {
-            return false;
-        }
-
-        WeatherInfoDto.WeatherAnalysis analysis = dashboard.getAnalysis();
-
-        if (analysis.isOutOfRange()) {
-            return false;
-        }
-
-        String sourceType = analysis.getSourceType();
-
-        return "KMA_FORECAST".equals(sourceType)
-                || "KMA_MID".equals(sourceType)
-                || "ASOS_DAILY".equals(sourceType);
-    }
-
-    private boolean isAsosDaily(WeatherInfoDto.DashboardRes dashboard) {
-        if (dashboard == null || dashboard.getAnalysis() == null) {
-            return false;
-        }
-
-        return "ASOS_DAILY".equals(dashboard.getAnalysis().getSourceType());
     }
 
     // 대시보드
@@ -284,6 +158,7 @@ public class WeatherInfoService {
                 .subSummary(buildWindGuide(selectedDay))
                 .build();
 
+        // 오늘 일중 최대 강수확률
         int todayMaxPop = defaultInt(selectedDay.getPrecipitationProbability());
 
         WeatherInfoDto.RainCard rainCard = WeatherInfoDto.RainCard.builder()
@@ -1153,12 +1028,7 @@ public class WeatherInfoService {
         if (snapshot == null || snapshot.getUpdatedAt() == null) {
             return false;
         }
-<<<<<<< Updated upstream
         return snapshot.getUpdatedAt().isAfter(LocalDateTime.now().minusMinutes(30));
-=======
-
-        return snapshot.getUpdatedAt().isAfter(LocalDateTime.now().minusMinutes(60));
->>>>>>> Stashed changes
     }
 
     private WeatherInfoDto.DashboardRes loadSnapshotOrFallback(LocalDate targetDate) {
@@ -1549,6 +1419,7 @@ public class WeatherInfoService {
         }
         return Math.max(a, b);
     }
+
 
     @Getter
     @Setter
