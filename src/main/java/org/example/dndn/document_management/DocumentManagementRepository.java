@@ -15,6 +15,12 @@ public interface DocumentManagementRepository extends JpaRepository<MasterSchedu
     // 페이징 + 정렬 지원
     Page<MasterSchedule> findAllByProjectIdx(Long projectIdx, Pageable pageable);
 
+    // 추가: docType 필터 (단일)
+    Page<MasterSchedule> findAllByProjectIdxAndDocType(Long projectIdx, DocType docType, Pageable pageable);
+
+    // 추가: docType 필터 (여러 개 제외)
+    Page<MasterSchedule> findAllByProjectIdxAndDocTypeNotIn(Long projectIdx, List<DocType> excludeTypes, Pageable pageable);
+
     Optional<MasterSchedule> findFirstByProjectIdxAndDocTypeOrderByCreatedAtDesc(
             Long projectIdx, DocType docType);
 

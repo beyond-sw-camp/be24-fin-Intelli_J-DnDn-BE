@@ -32,8 +32,18 @@ public class DocumentManagementService {
             DocType.MASTER, DocType.MILESTONE, DocType.WEIGHT
     );
 
-    public DocumentManagementDto.PageRes read(Long projectId, Pageable pageable) {
-        Page<MasterSchedule> page = documentManagementRepository.findAllByProjectIdx(projectId, pageable);
+    // ★ 변경: docType 필터 파라미터 추가
+    public DocumentManagementDto.PageRes read(Long projectId, DocType docType, Pageable pageable) {
+        Page<MasterSchedule> page;
+
+        if (docType != null) {
+            // 특정 docType만 조회
+            page = documentManagementRepository.findAllByProjectIdxAndDocType(projectId, docType, pageable);
+        } else {
+            // 전체 조회 (기존 동작)
+            page = documentManagementRepository.findAllByProjectIdx(projectId, pageable);
+        }
+
         return DocumentManagementDto.PageRes.from(page);
     }
 

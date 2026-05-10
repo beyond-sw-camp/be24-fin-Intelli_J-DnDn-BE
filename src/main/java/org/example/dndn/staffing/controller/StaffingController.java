@@ -22,17 +22,20 @@ public class StaffingController {
 
     // STAFFING_003 — 기본 구역 정보 조회.
     @GetMapping("/zones")
-    public ResponseEntity<BaseResponse<List<StaffingDto.ZoneMainRes>>> getZones() {
-        List<StaffingDto.ZoneMainRes> dto = staffingService.loadZoneMainTree();
+    public ResponseEntity<BaseResponse<List<StaffingDto.ZoneMainRes>>> getZones(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
+    ) {
+        List<StaffingDto.ZoneMainRes> dto = staffingService.loadZoneMainTree(rosterDate);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
     // STAFFING_004 — 상세 구역(ZoneSub) 정보 조회
     @GetMapping("/zones/{zoneSubIdx}")
     public ResponseEntity<BaseResponse<StaffingDto.ZoneSubRes>> getZoneSub(
-            @PathVariable Long zoneSubIdx
+            @PathVariable Long zoneSubIdx,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
     ) {
-        StaffingDto.ZoneSubRes dto = staffingService.loadZoneSubDetail(zoneSubIdx);
+        StaffingDto.ZoneSubRes dto = staffingService.loadZoneSubDetail(zoneSubIdx, rosterDate);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 

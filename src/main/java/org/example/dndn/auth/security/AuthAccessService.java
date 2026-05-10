@@ -122,6 +122,11 @@ public class AuthAccessService {
         if (plan.getTradeProcess() != null && plan.getTradeProcess().getTradeName() != null) {
             return plan.getTradeProcess().getTradeName();
         }
+        if (plan.getParentWorkPlan() != null
+                && plan.getParentWorkPlan().getTradeProcess() != null
+                && plan.getParentWorkPlan().getTradeProcess().getTradeName() != null) {
+            return plan.getParentWorkPlan().getTradeProcess().getTradeName();
+        }
         return plan.getTrade() != null ? plan.getTrade().getLabel() : "";
     }
 
@@ -137,6 +142,13 @@ public class AuthAccessService {
         if (plan == null) return false;
         TradeProcess tradeProcess = plan.getTradeProcess();
         if (tradeProcess != null && !canAccessTradeProcess(user, tradeProcess)) {
+            return false;
+        }
+        WorkPlan parentWorkPlan = plan.getParentWorkPlan();
+        if (tradeProcess == null
+                && parentWorkPlan != null
+                && parentWorkPlan.getTradeProcess() != null
+                && !canAccessTradeProcess(user, parentWorkPlan.getTradeProcess())) {
             return false;
         }
         return canAccessTradeName(user, workPlanTradeName(plan));

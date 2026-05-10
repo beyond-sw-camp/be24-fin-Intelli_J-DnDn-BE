@@ -26,12 +26,16 @@ import java.util.List;
 public class DocumentManagementController {
     private final DocumentManagementService documentManagementService;
 
+    // ★ 변경: docType 쿼리 파라미터 추가 (선택사항)
+    //   예: GET /document-management/1?page=0&size=10&docType=TRADE_PLAN
+    //   docType 안 보내면 전체 조회 (기존 동작 유지)
     @GetMapping("/{project_id}")
     public BaseResponse read(
             @PathVariable(value = "project_id") Long project_id,
+            @RequestParam(value = "docType", required = false) DocType docType,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        DocumentManagementDto.PageRes res = documentManagementService.read(project_id, pageable);
+        DocumentManagementDto.PageRes res = documentManagementService.read(project_id, docType, pageable);
         return BaseResponse.success(res);
     }
 
