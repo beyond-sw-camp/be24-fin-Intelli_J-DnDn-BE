@@ -33,9 +33,11 @@ public class WorkPlanController {
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
     @GetMapping("/project/{projectId}")
-    public ResponseEntity<?> listByProject(@PathVariable Long projectId) {
+    public ResponseEntity<?> listByProject(
+            @PathVariable Long projectId,
+            @RequestParam(value = "includeAllTrades", defaultValue = "false") boolean includeAllTrades) {
         return ResponseEntity.ok(BaseResponse.success(
-                workPlanService.listByProject(projectId)
+                workPlanService.listByProject(projectId, includeAllTrades)
         ));
     }
 
@@ -43,9 +45,10 @@ public class WorkPlanController {
     @GetMapping
     public ResponseEntity<?> list(
             @RequestParam(value = "planType", defaultValue = "월간") String planType,
+            @RequestParam(value = "projectId", required = false) Long projectId,
             @RequestParam(value = "trade", required = false) String trade,
             @RequestParam(value = "status", required = false) String status) {
-        List<WorkPlanDto.workPlanRes> dtos = workPlanService.list(planType, trade, status);
+        List<WorkPlanDto.workPlanRes> dtos = workPlanService.list(projectId, planType, trade, status);
         return ResponseEntity.ok(BaseResponse.success(dtos));
     }
 

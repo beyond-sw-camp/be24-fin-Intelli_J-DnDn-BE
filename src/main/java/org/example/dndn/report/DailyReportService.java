@@ -1,6 +1,7 @@
 package org.example.dndn.report;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dndn.auth.security.AuthAccessService;
 import org.example.dndn.report.model.DailyReport;
 import org.example.dndn.report.model.ReportDto;
 import org.example.dndn.workplan.WorkPlanRepository;
@@ -26,6 +27,7 @@ public class DailyReportService {
 
     private final DailyReportRepository dailyReportRepository;
     private final WorkPlanRepository workPlanRepository;
+    private final AuthAccessService authAccessService;
 
     // feat : 공사일보 제출 및 명일 작업계획 자동 연동
     public Long submitReport(ReportDto.Req dto) {
@@ -33,6 +35,7 @@ public class DailyReportService {
         // feat : 공사일보 DB 조회 및 저장
         WorkPlan workPlan = workPlanRepository.findById(dto.getWorkPlanId())
                 .orElseThrow(() -> new RuntimeException("WorkPlan not found"));
+        authAccessService.assertWorkPlanAccess(workPlan);
 
         DailyReport dailyReport = dailyReportRepository.findByWorkPlan_IdxAndReportDate(workPlan.getIdx(), dto.getReportDate())
                 .orElse(DailyReport.builder()
@@ -44,6 +47,10 @@ public class DailyReportService {
         if (dto.getMonthlyWorkPlanId() != null) {
             monthlyPlan = workPlanRepository.findById(dto.getMonthlyWorkPlanId())
                     .orElseThrow(() -> new RuntimeException("월간 세부계획을 찾을 수 없습니다. id=" + dto.getMonthlyWorkPlanId()));
+        }
+
+        if (monthlyPlan != null) {
+            authAccessService.assertWorkPlanAccess(monthlyPlan);
         }
 
         Double monthlyProgressPct = clampPercent(dto.getMonthlyProgressPct() != null
@@ -101,6 +108,8 @@ public class DailyReportService {
                     .orElseThrow(() -> new RuntimeException("대상 주간계획을 찾을 수 없습니다."));
 
             // feat : 기존 주간 계획을 유지하되, '비고(note)'와 인원/장비만 명일 작업 예정으로 덮어씀
+            authAccessService.assertWorkPlanAccess(tomorrowPlan);
+
             tomorrowPlan.updateInfo(
                     tomorrowPlan.getName(), tomorrowPlan.getTrade(), tomorrowPlan.getLocation(),
                     tomorrowPlan.getStartDate(), tomorrowPlan.getEndDate(), tomorrowPlan.getStatus(),
@@ -165,11 +174,13 @@ public class DailyReportService {
     // feat : 특정 일자 공사일보 목록 조회 및 DTO 변환
     @Transactional(readOnly = true)
     public List<ReportDto.Res> getReportsByDate(LocalDate date) {
-        return dailyReportRepository.findByReportDate(date).stream().map(r ->
+        return dailyReportRepository.findByReportDate(date).stream()
+                .filter(r -> authAccessService.canAccessWorkPlan(r.getWorkPlan()))
+                .map(r ->
                 ReportDto.Res.builder()
                         .idx(r.getIdx())
                         .workPlanId(r.getWorkPlan().getIdx())
-                        .process(r.getWorkPlan().getTrade() != null ? r.getWorkPlan().getTrade().getLabel() : "")
+                        .process(authAccessService.workPlanTradeName(r.getWorkPlan()))
                         .actualProgress(r.getActualProgress())
                         .todayProgress(r.getTodayProgress())
                         .monthlyWorkPlanId(r.getMonthlyWorkPlan() != null ? r.getMonthlyWorkPlan().getIdx() : null)

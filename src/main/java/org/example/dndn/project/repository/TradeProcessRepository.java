@@ -2,18 +2,26 @@ package org.example.dndn.project.repository;
 
 import org.example.dndn.project.model.entity.TradeProcess;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface TradeProcessRepository extends JpaRepository<TradeProcess, Long> {
 
     List<TradeProcess> findAllByMasterSchedule_Idx(Long masterScheduleId);
 
+    List<TradeProcess> findAllByMasterSchedule_IdxIn(Collection<Long> masterScheduleIds);
+
     List<TradeProcess> findAllByMasterSchedule_Project_Idx(Long projectId);
 
     List<TradeProcess> findAllByMasterSchedule_Project_IdxAndTradeName(Long projectId, String tradeName);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from TradeProcess tp where tp.masterSchedule.idx in :masterScheduleIds")
+    int deleteByMasterScheduleIds(@Param("masterScheduleIds") Collection<Long> masterScheduleIds);
 
     /**
      * 현장(project) 에 연결된 master_schedule 의 trade_process 중

@@ -6,6 +6,8 @@ import org.example.dndn.auth.model.entity.SystemUser;
 import org.example.dndn.auth.repository.SystemUserRepository;
 import org.example.dndn.auth.security.JwtProvider;
 import org.example.dndn.common.exception.BaseException;
+import org.example.dndn.project.model.entity.Project;
+import org.example.dndn.project.repository.ProjectRepository;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ public class AuthService {
     private final SystemUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final ProjectRepository projectRepository;
 
     @Transactional
     public void changePassword(AuthDto.ChangePasswordReq req) {
@@ -59,10 +62,28 @@ public class AuthService {
         return AuthDto.LoginRes.builder()
                 .accessToken(token)
                 .userIdx(user.getIdx())
+                .projectId(resolveProjectId(user.getSiteCode()))
                 .name(user.getName())
                 .role(user.getRole())
                 .siteCode(user.getSiteCode())
                 .trade(user.getTrade())
                 .build();
+    }
+
+    private Long resolveProjectId(String siteCode) {
+        if (siteCode == null || siteCode.isBlank()) {
+            return null;
+        }
+        String prefix = "[" + siteCode.trim() + "]";
+        return projectRepository.findAll().stream()
+                .filter(project -> startsWithSiteCode(project, prefix))
+                .map(Project::getIdx)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private boolean startsWithSiteCode(Project project, String prefix) {
+        String name = project.getName();
+        return name != null && name.trim().startsWith(prefix);
     }
 }

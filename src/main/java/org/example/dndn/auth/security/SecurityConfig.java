@@ -37,6 +37,16 @@ public class SecurityConfig {
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/account-requests").authenticated()
+                        .requestMatchers(
+                                "/project/**",
+                                "/master-schedule/**",
+                                "/trade-process/**",
+                                "/work-plan/**",
+                                "/work-order/**",
+                                "/report/**",
+                                "/analysis/**",
+                                "/schedule-change-request/**"
+                        ).authenticated()
                         .anyRequest().permitAll()   // 기존 엔드포인트는 현행 유지 (추후 역할별 제한 추가)
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)

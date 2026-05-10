@@ -30,7 +30,8 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
                     we.gate_idx,
                     we.equipment_name,
                     we.equipment_count,
-                    wo.status_code
+                    wo.status_code,
+                    wo.site_idx
             FROM work_order wo
             JOIN work_order_equipment we ON we.work_order_idx = wo.idx
             LEFT JOIN work_plan wp ON wp.idx = wo.work_plan_id
