@@ -34,11 +34,10 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.PUT, "/auth/password").authenticated()
-                        .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/auth/**","/project/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/account-requests").authenticated()
                         .requestMatchers(
-                                "/project/**",
                                 "/master-schedule/**",
                                 "/trade-process/**",
                                 "/work-plan/**",
