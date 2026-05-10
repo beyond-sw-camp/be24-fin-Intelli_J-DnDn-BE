@@ -172,16 +172,19 @@ public class ScheduleChangeService {
      * 승인된 요청을 실제 공정 일정에 반영한다.
      *
      * 반영 대상:
-     *  1. TradeProcess (tradeProcessId가 있을 때) — applyScheduleChange()
-     *  2. 해당 TradeProcess에 연결된 WorkPlan의 WorkPlanExtension — 동기화
+     * 반영 대상
+     *  1. WorkPlan 변경 요청 — 해당 WorkPlan의 변경 정보 동기화
+     *  2. TradeProcess 기준 요청 — 최초 업로드 공정표는 유지하고 연결된 WorkPlan 변경 정보만 동기화
      */
     @Transactional
     public void applyToSchedule(Long requestId) {
         ScheduleChange request = findRequest(requestId);
-        boolean alreadyApplied = request.getStatus() == ScheduleChangeStatus.APPLIED;
+        if (request.getStatus() == ScheduleChangeStatus.APPLIED) {
+            throw new IllegalStateException("이미 공정표에 반영된 요청입니다.");
+        }
 
-        if (request.getStatus() != ScheduleChangeStatus.APPROVED && !alreadyApplied) {
-            throw new IllegalStateException("승인 완료 또는 일정 반영 완료 상태에서만 공정표에 반영할 수 있습니다.");
+        if (request.getStatus() != ScheduleChangeStatus.APPROVED) {
+            throw new IllegalStateException("승인 완료 상태에서만 공정표에 반영할 수 있습니다.");
         }
 
         // 1. 월간/주간 WorkPlan 기반 요청이면 해당 계획의 연장 정보만 동기화
@@ -191,7 +194,6 @@ public class ScheduleChangeService {
         // 2. 공정표 공정 자체 변경 요청이면 해당 공정과 연결된 WorkPlan 동기화
         else if (request.getTradeProcess() != null) {
             TradeProcess tradeProcess = request.getTradeProcess();
-            tradeProcess.applyScheduleChange(request.getNewStart(), request.getNewEnd());
 
             workPlanRepository.findAllByTradeProcess_Idx(tradeProcess.getIdx()).stream()
                     .forEach(wp -> syncWorkPlanExtension(wp, request));
@@ -200,9 +202,7 @@ public class ScheduleChangeService {
         applyDetailChangesToWorkPlans(request);
 
         // 3. 요청 상태를 APPLIED로 변경
-        if (!alreadyApplied) {
-            request.markApplied();
-        }
+        request.markApplied();
     }
 
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────

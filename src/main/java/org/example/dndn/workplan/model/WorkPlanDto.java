@@ -250,6 +250,10 @@ public class WorkPlanDto {
         private BigDecimal actualProgressPct;
 
         public static workPlanRes from(WorkPlan entity) {
+            return from(entity, entity.getActualProgressPct());
+        }
+
+        public static workPlanRes from(WorkPlan entity, BigDecimal actualProgressPct) {
             String period = "";
             if (entity.getStartDate() != null && entity.getEndDate() != null) {
                 period = entity.getStartDate().format(DATE_FORMATTER)
@@ -287,7 +291,7 @@ public class WorkPlanDto {
                     .manager(entity.getManager())
                     .contact(entity.getContact())
                     .note(entity.getNote())
-                    .actualProgressPct(entity.getActualProgressPct())
+                    .actualProgressPct(actualProgressPct != null ? actualProgressPct : BigDecimal.ZERO)
                     .build();
         }
     }
