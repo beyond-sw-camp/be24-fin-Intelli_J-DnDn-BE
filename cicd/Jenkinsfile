@@ -48,20 +48,10 @@ spec:
 
   environment {
     IMAGE_NAME = 'seungwoo0128/dndn-backend'
-    IMAGE_TAG  = "${env.BRANCH_NAME == 'test' ? 'test-' : ''}1.${env.BUILD_NUMBER}"
-    NAMESPACE  = "${env.BRANCH_NAME == 'test' ? 'test' : 'default'}"
+    IMAGE_TAG  = "${env.JOB_NAME.contains('test') ? 'test-' : ''}1.${env.BUILD_NUMBER}"
+    NAMESPACE  = "${env.JOB_NAME.contains('test') ? 'test' : 'default'}"
   }
   stages {
-    stage('Checkout') {
-      steps {
-        container('gradle') {
-          checkout([$class: 'GitSCM',
-            branches: [[name: "*/${env.BRANCH_NAME}"]],
-            userRemoteConfigs: [[url: 'https://github.com/beyond-sw-camp/be24-fin-Intelli_J-DnDn-BE.git']]
-          ])
-        }
-      }
-    }
 
     stage('Gradle Build') {
       steps {
