@@ -41,5 +41,6 @@ public class AuthDto {
         private UserRole role;
         private String siteCode;
         private String trade;
+        private Boolean needsInitialUpload;
     }
 }
