@@ -16,6 +16,10 @@ spring:
       hibernate:
         format_sql: true
 
+# K8s Deployment env DEPLOYMENT_COLOR → /api/actuator/info 의 deployment.color JSON
+info:
+  deployment:
+    color: ${DEPLOYMENT_COLOR:unknown}
 
 management:
   endpoint:
