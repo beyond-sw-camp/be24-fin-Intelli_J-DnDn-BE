@@ -16,6 +16,8 @@ public interface MasterScheduleRepository extends JpaRepository<MasterSchedule, 
 
     List<MasterSchedule> findAllByProject_IdxAndDocType(Long projectId, DocType docType);
 
+    boolean existsByProject_Idx(Long projectId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from MasterSchedule ms where ms.idx in :scheduleIds")
     int deleteByIds(@Param("scheduleIds") Collection<Long> scheduleIds);
