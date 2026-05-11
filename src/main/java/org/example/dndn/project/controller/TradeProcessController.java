@@ -32,17 +32,31 @@ public class TradeProcessController {
     @GetMapping
     public ResponseEntity<?> list(
             @RequestParam("projectId") Long projectId,
-            @RequestParam(value = "tradeName", required = false) String tradeName) {
+            @RequestParam(value = "tradeName", required = false) String tradeName,
+            @RequestParam(value = "includeAllTrades", defaultValue = "false") boolean includeAllTrades) {
         return ResponseEntity.ok(BaseResponse.success(
-                tradeProcessService.listByProject(projectId, tradeName)));
+                tradeProcessService.listByProject(projectId, tradeName, includeAllTrades)));
+    }
+
+    /**
+     * 계정 생성 공종 드롭다운 전용.
+     * GET /trade-process/milestone-trades?projectId={projectId}
+     * isMilestone=true 이고 '준공','착공' 제외한 공종명 목록(List<String>) 반환.
+     */
+    @GetMapping("/milestone-trades")
+    public ResponseEntity<?> getMilestoneTradeNames(@RequestParam("projectId") Long projectId) {
+        return ResponseEntity.ok(BaseResponse.success(
+                tradeProcessService.listMilestoneTradeNamesByProject(projectId)));
     }
 
     // 공정표별 공정 목록
     // GET /trade-process/by-schedule/1
     @GetMapping("/by-schedule/{scheduleId}")
-    public ResponseEntity<?> listBySchedule(@PathVariable("scheduleId") Long scheduleId) {
+    public ResponseEntity<?> listBySchedule(
+            @PathVariable("scheduleId") Long scheduleId,
+            @RequestParam(value = "includeAllTrades", defaultValue = "false") boolean includeAllTrades) {
         return ResponseEntity.ok(BaseResponse.success(
-                tradeProcessService.listBySchedule(scheduleId)));
+                tradeProcessService.listBySchedule(scheduleId, includeAllTrades)));
     }
 
     @PutMapping("/{tpId}")

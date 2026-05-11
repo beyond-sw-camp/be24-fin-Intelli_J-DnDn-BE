@@ -1,6 +1,7 @@
 package org.example.dndn.report;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dndn.auth.security.AuthAccessService;
 import org.example.dndn.report.model.DailyReport;
 import org.example.dndn.report.model.ReportDto;
 import org.example.dndn.workplan.WorkPlanRepository;
@@ -26,6 +27,7 @@ public class DailyReportService {
 
     private final DailyReportRepository dailyReportRepository;
     private final WorkPlanRepository workPlanRepository;
+    private final AuthAccessService authAccessService;
 
     // feat : 공사일보 제출 및 명일 작업계획 자동 연동
     public Long submitReport(ReportDto.Req dto) {
@@ -33,6 +35,7 @@ public class DailyReportService {
         // feat : 공사일보 DB 조회 및 저장
         WorkPlan workPlan = workPlanRepository.findById(dto.getWorkPlanId())
                 .orElseThrow(() -> new RuntimeException("WorkPlan not found"));
+        authAccessService.assertWorkPlanAccess(workPlan);
 
         DailyReport dailyReport = dailyReportRepository.findByWorkPlan_IdxAndReportDate(workPlan.getIdx(), dto.getReportDate())
                 .orElse(DailyReport.builder()
@@ -40,12 +43,47 @@ public class DailyReportService {
                         .reportDate(dto.getReportDate())
                         .build());
 
-        // feat : 금일 진척률을 포함하여 공사일보 정보 업데이트
-        dailyReport.updateReport(dto.getActualProgress(), dto.getTodayProgress(), dto.getActualWorkerCount(), dto.getIssue(), dto.getTodayWork(), dto.getTomorrowPlan());
+        WorkPlan monthlyPlan = null;
+        if (dto.getMonthlyWorkPlanId() != null) {
+            monthlyPlan = workPlanRepository.findById(dto.getMonthlyWorkPlanId())
+                    .orElseThrow(() -> new RuntimeException("월간 세부계획을 찾을 수 없습니다. id=" + dto.getMonthlyWorkPlanId()));
+        }
+
+        if (monthlyPlan != null) {
+            authAccessService.assertWorkPlanAccess(monthlyPlan);
+        }
+
+        Double monthlyProgressPct = clampPercent(dto.getMonthlyProgressPct() != null
+                ? dto.getMonthlyProgressPct()
+                : dto.getActualProgress());
+        Double progressIncrementPct = clampPercent(dto.getProgressIncrementPct() != null
+                ? dto.getProgressIncrementPct()
+                : 0.0);
+
+        // feat : 금일 진척률과 월간 세부계획 누적 진척률을 포함하여 공사일보 정보 업데이트
+        dailyReport.updateReport(
+                monthlyPlan,
+                monthlyProgressPct,
+                dto.getTodayProgress(),
+                progressIncrementPct,
+                monthlyProgressPct,
+                dto.getActualWorkerCount(),
+                nonBlank(dto.getLocation(), workPlan.getLocation()),
+                dto.getIssue(),
+                dto.getTodayWork(),
+                dto.getTomorrowPlan()
+        );
         DailyReport savedReport = dailyReportRepository.save(dailyReport);
 
-        // feat : 진척률 100% 미달 시 공정 기간 자동 연장
-        if (dto.getActualProgress() < 100.0) {
+        // feat : 월간 세부계획 누적 진척률 갱신
+        if (monthlyPlan != null) {
+            monthlyPlan.updateActualProgressPct(monthlyProgressPct);
+            workPlanRepository.save(monthlyPlan);
+        }
+
+        // feat : 금일 작업 진척률 100% 미달 시 해당 주간 계획 기간 자동 연장
+        double todayProgress = dto.getTodayProgress() == null ? 0.0 : dto.getTodayProgress();
+        if (todayProgress < 100.0) {
             WorkPlanExtension extension = workPlan.getExtension();
             if (extension == null) {
                 extension = WorkPlanExtension.builder().build();
@@ -70,6 +108,8 @@ public class DailyReportService {
                     .orElseThrow(() -> new RuntimeException("대상 주간계획을 찾을 수 없습니다."));
 
             // feat : 기존 주간 계획을 유지하되, '비고(note)'와 인원/장비만 명일 작업 예정으로 덮어씀
+            authAccessService.assertWorkPlanAccess(tomorrowPlan);
+
             tomorrowPlan.updateInfo(
                     tomorrowPlan.getName(), tomorrowPlan.getTrade(), tomorrowPlan.getLocation(),
                     tomorrowPlan.getStartDate(), tomorrowPlan.getEndDate(), tomorrowPlan.getStatus(),
@@ -121,17 +161,33 @@ public class DailyReportService {
         return savedReport.getIdx();
     }
 
+    private Double clampPercent(Double value) {
+        if (value == null) return 0.0;
+        return Math.max(0.0, Math.min(100.0, value));
+    }
+
+    private String nonBlank(String value, String fallback) {
+        if (value != null && !value.isBlank()) return value;
+        return fallback != null ? fallback : "";
+    }
+
     // feat : 특정 일자 공사일보 목록 조회 및 DTO 변환
     @Transactional(readOnly = true)
     public List<ReportDto.Res> getReportsByDate(LocalDate date) {
-        return dailyReportRepository.findByReportDate(date).stream().map(r ->
+        return dailyReportRepository.findByReportDate(date).stream()
+                .filter(r -> authAccessService.canAccessWorkPlan(r.getWorkPlan()))
+                .map(r ->
                 ReportDto.Res.builder()
                         .idx(r.getIdx())
                         .workPlanId(r.getWorkPlan().getIdx())
-                        .process(r.getWorkPlan().getTrade() != null ? r.getWorkPlan().getTrade().getLabel() : "")
+                        .process(authAccessService.workPlanTradeName(r.getWorkPlan()))
                         .actualProgress(r.getActualProgress())
                         .todayProgress(r.getTodayProgress())
+                        .monthlyWorkPlanId(r.getMonthlyWorkPlan() != null ? r.getMonthlyWorkPlan().getIdx() : null)
+                        .progressIncrementPct(r.getProgressIncrementPct())
+                        .monthlyProgressPct(r.getMonthlyProgressPct())
                         .actualWorkerCount(r.getActualWorkerCount())
+                        .location(nonBlank(r.getLocation(), r.getWorkPlan().getLocation()))
                         .issue(r.getIssue())
                         .reportDate(r.getReportDate())
                         .todayWork(r.getTodayWork())

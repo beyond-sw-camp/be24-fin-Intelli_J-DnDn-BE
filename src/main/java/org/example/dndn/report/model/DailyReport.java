@@ -4,45 +4,70 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndn.common.model.BaseEntity;
 import org.example.dndn.workplan.model.entity.WorkPlan;
+
 import java.time.LocalDate;
 
-// [REPORT_001] 1단계 : 공사일보 기본 엔티티 및 DTO 설계
-// feat : 공사일보 엔티티 클래스
 @Entity
 @Table(name = "daily_report")
-@Getter @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class DailyReport extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long idx; // feat : 공사일보 고유 식별자 PK
+    private Long idx;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "work_plan_idx")
-    private WorkPlan workPlan; // feat : 연관된 주간 작업 계획 FK
+    private WorkPlan workPlan;
 
-    private Double actualProgress; // feat : 전체 누적 진척률
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "monthly_work_plan_idx")
+    private WorkPlan monthlyWorkPlan;
 
-    private Double todayProgress; // feat : 금일 입력 진척률 (새로 추가된 컬럼)
+    private Double actualProgress;
 
-    private Integer actualWorkerCount; // feat : 금일 실제 투입 인원 수
+    private Double todayProgress;
 
-    private String issue; // feat : 특이사항 및 이슈
+    private Double progressIncrementPct;
 
-    private LocalDate reportDate; // feat : 공사일보 작성 일자
+    private Double monthlyProgressPct;
+
+    private Integer actualWorkerCount;
+
+    private String location;
+
+    private String issue;
+
+    private LocalDate reportDate;
 
     @Column(columnDefinition = "TEXT")
-    private String todayWork; // feat : 금일 작업 완료 내용
+    private String todayWork;
 
     @Column(columnDefinition = "TEXT")
-    private String tomorrowPlan; // feat : 명일 작업 예정 내용
+    private String tomorrowPlan;
 
-    // [REPORT_003] 3단계 : 공사일보 제출(Upsert) 기본 로직 구현
-    // feat : 공사일보 정보 업데이트 메서드 (금일 진척률 반영)
-    public void updateReport(Double actualProgress, Double todayProgress, Integer actualWorkerCount, String issue, String todayWork, String tomorrowPlan) {
+    public void updateReport(
+            WorkPlan monthlyWorkPlan,
+            Double actualProgress,
+            Double todayProgress,
+            Double progressIncrementPct,
+            Double monthlyProgressPct,
+            Integer actualWorkerCount,
+            String location,
+            String issue,
+            String todayWork,
+            String tomorrowPlan
+    ) {
+        this.monthlyWorkPlan = monthlyWorkPlan;
         this.actualProgress = actualProgress;
         this.todayProgress = todayProgress;
+        this.progressIncrementPct = progressIncrementPct;
+        this.monthlyProgressPct = monthlyProgressPct;
         this.actualWorkerCount = actualWorkerCount;
+        this.location = location;
         this.issue = issue;
         this.todayWork = todayWork;
         this.tomorrowPlan = tomorrowPlan;

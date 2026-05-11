@@ -28,7 +28,7 @@ public enum WorkTrade {
         }
 
         for (WorkTrade trade : values()) {
-            if (trade.label.equals(label)) {
+            if (trade.label.equals(label) || trade.name().equalsIgnoreCase(label)) {
                 return trade;
             }
         }

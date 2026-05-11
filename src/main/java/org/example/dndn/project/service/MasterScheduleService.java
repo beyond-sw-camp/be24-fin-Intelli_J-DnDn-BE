@@ -2,6 +2,7 @@ package org.example.dndn.project.service;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dndn.ai.extractor.ScheduleDocumentExtractor;
+import org.example.dndn.analysis.ScheduleChangeRepository;
 import org.example.dndn.project.model.dto.MasterScheduleDto;
 import org.example.dndn.project.model.dto.TradeProcessDto;
 import org.example.dndn.project.model.entity.MasterSchedule;
@@ -9,8 +10,11 @@ import org.example.dndn.project.model.entity.Project;
 import org.example.dndn.project.model.entity.TradeProcess;
 import org.example.dndn.project.model.enums.DocType;
 import org.example.dndn.project.repository.MasterScheduleRepository;
+import org.example.dndn.project.repository.MilestoneRepository;
 import org.example.dndn.project.repository.ProjectRepository;
+import org.example.dndn.project.repository.ScheduleAiAnalysisRepository;
 import org.example.dndn.project.repository.TradeProcessRepository;
+import org.example.dndn.workplan.WorkPlanRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -28,6 +32,10 @@ public class MasterScheduleService {
     private final TradeProcessRepository tradeProcessRepository;
     private final MasterScheduleRepository masterScheduleRepository;
     private final ProjectRepository projectRepository;
+    private final MilestoneRepository milestoneRepository;
+    private final ScheduleAiAnalysisRepository scheduleAiAnalysisRepository;
+    private final WorkPlanRepository workPlanRepository;
+    private final ScheduleChangeRepository scheduleChangeRepository;
 
     @Transactional
     public Long create(MasterScheduleDto.Req dto) {
@@ -105,6 +113,8 @@ public class MasterScheduleService {
 
             file.transferTo(filePath.toFile());
 
+            replacePreviousExtraction(projectId, docType);
+
             MasterSchedule schedule = MasterSchedule.builder()
                     .project(project)
                     .docType(docType)
@@ -140,5 +150,35 @@ public class MasterScheduleService {
         } catch (Exception e) {
             throw new RuntimeException("공정표 업로드 및 AI 분석 중 오류가 발생했습니다.", e);
         }
+    }
+
+    private void replacePreviousExtraction(Long projectId, DocType docType) {
+        List<MasterSchedule> previousSchedules = docType == DocType.MASTER
+                ? masterScheduleRepository.findAllByProject_Idx(projectId)
+                : masterScheduleRepository.findAllByProject_IdxAndDocType(projectId, docType);
+
+        if (previousSchedules.isEmpty()) {
+            return;
+        }
+
+        List<Long> scheduleIds = previousSchedules.stream()
+                .map(MasterSchedule::getIdx)
+                .toList();
+
+        List<TradeProcess> previousTradeProcesses =
+                tradeProcessRepository.findAllByMasterSchedule_IdxIn(scheduleIds);
+        List<Long> tradeProcessIds = previousTradeProcesses.stream()
+                .map(TradeProcess::getIdx)
+                .toList();
+
+        if (!tradeProcessIds.isEmpty()) {
+            workPlanRepository.clearTradeProcessByIds(tradeProcessIds);
+            scheduleChangeRepository.clearTradeProcessByIds(tradeProcessIds);
+            milestoneRepository.deleteByTradeProcessIds(tradeProcessIds);
+            tradeProcessRepository.deleteByMasterScheduleIds(scheduleIds);
+        }
+
+        scheduleAiAnalysisRepository.deleteByMasterScheduleIds(scheduleIds);
+        masterScheduleRepository.deleteByIds(scheduleIds);
     }
 }

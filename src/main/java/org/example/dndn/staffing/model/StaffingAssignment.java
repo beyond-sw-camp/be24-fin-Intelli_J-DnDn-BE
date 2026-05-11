@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndn.common.model.BaseEntity;
 
+import java.time.LocalDate;
+
 @Entity
 @Table(name = "staffing_assignment")
 @Getter
@@ -22,6 +24,9 @@ public class StaffingAssignment extends BaseEntity {
 
     @Column(name = "worker_idx", nullable = false)
     private Long workerIdx;
+
+    @Column(name = "work_date")
+    private LocalDate workDate;
 
     @Column(nullable = false)
     private boolean confirmed;
