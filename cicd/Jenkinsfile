@@ -113,29 +113,29 @@ spec:
       steps {
         container('kubectl') {
           script {
+            // 트래픽은 현재 Ingress가 가리키는 색(side) 유지. 반대쪽에만 새 이미지 배포 후 0→2 스케일.
+            // Ingress / backend-service 전환 및 올(active) 디플로이먼트 축소는 Java 기동·검증 후 수동.
             def activeService = sh(
               script: "kubectl get ingress backend-ingress -o jsonpath='{.spec.rules[0].http.paths[0].backend.service.name}'",
               returnStdout: true
             ).trim()
             def activeVersion   = activeService.contains('blue') ? 'blue' : 'green'
             def inactiveVersion = activeVersion == 'blue' ? 'green' : 'blue'
-            echo "Active: ${activeVersion} → Deploying to: ${inactiveVersion}"
+            echo "Ingress active: ${activeVersion} (유지). 배포 대상(스테일): ${inactiveVersion}"
+
+            sh "kubectl scale deployment/dndn-backend-${inactiveVersion} --replicas=0 || true"
+            sh "kubectl rollout status deployment/dndn-backend-${inactiveVersion} --timeout=120s || true"
 
             sh "kubectl set image deployment/dndn-backend-${inactiveVersion} backend=${IMAGE_NAME}:${IMAGE_TAG}"
             sh "kubectl scale deployment/dndn-backend-${inactiveVersion} --replicas=2"
-            sh "kubectl rollout status deployment/dndn-backend-${inactiveVersion} --timeout=180s"
+            // Spring Boot 등 기동이 길 수 있음 — 파이프라인은 레플리카 Ready까지 대기(인그레스 전환 없음).
+            sh "kubectl rollout status deployment/dndn-backend-${inactiveVersion} --timeout=900s"
 
-            // Ingress 전환 (외부 트래픽)
-            sh """
-              kubectl patch ingress backend-ingress --type=json \
-                -p='[{"op":"replace","path":"/spec/rules/0/http/paths/0/backend/service/name","value":"backend-service-${inactiveVersion}"}]'
-            """
-
-            // stable backend-service selector 전환 (프론트 nginx proxy_pass용)
-            sh "kubectl patch svc backend-service -p '{\"spec\":{\"selector\":{\"type\":\"backend\",\"version\":\"${inactiveVersion}\"}}}'"
-
-            sh "kubectl scale deployment/dndn-backend-${activeVersion} --replicas=0"
-            echo "Switched to: ${inactiveVersion}"
+            echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+            echo "배포 완료: ${inactiveVersion} (이미지 ${IMAGE_TAG}, replicas=2). Ingress 트래픽은 아직 ${activeVersion} 향함."
+            echo "수동 전환: Ingress rules의 backend.service.name → backend-service-${inactiveVersion}"
+            echo "프론트용 backend-service 라우팅이 있으면 selector version=${inactiveVersion} 패치 후, 검증 후 dndn-backend-${activeVersion} scale 0"
+            echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
           }
         }
       }
