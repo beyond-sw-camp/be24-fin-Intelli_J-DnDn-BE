@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - www.dndn24.kro.kr
+      secretName: dndn24-tls
+  rules:
+    - host: www.dndn24.kro.kr
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-service-blue   # Jenkins가 이 값을 교체
+                port:
+                  number: 8080
