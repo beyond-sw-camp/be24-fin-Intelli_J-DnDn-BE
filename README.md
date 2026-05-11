@@ -126,7 +126,7 @@ Ingress 전환 (backend-service-blue ↔ backend-service-green)
 
 ### 무중단 배포 테스트 시연 영상
 
-> 시연 영상 추가 예정
+https://github.com/user-attachments/assets/9a31362a-4578-4c3a-af02-114a7b628da8
 
 ---
 
