@@ -1,6 +1,15 @@
+openai:
+  api-key: ${OPENAI_API_KEY}
+  model: gpt-5.5
+
 spring:
   application:
     name: dndn
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
 
   datasource:
     driver-class-name: org.mariadb.jdbc.Driver
@@ -47,5 +56,36 @@ logging:
     org.example: debug
     net.ttddyy.observation: DEBUG
 
-openai:
-  api-key: ${OPENAI_API_KEY}
+weather:
+  kma:
+    service-key: ${KMA_SERVICE_KEY}
+    village-url: https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst
+    mid-land-url: http://apis.data.go.kr/1360000/MidFcstInfoService/getMidLandFcst
+    mid-temp-url: http://apis.data.go.kr/1360000/MidFcstInfoService/getMidTa
+    warning-url: http://apis.data.go.kr/1360000/WthrWrnInfoService/getWthrWrnMsg
+    asos-url: http://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList
+    nx: 60
+    ny: 127
+    mid-land-reg-id: 11B00000
+    mid-temp-reg-id: 11B10101
+    stn-id: 108
+    location-label: 서울 현장
+
+  air-korea:
+    service-key: ${AIRKOREA_SERVICE_KEY}
+    sido-url: http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty
+    sido-name: 서울
+
+  scheduler:
+    enabled: true
+    cron: "0 0 * * * *"
+    warmup-on-startup: true
+    startup-past-days: 15
+    startup-future-days: 15
+    refresh-future-days: 15
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+file:
+  upload-dir: ./uploads
