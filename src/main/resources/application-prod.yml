@@ -34,10 +34,15 @@ management:
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
   endpoints:
     web:
       exposure:
         include: health, info, prometheus, metrics
+  info:
+    env:
+      enabled: true
   prometheus:
     metrics:
       export:
