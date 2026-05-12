@@ -84,3 +84,15 @@ jwt:
   expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 file:
   upload-dir: ./uploads
+
+
+
+cloud:
+  aws:
+    credentials:
+      access-key: ${AWS_ACCESS_KEY}
+      secret-key: ${AWS_SECRET_KEY}
+    region: ap-northeast-2
+    s3:
+      bucket: ${AWS_BUCKET_NAME}
+      presigned-url-expiration: 600

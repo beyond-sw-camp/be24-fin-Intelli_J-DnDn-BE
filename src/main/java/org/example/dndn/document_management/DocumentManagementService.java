@@ -23,7 +23,7 @@ import java.util.Set;
 @Service
 public class DocumentManagementService {
     private final DocumentManagementRepository documentManagementRepository;
-    private final FileStorageService fileStorageService;
+    private final S3StorageService s3StorageService;
     private final ProjectRepository projectRepository;
 
 
@@ -66,7 +66,7 @@ public class DocumentManagementService {
         Project project = projectRepository.findById(dto.getProjectId())
                 .orElseThrow(() -> BaseException.from(BaseResponseStatus.DOCUMENT_PROJECT_NOT_FOUND));
 
-        // 2. 중복 체크: MASTER/MILESTONE/WEIGHT는 프로젝트당 1개만 허용
+        // 2. 중복 체크
         if (UNIQUE_DOC_TYPES.contains(dto.getDocType())) {
             boolean exists = documentManagementRepository
                     .existsByProjectIdxAndDocType(dto.getProjectId(), dto.getDocType());
@@ -75,32 +75,30 @@ public class DocumentManagementService {
             }
         }
 
-        // 3. 파일을 로컬에 저장하고 경로 받기
-        String fileUrl = fileStorageService.store(dto.getFile(), dto.getProjectId());
+        // 3. S3에 파일 업로드 후 object key 받기
+        //    ★ 변경: docType을 함께 전달
+        String objectKey = s3StorageService.store(dto.getFile(), dto.getProjectId(), dto.getDocType());
 
-        // 4. 엔티티 생성 후 DB 저장
-        MasterSchedule entity = dto.toEntity(project, fileUrl);
+        // 4. 엔티티 생성 후 DB 저장 (fileUrl에 S3 key 저장)
+        MasterSchedule entity = dto.toEntity(project, objectKey);
         documentManagementRepository.save(entity);
     }
 
-    private BaseResponseStatus getDuplicateStatus(DocType docType) {
+    // ★ 변경: Resource 반환 → Presigned URL 반환
+    public String download(Long idx, boolean isPreview) {
+        MasterSchedule entity = documentManagementRepository.findById(idx)
+                .orElseThrow(() -> BaseException.from(BaseResponseStatus.DOCUMENT_NOT_FOUND));
+
+        // S3 Presigned URL 생성
+        return s3StorageService.generatePresignedUrl(entity.getFileUrl(), entity.getFileName(), isPreview);
+    }
+
+    private BaseResponseStatus getDuplicateStatus(DocType docType   ) {
         return switch (docType) {
             case MASTER -> BaseResponseStatus.DOCUMENT_DUPLICATE_MASTER;
             case MILESTONE -> BaseResponseStatus.DOCUMENT_DUPLICATE_MILESTONE;
             case WEIGHT -> BaseResponseStatus.DOCUMENT_DUPLICATE_WEIGHT;
             default -> BaseResponseStatus.FAIL;
         };
-    }
-
-    public DocumentManagementDto.DownloadRes download(Long idx) {
-        MasterSchedule entity = documentManagementRepository.findById(idx)
-                .orElseThrow(() -> BaseException.from(BaseResponseStatus.DOCUMENT_NOT_FOUND));
-
-        Resource resource = fileStorageService.loadAsResource(entity.getFileUrl());
-
-        return DocumentManagementDto.DownloadRes.builder()
-                .resource(resource)
-                .fileName(entity.getFileName())
-                .build();
     }
 }

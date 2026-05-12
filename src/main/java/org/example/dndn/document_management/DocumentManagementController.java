@@ -55,17 +55,15 @@ public class DocumentManagementController {
     // 일반 API와 달리 파일 바이너리를 그대로 스트림으로 내려주기 위해
     // BaseResponse가 아닌 ResponseEntity<Resource>를 반환
     @GetMapping("/download/{idx}")
-    public ResponseEntity<Resource> download(@PathVariable Long idx) {
-        DocumentManagementDto.DownloadRes res = documentManagementService.download(idx);
+    public BaseResponse download(@PathVariable Long idx) {
+        String presignedUrl = documentManagementService.download(idx, false);
+        return BaseResponse.success(presignedUrl);
+    }
 
-        // 한글 파일명 깨지지 않도록 인코딩
-        String encodedFileName = URLEncoder.encode(res.getFileName(), StandardCharsets.UTF_8)
-                .replaceAll("\\+", "%20");
-
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename*=UTF-8''" + encodedFileName)
-                .body(res.getResource());
+    // ★ 추가: 미리보기 (inline)
+    @GetMapping("/preview/{idx}")
+    public BaseResponse preview(@PathVariable Long idx) {
+        String presignedUrl = documentManagementService.download(idx, true);
+        return BaseResponse.success(presignedUrl);
     }
 }
