@@ -43,7 +43,6 @@ public class MasterScheduleController {
         return ResponseEntity.ok(BaseResponse.success("공정표가 삭제되었습니다."));
     }
 
-    // 새로 추가
     // 공정표 파일 업로드
     @PostMapping("/upload")
     public ResponseEntity<?> uploadAndExtract(

@@ -18,7 +18,7 @@ public enum PlanType {
         }
 
         for (PlanType type : values()) {
-            if (type.label.equals(label)) {
+            if (type.label.equals(label) || type.name().equalsIgnoreCase(label)) {
                 return type;
             }
         }

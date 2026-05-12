@@ -17,7 +17,7 @@ public enum PlanStatus {
         }
 
         for (PlanStatus status : values()) {
-            if (status.label.equals(label)) {
+            if (status.label.equals(label) || status.name().equalsIgnoreCase(label)) {
                 return status;
             }
         }

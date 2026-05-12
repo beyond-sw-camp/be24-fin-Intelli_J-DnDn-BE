@@ -5,6 +5,7 @@ import org.example.dndn.worker.model.entity.Worker;
 import org.example.dndn.worker.model.enums.AffiliationKind;
 import org.example.dndn.worker.model.enums.EmploymentKind;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -73,6 +74,7 @@ public class StaffingDto {
     public static class ZoneMainRes {
         private Long idx;
         private String title;
+        private String source;
         private int totalAssigned;
         private int totalRequired;
         private List<ZoneSubSummaryRes> subZones;
@@ -84,6 +86,7 @@ public class StaffingDto {
             return ZoneMainRes.builder()
                     .idx(zm.getIdx())
                     .title(zm.getTitle())
+                    .source(zm.isScheduleGenerated() ? "WORK_PLAN" : "MANUAL")
                     .totalAssigned(assigned)
                     .totalRequired(required)
                     .subZones(zm.getZoneSubs().stream().map(ZoneSubSummaryRes::from).toList())
@@ -98,14 +101,24 @@ public class StaffingDto {
     @Builder
     public static class ZoneSubSummaryRes {
         private Long idx;
+        private Long workPlanId;
         private String title;
+        private String location;
+        private String tradeName;
+        private String workTime;
+        private LocalDate workDate;
         private int required;
         private int assignedCount;
 
         public static ZoneSubSummaryRes from(ZoneSub zs) {
             return ZoneSubSummaryRes.builder()
                     .idx(zs.getIdx())
+                    .workPlanId(zs.getWorkPlanIdx())
                     .title(zs.getTitle())
+                    .location(zs.getLocation())
+                    .tradeName(zs.getTradeName())
+                    .workTime(zs.getWorkTime())
+                    .workDate(zs.getWorkDate())
                     .required(zs.getRequired())
                     .assignedCount(zs.getAssignments().size())
                     .build();
@@ -120,7 +133,12 @@ public class StaffingDto {
     public static class ZoneSubRes {
         private Long idx;
         private Long zoneMainIdx;
+        private Long workPlanId;
         private String title;
+        private String location;
+        private String tradeName;
+        private String workTime;
+        private LocalDate workDate;
         private int required;
         private int assignedCount;
         private List<TradeNeedRes> tradeNeeds;
@@ -130,7 +148,12 @@ public class StaffingDto {
             return ZoneSubRes.builder()
                     .idx(zs.getIdx())
                     .zoneMainIdx(zs.getZoneMain().getIdx())
+                    .workPlanId(zs.getWorkPlanIdx())
                     .title(zs.getTitle())
+                    .location(zs.getLocation())
+                    .tradeName(zs.getTradeName())
+                    .workTime(zs.getWorkTime())
+                    .workDate(zs.getWorkDate())
                     .required(zs.getRequired())
                     .assignedCount(zs.getAssignments().size())
                     .tradeNeeds(zs.getTradeNeeds().stream()
@@ -171,7 +194,10 @@ public class StaffingDto {
         private Long workerIdx;
         private String name;
         private AffiliationKind affiliationKind;
+        /** 중간 전문 건설사명 (예: 구산토건, 삼보이앤씨). 본사는 null. */
         private String partnerCompany;
+        /** 공종별 협력업체명 (예: 태양목공, 대한철근). PARTNER 일 때만 사용. */
+        private String partnerCompanyDetail;
         private String affiliationLine;
         /** 당일 명단 근태 기준 고용구분(REGULAR 상용 · DAILY 일용); STAFFING_006 에서 선택적으로 null */
         private EmploymentKind employmentKind;
@@ -213,6 +239,7 @@ public class StaffingDto {
                     .name(worker.getName())
                     .affiliationKind(worker.getAffiliationKind())
                     .partnerCompany(worker.getPartnerCompany())
+                    .partnerCompanyDetail(worker.getPartnerCompanyDetail())
                     .employmentKind(rosterEmploymentKind)
                     .affiliationLine(line)
                     .fatigueScore(worker.getFatigueScoreTotal())

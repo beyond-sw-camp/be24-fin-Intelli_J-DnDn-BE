@@ -30,6 +30,7 @@ public class WorkerScenarioFixtureRow {
     private JobRank jobRank;
     private AffiliationKind affiliationKind;
     private String partnerCompany;
+    private String partnerCompanyDetail;
     private String subLabel;
     private String site;
     private String siteCode;
@@ -56,6 +57,7 @@ public class WorkerScenarioFixtureRow {
                 .jobRank(this.jobRank)
                 .affiliationKind(this.affiliationKind)
                 .partnerCompany(this.partnerCompany)
+                .partnerCompanyDetail(this.partnerCompanyDetail)
                 .subLabel(this.subLabel)
                 .employmentKind(this.employmentKind != null ? this.employmentKind : EmploymentKind.REGULAR)
                 .site(this.site)

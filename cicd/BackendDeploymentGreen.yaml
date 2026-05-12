@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dndn-backend-green
+  labels:
+    type: backend
+    version: green
+spec:
+  replicas: 0 # Idle status
+  selector:
+    matchLabels:
+      type: backend
+      version: green
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        type: backend
+        version: green
+    spec:
+      containers:
+        - name: backend
+          image: seungwoo0128/dndn-backend:1.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2048Mi"
+          env:
+            - name: DEPLOYMENT_COLOR
+              value: "green"
+          envFrom:
+            - configMapRef:
+                name: backend-config
