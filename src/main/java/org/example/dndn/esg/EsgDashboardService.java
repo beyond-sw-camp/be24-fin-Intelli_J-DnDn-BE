@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 public class EsgDashboardService {
 
     private static final Pattern SITE_CODE_PATTERN = Pattern.compile("^\\s*\\[([^\\]]+)]");
+    private static final double SITE_FLOOR_POINT = 300.0;
+    private static final double ZONE_FLOOR_POINT = 500.0;
 
     private final ProjectRepository projectRepository;
     private final EsgDailySnapshotRepository esgDailySnapshotRepository;
@@ -39,15 +41,12 @@ public class EsgDashboardService {
     public EsgDashboardDto.DashboardResponseDto readDashboard(LocalDate reportDate, Long projectId) {
         LocalDate targetDate = resolveReportDate(reportDate);
         List<Project> accessibleProjects = findAccessibleProjects();
-        List<Project> rankingProjects = findRankingProjects();
+        List<Project> rankingProjects = findRankingProjects(targetDate);
         Project currentProject = resolveCurrentProject(accessibleProjects, projectId);
-        Map<Long, EsgDailySnapshot> snapshotMap = esgDailySnapshotRepository.findAllByReportDate(targetDate)
-                .stream()
-                .collect(Collectors.toMap(
-                        snapshot -> snapshot.getProject().getIdx(),
-                        Function.identity(),
-                        (left, right) -> right
-                ));
+        Map<Long, EsgDailySnapshot> snapshotMap = buildRankingSnapshotMap(rankingProjects, targetDate);
+        EsgDailySnapshot currentDateSnapshot = esgDailySnapshotRepository
+                .findByProject_IdxAndReportDate(currentProject.getIdx(), targetDate)
+                .orElse(null);
         List<EsgZoneDailySnapshot> currentZoneSnapshots = esgZoneDailySnapshotRepository
                 .findAllByProject_IdxAndReportDate(currentProject.getIdx(), targetDate);
         List<EsgMetricInput> currentMetricInputs = esgMetricInputRepository
@@ -68,7 +67,7 @@ public class EsgDashboardService {
         return EsgDashboardDto.DashboardResponseDto.builder()
                 .currentProject(EsgDashboardDto.ProjectResponseDto.from(currentProject, targetDate))
                 .currentSnapshot(EsgDashboardDto.SnapshotResponseDto.from(
-                        snapshotMap.get(currentProject.getIdx()),
+                        currentDateSnapshot,
                         currentZoneSnapshots
                 ))
                 .currentZoneSnapshots(currentZoneSnapshots.stream()
@@ -77,7 +76,7 @@ public class EsgDashboardService {
                 .currentMetricInputs(currentMetricInputs.stream()
                         .map(EsgDashboardDto.MetricInputResponseDto::from)
                         .toList())
-                .projects(rankingProjects.stream()
+                .projects(accessibleProjects.stream()
                         .map(project -> EsgDashboardDto.ProjectResponseDto.from(project, targetDate))
                         .toList())
                 .rankings(rankings)
@@ -104,12 +103,19 @@ public class EsgDashboardService {
                         .reportDate(targetDate)
                         .build());
 
+        EsgDailySnapshot previousSnapshot = esgDailySnapshotRepository
+                .findTopByProject_IdxAndReportDateBeforeOrderByReportDateDesc(project.getIdx(), targetDate)
+                .orElse(null);
+        Double previousSiteScore = previousSnapshot == null ? 0.0 : normalizeCumulativeScore(previousSnapshot.getTotalScore());
+        Double dailySiteScore = normalizeDailyScore(request.getTotalScore());
+        Double cumulativeSiteScore = roundOne(previousSiteScore + dailySiteScore);
+
         snapshot.update(
-                normalizeScore(request.getEnvironmentScore()),
-                normalizeScore(request.getSocialScore()),
-                normalizeScore(request.getGovernanceScore()),
-                normalizeScore(request.getTotalScore()),
-                normalizeLevel(request.getLevel()),
+                normalizeDailyScore(request.getEnvironmentScore()),
+                normalizeDailyScore(request.getSocialScore()),
+                normalizeDailyScore(request.getGovernanceScore()),
+                cumulativeSiteScore,
+                resolveSiteFloor(cumulativeSiteScore),
                 normalizePositiveDouble(request.getCarbonKg()),
                 normalizePositiveDouble(request.getPowerSavingKwh()),
                 normalizePositiveInteger(request.getRiskCount()),
@@ -120,7 +126,12 @@ public class EsgDashboardService {
         );
 
         EsgDailySnapshot savedSnapshot = esgDailySnapshotRepository.save(snapshot);
-        List<EsgZoneDailySnapshot> savedZoneSnapshots = replaceZoneSnapshots(project, targetDate, request.getZones());
+        List<EsgZoneDailySnapshot> savedZoneSnapshots = replaceZoneSnapshots(
+                project,
+                targetDate,
+                request.getZones(),
+                previousSnapshot
+        );
 
         return EsgDashboardDto.SnapshotResponseDto.from(savedSnapshot, savedZoneSnapshots);
     }
@@ -128,30 +139,51 @@ public class EsgDashboardService {
     private List<EsgZoneDailySnapshot> replaceZoneSnapshots(
             Project project,
             LocalDate targetDate,
-            List<EsgDashboardDto.SaveZoneSnapshotRequestDto> requests
+            List<EsgDashboardDto.SaveZoneSnapshotRequestDto> requests,
+            EsgDailySnapshot previousSnapshot
     ) {
-        esgZoneDailySnapshotRepository.deleteByProject_IdxAndReportDate(project.getIdx(), targetDate);
+        List<EsgZoneDailySnapshot> currentDateSnapshots = esgZoneDailySnapshotRepository
+                .findAllByProject_IdxAndReportDate(project.getIdx(), targetDate);
 
         if (requests == null || requests.isEmpty()) {
-            return List.of();
+            return currentDateSnapshots;
         }
+
+        Map<String, EsgZoneDailySnapshot> currentDateSnapshotMap = currentDateSnapshots.stream()
+                .collect(Collectors.toMap(
+                        snapshot -> normalizeText(snapshot.getZoneName(), ""),
+                        Function.identity(),
+                        (left, right) -> right
+                ));
+        Map<String, EsgZoneDailySnapshot> previousZoneSnapshotMap = buildPreviousZoneSnapshotMap(project, previousSnapshot);
 
         List<EsgZoneDailySnapshot> snapshots = requests.stream()
                 .filter(request -> request.getZoneName() != null && !request.getZoneName().isBlank())
                 .map(request -> {
-                    EsgZoneDailySnapshot snapshot = EsgZoneDailySnapshot.builder()
-                            .project(project)
-                            .reportDate(targetDate)
-                            .zoneName(request.getZoneName().trim())
-                            .build();
+                    String zoneName = request.getZoneName().trim();
+                    EsgZoneDailySnapshot previousZoneSnapshot = previousZoneSnapshotMap.get(zoneName);
+                    Double previousZoneScore = previousZoneSnapshot == null
+                            ? 0.0
+                            : normalizeCumulativeScore(previousZoneSnapshot.getTotalScore());
+                    Double dailyZoneScore = normalizeDailyScore(request.getTotalScore());
+                    Double cumulativeZoneScore = roundOne(previousZoneScore + dailyZoneScore);
+
+                    EsgZoneDailySnapshot snapshot = currentDateSnapshotMap.getOrDefault(
+                            zoneName,
+                            EsgZoneDailySnapshot.builder()
+                                    .project(project)
+                                    .reportDate(targetDate)
+                                    .zoneName(zoneName)
+                                    .build()
+                    );
                     snapshot.update(
-                            request.getZoneName().trim(),
+                            zoneName,
                             normalizeText(request.getZoneType(), "work"),
-                            normalizeScore(request.getEnvironmentScore()),
-                            normalizeScore(request.getSocialScore()),
-                            normalizeScore(request.getGovernanceScore()),
-                            normalizeScore(request.getTotalScore()),
-                            normalizeLevel(request.getLevel()),
+                            normalizeDailyScore(request.getEnvironmentScore()),
+                            normalizeDailyScore(request.getSocialScore()),
+                            normalizeDailyScore(request.getGovernanceScore()),
+                            cumulativeZoneScore,
+                            resolveZoneFloor(cumulativeZoneScore),
                             normalizePositiveDouble(request.getCarbonKg()),
                             normalizePositiveDouble(request.getPowerSavingKwh()),
                             normalizePositiveInteger(request.getRiskCount()),
@@ -159,14 +191,44 @@ public class EsgDashboardService {
                             normalizePositiveInteger(request.getEquipmentCount()),
                             normalizePositiveInteger(request.getHighRiskEquipmentCount()),
                             normalizePercentDouble(request.getContributionWeight()),
-                            normalizeScore(request.getContributionScore()),
+                            normalizeDailyScore(request.getContributionScore()),
                             request.getSnapshotJson()
                     );
                     return snapshot;
                 })
                 .toList();
 
-        return esgZoneDailySnapshotRepository.saveAll(snapshots);
+        esgZoneDailySnapshotRepository.saveAll(snapshots);
+        return esgZoneDailySnapshotRepository.findAllByProject_IdxAndReportDate(project.getIdx(), targetDate);
+    }
+
+
+    private Map<Long, EsgDailySnapshot> buildRankingSnapshotMap(List<Project> rankingProjects, LocalDate targetDate) {
+        return rankingProjects.stream()
+                .map(project -> esgDailySnapshotRepository
+                        .findTopByProject_IdxAndReportDateLessThanEqualOrderByReportDateDesc(project.getIdx(), targetDate)
+                        .map(snapshot -> Map.entry(project.getIdx(), snapshot))
+                        .orElse(null))
+                .filter(entry -> entry != null)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private Map<String, EsgZoneDailySnapshot> buildPreviousZoneSnapshotMap(
+            Project project,
+            EsgDailySnapshot previousSnapshot
+    ) {
+        if (previousSnapshot == null) {
+            return Map.of();
+        }
+
+        return esgZoneDailySnapshotRepository
+                .findAllByProject_IdxAndReportDate(project.getIdx(), previousSnapshot.getReportDate())
+                .stream()
+                .collect(Collectors.toMap(
+                        snapshot -> normalizeText(snapshot.getZoneName(), ""),
+                        Function.identity(),
+                        (left, right) -> right
+                ));
     }
 
     private List<Project> findAccessibleProjects() {
@@ -176,8 +238,9 @@ public class EsgDashboardService {
                 .toList();
     }
 
-    private List<Project> findRankingProjects() {
+    private List<Project> findRankingProjects(LocalDate reportDate) {
         return projectRepository.findAll().stream()
+                .filter(project -> project.getEndDate() == null || !project.getEndDate().isBefore(reportDate))
                 .sorted(Comparator.comparing(Project::getIdx))
                 .toList();
     }
@@ -224,18 +287,39 @@ public class EsgDashboardService {
         return value.trim();
     }
 
-    private Double normalizeScore(Double value) {
+    private Double normalizeDailyScore(Double value) {
         if (value == null || value.isNaN() || value.isInfinite()) {
             return 0.0;
         }
         return Math.max(0.0, Math.min(100.0, Math.round(value * 10.0) / 10.0));
     }
 
+    private Double normalizeCumulativeScore(Double value) {
+        if (value == null || value.isNaN() || value.isInfinite()) {
+            return 0.0;
+        }
+        return Math.max(0.0, Math.round(value * 10.0) / 10.0);
+    }
+
+    private Double roundOne(Double value) {
+        return Math.max(0.0, Math.round(normalizeCumulativeScore(value) * 10.0) / 10.0);
+    }
+
+    private Integer resolveSiteFloor(Double cumulativeScore) {
+        double score = normalizeCumulativeScore(cumulativeScore);
+        return (int) Math.floor(score / SITE_FLOOR_POINT);
+    }
+
+    private Integer resolveZoneFloor(Double cumulativeScore) {
+        double score = normalizeCumulativeScore(cumulativeScore);
+        return (int) Math.floor(score / ZONE_FLOOR_POINT);
+    }
+
     private Integer normalizeLevel(Integer value) {
         if (value == null) {
             return 0;
         }
-        return Math.max(0, Math.min(7, value));
+        return Math.max(0, value);
     }
 
     private Double normalizePositiveDouble(Double value) {
