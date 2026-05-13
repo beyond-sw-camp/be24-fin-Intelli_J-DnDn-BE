@@ -11,5 +11,15 @@ public interface EsgDailySnapshotRepository extends JpaRepository<EsgDailySnapsh
 
     Optional<EsgDailySnapshot> findByProject_IdxAndReportDate(Long projectId, LocalDate reportDate);
 
+    Optional<EsgDailySnapshot> findTopByProject_IdxAndReportDateBeforeOrderByReportDateDesc(
+            Long projectId,
+            LocalDate reportDate
+    );
+
+    Optional<EsgDailySnapshot> findTopByProject_IdxAndReportDateLessThanEqualOrderByReportDateDesc(
+            Long projectId,
+            LocalDate reportDate
+    );
+
     List<EsgDailySnapshot> findAllByReportDate(LocalDate reportDate);
 }
