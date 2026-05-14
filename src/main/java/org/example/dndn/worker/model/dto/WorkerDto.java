@@ -125,8 +125,13 @@ public class WorkerDto {
         private LocalTime clockIn;
         private LocalTime clockOut;
         private AttendanceStatus attendanceStatus;
+        private boolean safetyEducationCompleted;
 
         public static WorkerRes from(Worker w, AttendanceRecord a) {
+            return from(w, a, false);
+        }
+
+        public static WorkerRes from(Worker w, AttendanceRecord a, boolean safetyEducationCompleted) {
             return WorkerRes.builder()
                     .idx(w.getIdx())
                     .name(w.getName())
@@ -141,6 +146,7 @@ public class WorkerDto {
                     .clockIn(a == null ? null : a.getClockIn())
                     .clockOut(a == null ? null : a.getClockOut())
                     .attendanceStatus(a == null ? AttendanceStatus.ABSENT : a.getAttendanceStatus())
+                    .safetyEducationCompleted(safetyEducationCompleted)
                     .build();
         }
     }
