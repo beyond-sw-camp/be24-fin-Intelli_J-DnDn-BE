@@ -98,7 +98,7 @@ cloud:
 
 
 storage:
-  type: local   # 기본값: s3 (운영). 부하테스트할 때만 local로 변경
+  type: s3   # 기본값: s3 (운영). 부하테스트할 때만 local로 변경
   local:
     base-url: http://localhost:8080   # 로컬 다운로드 엔드포인트의 base URL
 
