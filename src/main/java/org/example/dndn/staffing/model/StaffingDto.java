@@ -206,15 +206,24 @@ public class StaffingDto {
         // 기본구역 · 상세구역 배치 문자열 ("미투입" 허용)
         private String placement;
         private boolean assigned;
+        private boolean safetyEducationCompleted;
 
         public static AssignedWorkerRes from(Worker worker, StaffingAssignment assignment) {
-            return from(worker, assignment, null);
+            return from(worker, assignment, null, false);
         }
 
         public static AssignedWorkerRes from(
                 Worker worker,
                 StaffingAssignment assignment,
                 EmploymentKind rosterEmploymentKind) {
+            return from(worker, assignment, rosterEmploymentKind, false);
+        }
+
+        public static AssignedWorkerRes from(
+                Worker worker,
+                StaffingAssignment assignment,
+                EmploymentKind rosterEmploymentKind,
+                boolean safetyEducationCompleted) {
             String placementText;
             boolean isAssigned = assignment != null;
             if (assignment != null) {
@@ -245,6 +254,7 @@ public class StaffingDto {
                     .fatigueScore(worker.getFatigueScoreTotal())
                     .placement(placementText)
                     .assigned(isAssigned)
+                    .safetyEducationCompleted(safetyEducationCompleted)
                     .build();
         }
     }

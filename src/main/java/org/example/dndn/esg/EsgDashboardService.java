@@ -60,7 +60,8 @@ public class EsgDashboardService {
                 ))
                 .sorted(Comparator
                         .comparing(EsgDashboardDto.RankingResponseDto::getSnapshotSaved).reversed()
-                        .thenComparing(EsgDashboardDto.RankingResponseDto::getScore, Comparator.reverseOrder())
+                        .thenComparing(EsgDashboardDto.RankingResponseDto::getLevel, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(EsgDashboardDto.RankingResponseDto::getScore, Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(EsgDashboardDto.RankingResponseDto::getProjectId))
                 .toList();
 
@@ -92,6 +93,7 @@ public class EsgDashboardService {
         }
 
         LocalDate targetDate = resolveReportDate(request.getReportDate());
+        validateSnapshotWritableDate(targetDate);
         authAccessService.assertProjectAccess(request.getProjectId());
         Project project = projectRepository.findById(request.getProjectId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "현장을 찾을 수 없습니다."));
@@ -106,16 +108,19 @@ public class EsgDashboardService {
         EsgDailySnapshot previousSnapshot = esgDailySnapshotRepository
                 .findTopByProject_IdxAndReportDateBeforeOrderByReportDateDesc(project.getIdx(), targetDate)
                 .orElse(null);
-        Double previousSiteScore = previousSnapshot == null ? 0.0 : normalizeCumulativeScore(previousSnapshot.getTotalScore());
-        Double dailySiteScore = normalizeDailyScore(request.getTotalScore());
-        Double cumulativeSiteScore = roundOne(previousSiteScore + dailySiteScore);
+        ScoreProgress siteProgress = advanceFloorProgress(
+                previousSnapshot == null ? null : previousSnapshot.getTotalScore(),
+                previousSnapshot == null ? null : previousSnapshot.getLevel(),
+                request.getTotalScore(),
+                SITE_FLOOR_POINT
+        );
 
         snapshot.update(
                 normalizeDailyScore(request.getEnvironmentScore()),
                 normalizeDailyScore(request.getSocialScore()),
                 normalizeDailyScore(request.getGovernanceScore()),
-                cumulativeSiteScore,
-                resolveSiteFloor(cumulativeSiteScore),
+                siteProgress.pointScore(),
+                siteProgress.level(),
                 normalizePositiveDouble(request.getCarbonKg()),
                 normalizePositiveDouble(request.getPowerSavingKwh()),
                 normalizePositiveInteger(request.getRiskCount()),
@@ -162,11 +167,12 @@ public class EsgDashboardService {
                 .map(request -> {
                     String zoneName = request.getZoneName().trim();
                     EsgZoneDailySnapshot previousZoneSnapshot = previousZoneSnapshotMap.get(zoneName);
-                    Double previousZoneScore = previousZoneSnapshot == null
-                            ? 0.0
-                            : normalizeCumulativeScore(previousZoneSnapshot.getTotalScore());
-                    Double dailyZoneScore = normalizeDailyScore(request.getTotalScore());
-                    Double cumulativeZoneScore = roundOne(previousZoneScore + dailyZoneScore);
+                    ScoreProgress zoneProgress = advanceFloorProgress(
+                            previousZoneSnapshot == null ? null : previousZoneSnapshot.getTotalScore(),
+                            previousZoneSnapshot == null ? null : previousZoneSnapshot.getLevel(),
+                            request.getTotalScore(),
+                            ZONE_FLOOR_POINT
+                    );
 
                     EsgZoneDailySnapshot snapshot = currentDateSnapshotMap.getOrDefault(
                             zoneName,
@@ -182,8 +188,8 @@ public class EsgDashboardService {
                             normalizeDailyScore(request.getEnvironmentScore()),
                             normalizeDailyScore(request.getSocialScore()),
                             normalizeDailyScore(request.getGovernanceScore()),
-                            cumulativeZoneScore,
-                            resolveZoneFloor(cumulativeZoneScore),
+                            zoneProgress.pointScore(),
+                            zoneProgress.level(),
                             normalizePositiveDouble(request.getCarbonKg()),
                             normalizePositiveDouble(request.getPowerSavingKwh()),
                             normalizePositiveInteger(request.getRiskCount()),
@@ -280,6 +286,12 @@ public class EsgDashboardService {
         return reportDate != null ? reportDate : LocalDate.now();
     }
 
+    private void validateSnapshotWritableDate(LocalDate targetDate) {
+        if (targetDate.isBefore(LocalDate.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지난 날짜 ESG 스냅샷은 수정할 수 없습니다.");
+        }
+    }
+
     private String normalizeText(String value, String fallback) {
         if (value == null || value.isBlank()) {
             return fallback;
@@ -305,14 +317,37 @@ public class EsgDashboardService {
         return Math.max(0.0, Math.round(normalizeCumulativeScore(value) * 10.0) / 10.0);
     }
 
-    private Integer resolveSiteFloor(Double cumulativeScore) {
-        double score = normalizeCumulativeScore(cumulativeScore);
-        return (int) Math.floor(score / SITE_FLOOR_POINT);
+    private ScoreProgress advanceFloorProgress(
+            Double storedPointScore,
+            Integer storedLevel,
+            Double earnedScore,
+            double floorPoint
+    ) {
+        double safeFloorPoint = floorPoint > 0 ? floorPoint : SITE_FLOOR_POINT;
+        double currentPointScore = normalizeFloorPointScore(storedPointScore, safeFloorPoint);
+        int currentLevel = resolveStoredLevel(storedPointScore, storedLevel, safeFloorPoint);
+        double dailyScore = normalizeDailyScore(earnedScore);
+        double mergedPointScore = currentPointScore + dailyScore;
+        int increasedLevel = (int) Math.floor(mergedPointScore / safeFloorPoint);
+        double nextPointScore = roundOne(mergedPointScore % safeFloorPoint);
+        return new ScoreProgress(nextPointScore, currentLevel + increasedLevel);
     }
 
-    private Integer resolveZoneFloor(Double cumulativeScore) {
-        double score = normalizeCumulativeScore(cumulativeScore);
-        return (int) Math.floor(score / ZONE_FLOOR_POINT);
+    private double normalizeFloorPointScore(Double value, double floorPoint) {
+        double score = normalizeCumulativeScore(value);
+        if (floorPoint <= 0) {
+            return score;
+        }
+        return roundOne(score % floorPoint);
+    }
+
+    private Integer resolveStoredLevel(Double storedPointScore, Integer storedLevel, double floorPoint) {
+        int normalizedLevel = normalizeLevel(storedLevel);
+        double normalizedScore = normalizeCumulativeScore(storedPointScore);
+        if (normalizedLevel == 0 && floorPoint > 0 && normalizedScore >= floorPoint) {
+            return (int) Math.floor(normalizedScore / floorPoint);
+        }
+        return normalizedLevel;
     }
 
     private Integer normalizeLevel(Integer value) {
@@ -320,6 +355,12 @@ public class EsgDashboardService {
             return 0;
         }
         return Math.max(0, value);
+    }
+
+    private record ScoreProgress(
+            Double pointScore,
+            Integer level
+    ) {
     }
 
     private Double normalizePositiveDouble(Double value) {

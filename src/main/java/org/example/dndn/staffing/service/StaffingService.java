@@ -20,6 +20,7 @@ import org.example.dndn.worker.model.enums.AttendanceStatus;
 import org.example.dndn.worker.model.enums.EmploymentKind;
 import org.example.dndn.worker.model.enums.JobRank;
 import org.example.dndn.worker.repository.AttendanceRecordRepository;
+import org.example.dndn.worker.repository.WorkerDocumentRepository;
 import org.example.dndn.worker.repository.WorkerRepository;
 import org.example.dndn.worker.service.AttendanceDeploymentSyncService;
 import org.example.dndn.worker.service.FatigueCalculationService;
@@ -43,6 +44,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -59,12 +61,14 @@ public class StaffingService {
     private static final List<AttendanceStatus> STAFFING_ATTENDANCE_ONSITE =
             List.of(AttendanceStatus.PRESENT, AttendanceStatus.LATE);
     private static final Pattern TIME_TOKEN = Pattern.compile("\\b\\d{1,2}:\\d{2}\\b");
+    private static final String SAFETY_EDUCATION_DOCUMENT_KEYWORD = "기초안전보건교육";
 
     private final StaffingAssignmentRepository assignmentRepository;
     private final ZoneMainRepository zoneMainRepository;
     private final ZoneSubRepository zoneSubRepository;
     private final TradeNeedRepository tradeNeedRepository;
     private final WorkerRepository workerRepository;
+    private final WorkerDocumentRepository workerDocumentRepository;
     private final AttendanceRecordRepository attendanceRecordRepository;
     private final AttendanceDeploymentSyncService attendanceDeploymentSyncService;
     private final FatigueCalculationService fatigueCalculationService;
@@ -159,12 +163,17 @@ public class StaffingService {
             }
         }
 
+        Set<Long> safetyEducationCompletedWorkerIds = findSafetyEducationCompletedWorkerIds(ids);
+
         return rows.stream()
                 .map(a -> {
                     Worker worker = workerMap.get(a.getWorkerIdx());
                     return worker != null
                             ? StaffingDto.AssignedWorkerRes.from(
-                                    worker, a, rosterEkByWorkerIdx.get(worker.getIdx()))
+                                    worker,
+                                    a,
+                                    rosterEkByWorkerIdx.get(worker.getIdx()),
+                                    safetyEducationCompletedWorkerIds.contains(worker.getIdx()))
                             : null;
                 })
                 .filter(Objects::nonNull)
@@ -198,6 +207,8 @@ public class StaffingService {
 
         List<Long> workerIds = rosterRows.stream().map(ar -> ar.getWorker().getIdx()).toList();
 
+        Set<Long> safetyEducationCompletedWorkerIds = findSafetyEducationCompletedWorkerIds(workerIds);
+
         Map<Long, StaffingAssignment> firstAssignByWorker = new LinkedHashMap<>();
         if (!workerIds.isEmpty()) {
             for (StaffingAssignment a : assignmentRepository.findAllWithZonesByWorkerIdxInAndWorkDate(workerIds, date)) {
@@ -229,7 +240,11 @@ public class StaffingService {
             }
 
             StaffingAssignment a = firstAssignByWorker.get(w.getIdx());
-            rows.add(StaffingDto.AssignedWorkerRes.from(w, a, ar.getEmploymentKind()));
+            rows.add(StaffingDto.AssignedWorkerRes.from(
+                    w,
+                    a,
+                    ar.getEmploymentKind(),
+                    safetyEducationCompletedWorkerIds.contains(w.getIdx())));
         }
 
         return StaffingDto.WorkerPoolRes.builder().totalCount(rows.size()).rows(rows).build();
@@ -290,6 +305,19 @@ public class StaffingService {
                     .build());
         }
         assignmentRepository.flush();
+    }
+
+    private Set<Long> findSafetyEducationCompletedWorkerIds(List<Long> workerIds) {
+        if (workerIds == null || workerIds.isEmpty()) {
+            return Set.of();
+        }
+
+        return workerDocumentRepository.findAllByWorkerIdxInAndTitleContaining(
+                        workerIds,
+                        SAFETY_EDUCATION_DOCUMENT_KEYWORD)
+                .stream()
+                .map(document -> document.getWorker().getIdx())
+                .collect(Collectors.toSet());
     }
 
     private static EnumMap<Trade, Integer> mergeTradeNeedRequests(List<StaffingDto.TradeNeedReq> rows) {
