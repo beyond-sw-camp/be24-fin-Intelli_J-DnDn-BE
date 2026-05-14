@@ -87,12 +87,14 @@ public class StaffingController {
     // STAFFING_008 — 작업자 현황 (명단 근태 기준 일자 + 미배치 필터 등)
     @GetMapping("/workers")
     public ResponseEntity<BaseResponse<StaffingDto.WorkerPoolRes>> getWorkerPool(
+            @RequestParam(required = false) String siteCode,
             @RequestParam(required = false) AffiliationKind affiliationKind,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false, defaultValue = "false") boolean unassignedOnly,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
     ) {
         StaffingDto.PoolSearchReq req = StaffingDto.PoolSearchReq.builder()
+                .siteCode(siteCode)
                 .affiliationKind(affiliationKind)
                 .keyword(keyword)
                 .unassignedOnly(unassignedOnly)
@@ -104,9 +106,10 @@ public class StaffingController {
     // STAFFING_001 — 인력 자동 추천 배치(본사 DIRECT·피로도 기준 저위험 공종 우선)
     @PostMapping("/auto-recommend")
     public ResponseEntity<BaseResponse<StaffingDto.SaveSummaryRes>> autoRecommend(
+            @RequestParam(required = false) String siteCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
     ) {
-        StaffingDto.SaveSummaryRes dto = staffingService.autoRecommend(rosterDate);
+        StaffingDto.SaveSummaryRes dto = staffingService.autoRecommend(rosterDate, siteCode);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 

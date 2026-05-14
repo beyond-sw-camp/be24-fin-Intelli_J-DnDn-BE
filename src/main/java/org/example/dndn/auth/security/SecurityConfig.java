@@ -32,6 +32,15 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.sameOrigin())
+                        .addHeaderWriter((request, response) -> {
+                            // 로컬 파일 미리보기 경로는 X-Frame-Options 제거
+                            if (request.getRequestURI().startsWith("/document-management/local-files/")) {
+                                response.setHeader("X-Frame-Options", "");
+                            }
+                        })
+                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.PUT, "/auth/password").authenticated()
                         .requestMatchers("/auth/**","/project/**").permitAll()

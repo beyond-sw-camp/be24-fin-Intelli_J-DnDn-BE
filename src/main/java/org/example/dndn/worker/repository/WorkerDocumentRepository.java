@@ -10,4 +10,5 @@ public interface WorkerDocumentRepository extends JpaRepository<WorkerDocument, 
     // MANAGEMENT_005 안전 및 서류 현황
     List<WorkerDocument> findAllByWorkerIdx(Long workerIdx);
     Optional<WorkerDocument> findByWorkerIdxAndTitle(Long workerIdx, String title);
+    List<WorkerDocument> findAllByWorkerIdxInAndTitleContaining(List<Long> workerIdxes, String titleKeyword);
 }

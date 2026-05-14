@@ -22,6 +22,7 @@ public class WorkerDto {
     @NoArgsConstructor
     @Builder
     public static class SearchReq {
+        private String siteCode;
         private LocalDate date;
         private AttendanceStatus attendanceStatus;
         private String partnerCompany;
@@ -37,9 +38,10 @@ public class WorkerDto {
     public static class GateClockInReq {
         @NotNull
         private Long workerIdx;
-        private LocalDate workDate; // null 이면 서버 로컬 기준 오늘
+        private LocalDate workDate;  // null 이면 서버 로컬 기준 오늘
         @NotNull
         private LocalTime recognizedAt;
+        private String siteCode;     // 현장 구분 — 제공 시 worker.siteCode 불일치면 거부
     }
 
     // MANAGEMENT_011 게이트 퇴근 인식
@@ -51,9 +53,10 @@ public class WorkerDto {
     public static class GateClockOutReq {
         @NotNull
         private Long workerIdx;
-        private LocalDate workDate; // null 이면 서버 로컬 기준 오늘
+        private LocalDate workDate;  // null 이면 서버 로컬 기준 오늘
         @NotNull
         private LocalTime recognizedAt;
+        private String siteCode;     // 현장 구분 — 제공 시 worker.siteCode 불일치면 거부
     }
 
     // MANAGEMENT_001 인력 데이터 요약
@@ -125,8 +128,13 @@ public class WorkerDto {
         private LocalTime clockIn;
         private LocalTime clockOut;
         private AttendanceStatus attendanceStatus;
+        private boolean safetyEducationCompleted;
 
         public static WorkerRes from(Worker w, AttendanceRecord a) {
+            return from(w, a, false);
+        }
+
+        public static WorkerRes from(Worker w, AttendanceRecord a, boolean safetyEducationCompleted) {
             return WorkerRes.builder()
                     .idx(w.getIdx())
                     .name(w.getName())
@@ -141,6 +149,7 @@ public class WorkerDto {
                     .clockIn(a == null ? null : a.getClockIn())
                     .clockOut(a == null ? null : a.getClockOut())
                     .attendanceStatus(a == null ? AttendanceStatus.ABSENT : a.getAttendanceStatus())
+                    .safetyEducationCompleted(safetyEducationCompleted)
                     .build();
         }
     }

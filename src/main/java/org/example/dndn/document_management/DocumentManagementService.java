@@ -8,7 +8,6 @@ import org.example.dndn.project.model.entity.MasterSchedule;
 import org.example.dndn.project.model.entity.Project;
 import org.example.dndn.project.model.enums.DocType;
 import org.example.dndn.project.repository.ProjectRepository;
-import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -23,31 +22,25 @@ import java.util.Set;
 @Service
 public class DocumentManagementService {
     private final DocumentManagementRepository documentManagementRepository;
-    private final FileStorageService fileStorageService;
+    private final StorageService storageService;   // ← 인터페이스 타입으로 변경
     private final ProjectRepository projectRepository;
 
-
-    // 중복 체크 대상 (프로젝트당 1개만 허용되는 문서 종류)
     private static final Set<DocType> UNIQUE_DOC_TYPES = EnumSet.of(
             DocType.MASTER, DocType.MILESTONE, DocType.WEIGHT
     );
 
-    // ★ 변경: docType 필터 파라미터 추가
     public DocumentManagementDto.PageRes read(Long projectId, DocType docType, Pageable pageable) {
         Page<MasterSchedule> page;
 
         if (docType != null) {
-            // 특정 docType만 조회
             page = documentManagementRepository.findAllByProjectIdxAndDocType(projectId, docType, pageable);
         } else {
-            // 전체 조회 (기존 동작)
             page = documentManagementRepository.findAllByProjectIdx(projectId, pageable);
         }
 
         return DocumentManagementDto.PageRes.from(page);
     }
 
-    // 공정표 현황 - 고정 영역 (MASTER, MILESTONE, WEIGHT 각 최신 1건)
     public List<DocumentManagementDto.ReadRes> readPinnedSchedules(Long projectId) {
         DocType[] pinnedTypes = { DocType.MASTER, DocType.MILESTONE, DocType.WEIGHT };
 
@@ -62,11 +55,9 @@ public class DocumentManagementService {
 
     @Transactional
     public void upload(DocumentManagementDto.UploadReq dto) {
-        // 1. 프로젝트 존재 확인
         Project project = projectRepository.findById(dto.getProjectId())
                 .orElseThrow(() -> BaseException.from(BaseResponseStatus.DOCUMENT_PROJECT_NOT_FOUND));
 
-        // 2. 중복 체크: MASTER/MILESTONE/WEIGHT는 프로젝트당 1개만 허용
         if (UNIQUE_DOC_TYPES.contains(dto.getDocType())) {
             boolean exists = documentManagementRepository
                     .existsByProjectIdxAndDocType(dto.getProjectId(), dto.getDocType());
@@ -75,12 +66,19 @@ public class DocumentManagementService {
             }
         }
 
-        // 3. 파일을 로컬에 저장하고 경로 받기
-        String fileUrl = fileStorageService.store(dto.getFile(), dto.getProjectId());
+        // 저장소(S3 or 로컬)에 파일 업로드 후 key 받기
+        String fileKey = storageService.store(dto.getFile(), dto.getProjectId(), dto.getDocType());
 
-        // 4. 엔티티 생성 후 DB 저장
-        MasterSchedule entity = dto.toEntity(project, fileUrl);
+        MasterSchedule entity = dto.toEntity(project, fileKey);
         documentManagementRepository.save(entity);
+    }
+
+    public String download(Long idx, boolean isPreview) {
+        MasterSchedule entity = documentManagementRepository.findById(idx)
+                .orElseThrow(() -> BaseException.from(BaseResponseStatus.DOCUMENT_NOT_FOUND));
+
+        // 저장소(S3 or 로컬)에서 다운로드 URL 받기
+        return storageService.getDownloadUrl(entity.getFileUrl(), entity.getFileName(), isPreview);
     }
 
     private BaseResponseStatus getDuplicateStatus(DocType docType) {
@@ -90,17 +88,5 @@ public class DocumentManagementService {
             case WEIGHT -> BaseResponseStatus.DOCUMENT_DUPLICATE_WEIGHT;
             default -> BaseResponseStatus.FAIL;
         };
-    }
-
-    public DocumentManagementDto.DownloadRes download(Long idx) {
-        MasterSchedule entity = documentManagementRepository.findById(idx)
-                .orElseThrow(() -> BaseException.from(BaseResponseStatus.DOCUMENT_NOT_FOUND));
-
-        Resource resource = fileStorageService.loadAsResource(entity.getFileUrl());
-
-        return DocumentManagementDto.DownloadRes.builder()
-                .resource(resource)
-                .fileName(entity.getFileName())
-                .build();
     }
 }

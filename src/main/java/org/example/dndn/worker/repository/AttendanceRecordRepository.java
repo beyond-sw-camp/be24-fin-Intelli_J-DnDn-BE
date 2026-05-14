@@ -16,6 +16,17 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
     // 특정 날짜의 모든 근태 (목록 N+1 방지용)
     List<AttendanceRecord> findAllByWorkDate(LocalDate workDate);
 
+    // 특정 날짜 + 현장코드 필터 (현장 분리 조회)
+    @Query("""
+            select ar from AttendanceRecord ar
+                join fetch ar.worker w
+            where ar.workDate = :workDate
+                and w.siteCode = :siteCode
+            """)
+    List<AttendanceRecord> findAllByWorkDateAndSiteCode(
+            @Param("workDate") LocalDate workDate,
+            @Param("siteCode") String siteCode);
+
     // STAFFING_008 명단 — 지각(LATE)·정상 출근(PRESENT), WORKER rank
     @Query("""
             select ar from AttendanceRecord ar
@@ -27,6 +38,21 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
     List<AttendanceRecord> findAllByWorkDateAndWorkerJobRank(
             @Param("workDate") LocalDate workDate,
             @Param("jobRank") JobRank jobRank,
+            @Param("attendanceStatuses") Collection<AttendanceStatus> attendanceStatuses);
+
+    // STAFFING_008 명단 — siteCode 현장 필터 추가
+    @Query("""
+            select ar from AttendanceRecord ar
+                join fetch ar.worker w
+            where ar.workDate = :workDate
+                and w.jobRank = :jobRank
+                and w.siteCode = :siteCode
+                and ar.attendanceStatus in :attendanceStatuses
+            """)
+    List<AttendanceRecord> findAllByWorkDateAndWorkerJobRankAndSiteCode(
+            @Param("workDate") LocalDate workDate,
+            @Param("jobRank") JobRank jobRank,
+            @Param("siteCode") String siteCode,
             @Param("attendanceStatuses") Collection<AttendanceStatus> attendanceStatuses);
 
     // STAFFING_006 선택 — 해당 일자 명단 행 일괄(bulk 비어 있으면 호출하지 말 것)
