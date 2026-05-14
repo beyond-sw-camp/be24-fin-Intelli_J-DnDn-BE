@@ -5,6 +5,7 @@ import org.example.dndn.common.model.BaseResponse;
 import org.example.dndn.workplan.model.WorkPlanDto;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.time.LocalDate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -47,8 +48,12 @@ public class WorkPlanController {
             @RequestParam(value = "planType", defaultValue = "월간") String planType,
             @RequestParam(value = "projectId", required = false) Long projectId,
             @RequestParam(value = "trade", required = false) String trade,
-            @RequestParam(value = "status", required = false) String status) {
-        List<WorkPlanDto.workPlanRes> dtos = workPlanService.list(projectId, planType, trade, status);
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "startDate", required = false) LocalDate startDate,
+            @RequestParam(value = "endDate", required = false) LocalDate endDate) {
+        List<WorkPlanDto.workPlanRes> dtos =
+                workPlanService.list(projectId, planType, trade, status, startDate, endDate);
+
         return ResponseEntity.ok(BaseResponse.success(dtos));
     }
 

@@ -2,7 +2,10 @@ package org.example.dndn.report;
 
 import org.example.dndn.report.model.DailyReport;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,5 +27,25 @@ public interface DailyReportRepository extends JpaRepository<DailyReport, Long> 
     Optional<DailyReport> findTopByMonthlyWorkPlan_IdxAndReportDateLessThanEqualOrderByReportDateDesc(
             Long monthlyWorkPlanId,
             LocalDate reportDate
+    );
+
+    @Query("SELECT dr FROM DailyReport dr " +
+            "JOIN FETCH dr.monthlyWorkPlan mwp " +
+            "WHERE mwp.idx IN :monthlyWorkPlanIds " +
+            "AND dr.reportDate <= :reportDate " +
+            "ORDER BY mwp.idx ASC, dr.reportDate DESC")
+    List<DailyReport> findAllByMonthlyPlanIdsUntilDate(
+            @Param("monthlyWorkPlanIds") Collection<Long> monthlyWorkPlanIds,
+            @Param("reportDate") LocalDate reportDate
+    );
+
+    @Query("SELECT dr FROM DailyReport dr " +
+            "JOIN FETCH dr.workPlan wp " +
+            "WHERE wp.idx IN :workPlanIds " +
+            "AND dr.reportDate <= :reportDate " +
+            "ORDER BY wp.idx ASC, dr.reportDate DESC")
+    List<DailyReport> findAllByWorkPlanIdsUntilDate(
+            @Param("workPlanIds") Collection<Long> workPlanIds,
+            @Param("reportDate") LocalDate reportDate
     );
 }

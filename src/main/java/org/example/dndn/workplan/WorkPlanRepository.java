@@ -39,6 +39,13 @@ public interface WorkPlanRepository extends JpaRepository<WorkPlan, Long> {
             "WHERE tp.masterSchedule.project.idx = :projectId")
     List<WorkPlan> findAllByTradeProcess_MasterSchedule_Project_Idx(@Param("projectId") Long projectId);
 
+    @Query("SELECT DISTINCT wp FROM WorkPlan wp " +
+            "LEFT JOIN FETCH wp.extension " +
+            "LEFT JOIN FETCH wp.tradeProcess tp " +
+            "LEFT JOIN FETCH wp.parentWorkPlan " +
+            "WHERE tp.masterSchedule.project.idx = :projectId")
+    List<WorkPlan> findAllForAnalysis(@Param("projectId") Long projectId);
+
     // AnalysisService — 특정 TradeProcess에 연결된 WorkPlan 조회
     List<WorkPlan> findAllByTradeProcess_Idx(Long tradeProcessId);
 
