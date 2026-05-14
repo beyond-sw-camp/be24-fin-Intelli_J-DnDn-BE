@@ -56,12 +56,14 @@ public class WorkerController {
     // MANAGEMENT_002 근무자 검색
     @GetMapping("/search")
     public ResponseEntity<BaseResponse<WorkerDto.ListRes>> search(
+            @RequestParam(required = false) String siteCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) AttendanceStatus attendanceStatus,
             @RequestParam(required = false) String partnerCompany,
             @RequestParam(required = false) String searchName
     ) {
         WorkerDto.SearchReq req = WorkerDto.SearchReq.builder()
+                .siteCode(siteCode)
                 .date(date)
                 .attendanceStatus(attendanceStatus)
                 .partnerCompany(partnerCompany)
@@ -74,9 +76,10 @@ public class WorkerController {
     // MANAGEMENT_003 작업자 목록 조회
     @GetMapping("/list")
     public ResponseEntity<BaseResponse<WorkerDto.ListRes>> list(
+            @RequestParam(required = false) String siteCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
-        WorkerDto.ListRes dto = workerService.getList(date);
+        WorkerDto.ListRes dto = workerService.getList(siteCode, date);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 

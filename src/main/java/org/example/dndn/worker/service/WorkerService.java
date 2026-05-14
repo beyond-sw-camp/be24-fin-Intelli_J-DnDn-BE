@@ -3,10 +3,11 @@ package org.example.dndn.worker.service;
 import lombok.RequiredArgsConstructor;
 import org.example.dndn.common.exception.BaseException;
 import org.example.dndn.worker.config.ManagementAttendanceProperties;
-import org.example.dndn.worker.fixture.WorkerScenarioFixtureLoader;
+import org.example.dndn.worker.fixture.WorkerFixtureGenerator;
 import org.example.dndn.worker.fixture.WorkerScenarioFixtureRow;
 import org.example.dndn.worker.model.dto.WorkerDto;
 import org.example.dndn.worker.model.entity.*;
+import org.example.dndn.worker.model.enums.AttendanceEventType;
 import org.example.dndn.worker.model.enums.AttendanceStatus;
 import org.example.dndn.worker.model.enums.EmploymentKind;
 import org.example.dndn.worker.repository.*;
@@ -28,10 +29,11 @@ public class WorkerService {
     private static final String SAFETY_EDUCATION_DOCUMENT_KEYWORD = "기초안전보건교육";
     private final WorkerRepository workerRepository;
     private final AttendanceRecordRepository attendanceRepository;
+    private final AttendanceLogRepository attendanceLogRepository;
     private final WorkerDocumentRepository documentRepository;
     private final WorkerSanctionRepository sanctionRepository;
     private final SafetyAccidentRepository accidentRepository;
-    private final WorkerScenarioFixtureLoader workerScenarioFixtureLoader;
+    private final WorkerFixtureGenerator workerFixtureGenerator;
     private final ManagementAttendanceProperties attendanceProps;
     private final FatigueCalculationService fatigueCalculationService;
 
@@ -40,13 +42,18 @@ public class WorkerService {
     public WorkerDto.SyncRes syncWorkforce(String siteCode, LocalDate rosterDate) {
         if (siteCode == null || siteCode.isBlank()) {
             throw new BaseException(FAIL);
-            // throw new BaseException("SYNC_SITE_REQUIRED", "siteCode 가 필요합니다.");
         }
         if (rosterDate == null) {
             throw new BaseException(FAIL);
-            // throw new BaseException("SYNC_DATE_REQUIRED", "date 가 필요합니다.");
         }
-        List<WorkerScenarioFixtureRow> payload = workerScenarioFixtureLoader.loadWorkersFiltered(siteCode);
+        List<WorkerScenarioFixtureRow> payload = workerFixtureGenerator.generate(siteCode);
+        if (payload.isEmpty()) {
+            return WorkerDto.SyncRes.builder()
+                    .created(0).updated(0).total(0)
+                    .documentsSynced(0).sanctionsSynced(0)
+                    .accidentsSynced(0).attendanceRecordsSynced(0)
+                    .build();
+        }
         int created = 0, updated = 0;
         SyncDetailAccumulator detail = new SyncDetailAccumulator();
 
@@ -89,10 +96,12 @@ public class WorkerService {
                 .orElseGet(() -> requireNonNullElse(worker.getEmploymentKind(), EmploymentKind.REGULAR));
         prev.ifPresent(attendanceRepository::delete);
         attendanceRepository.flush();
+
+        LocalTime clockIn = LocalTime.of(6, 0);
         attendanceRepository.save(AttendanceRecord.builder()
                 .worker(worker)
                 .workDate(rosterDate)
-                .clockIn(LocalTime.of(6, 0))
+                .clockIn(clockIn)
                 .clockOut(null)
                 .manDays(null)
                 .attendanceStatus(AttendanceStatus.PRESENT)
@@ -101,6 +110,15 @@ public class WorkerService {
                 .assignedTrade(null)
                 .employmentKind(preservedEk)
                 .build());
+
+        attendanceLogRepository.deleteAllByWorkerIdxAndWorkDate(wid, rosterDate);
+        attendanceLogRepository.save(AttendanceLog.builder()
+                .workerIdx(wid)
+                .workDate(rosterDate)
+                .eventType(AttendanceEventType.CLOCK_IN)
+                .recognizedAt(clockIn)
+                .build());
+
         if (!hadRow) {
             acc.attendanceRecords++;
         }
@@ -112,7 +130,7 @@ public class WorkerService {
         LocalDate date = req.getWorkDate() != null ? req.getWorkDate() : LocalDate.now();
         Worker worker = workerRepository.findById(req.getWorkerIdx())
                 .orElseThrow(() -> new BaseException(FAIL));
-                // .orElseThrow(() -> new BaseException("WORKER_NOT_FOUND", "작업자를 찾을 수 없습니다."));
+        validateSiteCode(req.getSiteCode(), worker);
         AttendanceRecord old = attendanceRepository.findByWorkerIdxAndWorkDate(req.getWorkerIdx(), date)
                 .orElseThrow(() -> new BaseException(FAIL));
                 // .orElseThrow(() -> new BaseException("ATT_NOT_FOUND", "해당 일자 명단에 없습니다."));
@@ -133,6 +151,12 @@ public class WorkerService {
                 .assignedTrade(old.getAssignedTrade())
                 .employmentKind(old.getEmploymentKind())
                 .build());
+        attendanceLogRepository.save(AttendanceLog.builder()
+                .workerIdx(worker.getIdx())
+                .workDate(date)
+                .eventType(AttendanceEventType.CLOCK_IN)
+                .recognizedAt(req.getRecognizedAt())
+                .build());
         return toGateRes(saved);
     }
 
@@ -142,7 +166,7 @@ public class WorkerService {
         LocalDate date = req.getWorkDate() != null ? req.getWorkDate() : LocalDate.now();
         Worker worker = workerRepository.findById(req.getWorkerIdx())
                 .orElseThrow(() -> new BaseException(FAIL));
-                // .orElseThrow(() -> new BaseException("WORKER_NOT_FOUND", "작업자를 찾을 수 없습니다."));
+        validateSiteCode(req.getSiteCode(), worker);
         AttendanceRecord old = attendanceRepository.findByWorkerIdxAndWorkDate(req.getWorkerIdx(), date)
                 .orElseThrow(() -> new BaseException(FAIL));
                 // .orElseThrow(() -> new BaseException("ATT_NOT_FOUND", "해당 일자 명단에 없습니다."));
@@ -168,7 +192,21 @@ public class WorkerService {
                 .assignedTrade(old.getAssignedTrade())
                 .employmentKind(old.getEmploymentKind())
                 .build());
+        attendanceLogRepository.save(AttendanceLog.builder()
+                .workerIdx(worker.getIdx())
+                .workDate(date)
+                .eventType(AttendanceEventType.CLOCK_OUT)
+                .recognizedAt(req.getRecognizedAt())
+                .build());
         return toGateRes(saved);
+    }
+
+    /** siteCode 가 요청에 포함된 경우 worker 소속 현장과 일치하는지 검증한다. */
+    private static void validateSiteCode(String reqSiteCode, Worker worker) {
+        if (reqSiteCode == null || reqSiteCode.isBlank()) return;
+        if (!reqSiteCode.trim().equals(worker.getSiteCode())) {
+            throw new BaseException(FAIL);
+        }
     }
 
     private static WorkerDto.GateAttendanceRes toGateRes(AttendanceRecord a) {
@@ -244,28 +282,27 @@ public class WorkerService {
                 acc.accidents++;
             }
         }
+        // 과거 근태 이력은 attendance_log 에만 기록 — attendance_record 는 당일 로스터 전용
         if (row.getAttendanceRecords() != null) {
             for (WorkerScenarioFixtureRow.AttendanceFixtureRow r : row.getAttendanceRecords()) {
-                String zm = requireNonNullElse(r.getZoneMain(), "").trim();
-                String zs = requireNonNullElse(r.getZoneSub(), "").trim();
-                String zt = requireNonNullElse(r.getAssignedTrade(), "").trim();
-                attendanceRepository.findByWorkerIdxAndWorkDate(wid, r.getWorkDate()).ifPresent(attendanceRepository::delete);
-                attendanceRepository.flush();
-                attendanceRepository.save(AttendanceRecord.builder()
-                        .worker(worker)
-                        .workDate(r.getWorkDate())
-                        .clockIn(r.getClockIn())
-                        .clockOut(r.getClockOut())
-                        .manDays(r.getManDays())
-                        .attendanceStatus(r.getAttendanceStatus())
-                        .zoneMain(zm.isEmpty() ? null : zm)
-                        .zoneSub(zs.isEmpty() ? null : zs)
-                        .assignedTrade(zt.isEmpty() ? null : zt)
-                        .employmentKind(requireNonNullElse(
-                                r.getEmploymentKind(),
-                                requireNonNullElse(worker.getEmploymentKind(), EmploymentKind.REGULAR)))
-                        .build());
-                acc.attendanceRecords++;
+                attendanceLogRepository.deleteAllByWorkerIdxAndWorkDate(wid, r.getWorkDate());
+                if (r.getClockIn() != null) {
+                    attendanceLogRepository.save(AttendanceLog.builder()
+                            .workerIdx(wid)
+                            .workDate(r.getWorkDate())
+                            .eventType(AttendanceEventType.CLOCK_IN)
+                            .recognizedAt(r.getClockIn())
+                            .build());
+                    acc.attendanceRecords++;
+                }
+                if (r.getClockOut() != null) {
+                    attendanceLogRepository.save(AttendanceLog.builder()
+                            .workerIdx(wid)
+                            .workDate(r.getWorkDate())
+                            .eventType(AttendanceEventType.CLOCK_OUT)
+                            .recognizedAt(r.getClockOut())
+                            .build());
+                }
             }
         }
     }
@@ -289,11 +326,13 @@ public class WorkerService {
                 .build();
     }
 
-    /** MANAGEMENT_003 작업자 목록 조회 — 조회일 AttendanceRecord 기준 */
-    public WorkerDto.ListRes getList(LocalDate date) {
+    /** MANAGEMENT_003 작업자 목록 조회 — 조회일 AttendanceRecord 기준, 현장 분리 */
+    public WorkerDto.ListRes getList(String siteCode, LocalDate date) {
         LocalDate target = date == null ? LocalDate.now() : date;
 
-        List<AttendanceRecord> records = attendanceRepository.findAllByWorkDate(target);
+        List<AttendanceRecord> records = (siteCode != null && !siteCode.isBlank())
+                ? attendanceRepository.findAllByWorkDateAndSiteCode(target, siteCode.trim())
+                : attendanceRepository.findAllByWorkDate(target);
         Map<Long, AttendanceRecord> attendanceByWorkerIdx = records.stream()
                 .collect(Collectors.toMap(a -> a.getWorker().getIdx(), a -> a, (a, b) -> a));
 
@@ -325,12 +364,15 @@ public class WorkerService {
                 .build();
     }
 
-    // MANAGEMENT_002 근무자 검색 — 조회일 ATT 명단 범위 안에서 출근 상태/협력사명/이름 필터 적용
+    // MANAGEMENT_002 근무자 검색 — 조회일 ATT 명단 범위 안에서 출근 상태/협력사명/이름 필터 적용, 현장 분리
     public WorkerDto.ListRes search(WorkerDto.SearchReq req) {
         LocalDate target = req.getDate() == null ? LocalDate.now() : req.getDate();
         AttendanceStatus statusFilter = req.getAttendanceStatus();
+        String siteCode = req.getSiteCode();
 
-        List<AttendanceRecord> records = attendanceRepository.findAllByWorkDate(target);
+        List<AttendanceRecord> records = (siteCode != null && !siteCode.isBlank())
+                ? attendanceRepository.findAllByWorkDateAndSiteCode(target, siteCode.trim())
+                : attendanceRepository.findAllByWorkDate(target);
         Map<Long, AttendanceRecord> attendanceByWorkerIdx = records.stream()
                 .collect(Collectors.toMap(a -> a.getWorker().getIdx(), a -> a, (a, b) -> a));
 

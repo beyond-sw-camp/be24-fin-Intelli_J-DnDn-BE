@@ -59,6 +59,7 @@ public class StaffingDto {
     @AllArgsConstructor
     @Builder
     public static class PoolSearchReq {
+        private String siteCode;
         /** null 이면 소속 필터 없음 */
         private AffiliationKind affiliationKind;
         private String keyword;

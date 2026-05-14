@@ -191,15 +191,18 @@ public class StaffingService {
         assignmentRepository.flush();
     }
 
-    // STAFFING_008 근태 명단 필터 — PRESENT·LATE(지각)만 포함
+    // STAFFING_008 근태 명단 필터 — PRESENT·LATE(지각)만 포함, 현장 분리
     public StaffingDto.WorkerPoolRes getWorkerPool(StaffingDto.PoolSearchReq req, LocalDate rosterDate) {
         LocalDate date = normalizeDate(rosterDate);
         if (req == null) {
             req = StaffingDto.PoolSearchReq.builder().build();
         }
+        String siteCode = req.getSiteCode();
 
-        List<AttendanceRecord> rosterRows =
-                attendanceRecordRepository.findAllByWorkDateAndWorkerJobRank(
+        List<AttendanceRecord> rosterRows = (siteCode != null && !siteCode.isBlank())
+                ? attendanceRecordRepository.findAllByWorkDateAndWorkerJobRankAndSiteCode(
+                        date, JobRank.WORKER, siteCode.trim(), STAFFING_ATTENDANCE_ONSITE)
+                : attendanceRecordRepository.findAllByWorkDateAndWorkerJobRank(
                         date, JobRank.WORKER, STAFFING_ATTENDANCE_ONSITE);
         if (rosterRows.isEmpty()) {
             return StaffingDto.WorkerPoolRes.builder().totalCount(0).rows(List.of()).build();
@@ -387,7 +390,7 @@ public class StaffingService {
             ZoneSub zs = a.getZoneSub();
             ZoneMain zm = zs.getZoneMain();
             attendanceDeploymentSyncService.applyZonePlacementIfPresent(
-                    a.getWorkerIdx(), date, zm.getTitle(), zs.getTitle());
+                    a.getWorkerIdx(), date, zm.getTitle(), zs.getTitle(), zs.getTradeName());
             a.markConfirmed(true);
         }
         assignmentRepository.saveAll(all);
@@ -408,11 +411,13 @@ public class StaffingService {
      * </ul>
      */
     @Transactional
-    public StaffingDto.SaveSummaryRes autoRecommend(LocalDate rosterDate) {
+    public StaffingDto.SaveSummaryRes autoRecommend(LocalDate rosterDate, String siteCode) {
         LocalDate date = normalizeDate(rosterDate);
 
-        List<AttendanceRecord> rosterRows =
-                attendanceRecordRepository.findAllByWorkDateAndWorkerJobRank(
+        List<AttendanceRecord> rosterRows = (siteCode != null && !siteCode.isBlank())
+                ? attendanceRecordRepository.findAllByWorkDateAndWorkerJobRankAndSiteCode(
+                        date, JobRank.WORKER, siteCode.trim(), STAFFING_ATTENDANCE_ONSITE)
+                : attendanceRecordRepository.findAllByWorkDateAndWorkerJobRank(
                         date, JobRank.WORKER, STAFFING_ATTENDANCE_ONSITE);
 
         List<Long> directUnassignedIds = new ArrayList<>();
@@ -724,8 +729,9 @@ public class StaffingService {
     }
 
     private String resolveTradeName(WorkPlan plan) {
-        if (plan.getTrade() != null && notBlank(plan.getTrade().getLabel())) {
-            return plan.getTrade().getLabel();
+        // 공종 카테고리(골조공사·마감공사 등)를 우선 반환 — 공정 레이블(형틀·미장 등)보다 상위 분류
+        if (plan.getTrade() != null && notBlank(plan.getTrade().getCategory())) {
+            return plan.getTrade().getCategory();
         }
         if (plan.getTradeProcess() != null && notBlank(plan.getTradeProcess().getTradeName())) {
             return plan.getTradeProcess().getTradeName();
