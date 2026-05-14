@@ -21,20 +21,20 @@ public class AttendanceDeploymentSyncService {
         if (prev.isEmpty()) {
             return;
         }
-        replaceZones(prev.get(), null, null);
+        replaceZones(prev.get(), null, null, prev.get().getAssignedTrade());
     }
 
-    // 당일 명단 행이 있으면 구역 문자열만 갱신. 공종은 유지(STAFFING_002·006 등 연동용).
+    // 당일 명단 행이 있으면 구역 문자열과 공종명을 갱신한다.
     @Transactional
-    public void applyZonePlacementIfPresent(Long workerIdx, LocalDate workDate, String zoneMain, String zoneSub) {
+    public void applyZonePlacementIfPresent(Long workerIdx, LocalDate workDate, String zoneMain, String zoneSub, String assignedTrade) {
         Optional<AttendanceRecord> prev = attendanceRepository.findByWorkerIdxAndWorkDate(workerIdx, workDate);
         if (prev.isEmpty()) {
             return;
         }
-        replaceZones(prev.get(), blankToNull(zoneMain), blankToNull(zoneSub));
+        replaceZones(prev.get(), blankToNull(zoneMain), blankToNull(zoneSub), blankToNull(assignedTrade));
     }
 
-    private void replaceZones(AttendanceRecord old, String zoneMain, String zoneSub) {
+    private void replaceZones(AttendanceRecord old, String zoneMain, String zoneSub, String assignedTrade) {
         attendanceRepository.delete(old);
         attendanceRepository.flush();
         attendanceRepository.save(AttendanceRecord.builder()
@@ -46,7 +46,7 @@ public class AttendanceDeploymentSyncService {
                 .attendanceStatus(old.getAttendanceStatus())
                 .zoneMain(zoneMain)
                 .zoneSub(zoneSub)
-                .assignedTrade(old.getAssignedTrade())
+                .assignedTrade(assignedTrade)
                 .employmentKind(old.getEmploymentKind())
                 .build());
     }

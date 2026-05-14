@@ -22,6 +22,7 @@ public class WorkerDto {
     @NoArgsConstructor
     @Builder
     public static class SearchReq {
+        private String siteCode;
         private LocalDate date;
         private AttendanceStatus attendanceStatus;
         private String partnerCompany;
