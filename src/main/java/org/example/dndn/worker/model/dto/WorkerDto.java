@@ -38,9 +38,10 @@ public class WorkerDto {
     public static class GateClockInReq {
         @NotNull
         private Long workerIdx;
-        private LocalDate workDate; // null 이면 서버 로컬 기준 오늘
+        private LocalDate workDate;  // null 이면 서버 로컬 기준 오늘
         @NotNull
         private LocalTime recognizedAt;
+        private String siteCode;     // 현장 구분 — 제공 시 worker.siteCode 불일치면 거부
     }
 
     // MANAGEMENT_011 게이트 퇴근 인식
@@ -52,9 +53,10 @@ public class WorkerDto {
     public static class GateClockOutReq {
         @NotNull
         private Long workerIdx;
-        private LocalDate workDate; // null 이면 서버 로컬 기준 오늘
+        private LocalDate workDate;  // null 이면 서버 로컬 기준 오늘
         @NotNull
         private LocalTime recognizedAt;
+        private String siteCode;     // 현장 구분 — 제공 시 worker.siteCode 불일치면 거부
     }
 
     // MANAGEMENT_001 인력 데이터 요약

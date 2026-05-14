@@ -9,4 +9,8 @@ import java.util.List;
 public interface AttendanceLogRepository extends JpaRepository<AttendanceLog, Long> {
 
     List<AttendanceLog> findAllByWorkerIdxAndWorkDateOrderByRecognizedAt(Long workerIdx, LocalDate workDate);
+
+    List<AttendanceLog> findAllByWorkerIdxAndWorkDateBetween(Long workerIdx, LocalDate from, LocalDate to);
+
+    void deleteAllByWorkerIdxAndWorkDate(Long workerIdx, LocalDate workDate);
 }

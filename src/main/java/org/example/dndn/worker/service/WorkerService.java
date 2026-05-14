@@ -95,10 +95,12 @@ public class WorkerService {
                 .orElseGet(() -> requireNonNullElse(worker.getEmploymentKind(), EmploymentKind.REGULAR));
         prev.ifPresent(attendanceRepository::delete);
         attendanceRepository.flush();
+
+        LocalTime clockIn = LocalTime.of(6, 0);
         attendanceRepository.save(AttendanceRecord.builder()
                 .worker(worker)
                 .workDate(rosterDate)
-                .clockIn(LocalTime.of(6, 0))
+                .clockIn(clockIn)
                 .clockOut(null)
                 .manDays(null)
                 .attendanceStatus(AttendanceStatus.PRESENT)
@@ -107,6 +109,15 @@ public class WorkerService {
                 .assignedTrade(null)
                 .employmentKind(preservedEk)
                 .build());
+
+        attendanceLogRepository.deleteAllByWorkerIdxAndWorkDate(wid, rosterDate);
+        attendanceLogRepository.save(AttendanceLog.builder()
+                .workerIdx(wid)
+                .workDate(rosterDate)
+                .eventType(AttendanceEventType.CLOCK_IN)
+                .recognizedAt(clockIn)
+                .build());
+
         if (!hadRow) {
             acc.attendanceRecords++;
         }
@@ -118,7 +129,7 @@ public class WorkerService {
         LocalDate date = req.getWorkDate() != null ? req.getWorkDate() : LocalDate.now();
         Worker worker = workerRepository.findById(req.getWorkerIdx())
                 .orElseThrow(() -> new BaseException(FAIL));
-                // .orElseThrow(() -> new BaseException("WORKER_NOT_FOUND", "작업자를 찾을 수 없습니다."));
+        validateSiteCode(req.getSiteCode(), worker);
         AttendanceRecord old = attendanceRepository.findByWorkerIdxAndWorkDate(req.getWorkerIdx(), date)
                 .orElseThrow(() -> new BaseException(FAIL));
                 // .orElseThrow(() -> new BaseException("ATT_NOT_FOUND", "해당 일자 명단에 없습니다."));
@@ -154,7 +165,7 @@ public class WorkerService {
         LocalDate date = req.getWorkDate() != null ? req.getWorkDate() : LocalDate.now();
         Worker worker = workerRepository.findById(req.getWorkerIdx())
                 .orElseThrow(() -> new BaseException(FAIL));
-                // .orElseThrow(() -> new BaseException("WORKER_NOT_FOUND", "작업자를 찾을 수 없습니다."));
+        validateSiteCode(req.getSiteCode(), worker);
         AttendanceRecord old = attendanceRepository.findByWorkerIdxAndWorkDate(req.getWorkerIdx(), date)
                 .orElseThrow(() -> new BaseException(FAIL));
                 // .orElseThrow(() -> new BaseException("ATT_NOT_FOUND", "해당 일자 명단에 없습니다."));
@@ -187,6 +198,14 @@ public class WorkerService {
                 .recognizedAt(req.getRecognizedAt())
                 .build());
         return toGateRes(saved);
+    }
+
+    /** siteCode 가 요청에 포함된 경우 worker 소속 현장과 일치하는지 검증한다. */
+    private static void validateSiteCode(String reqSiteCode, Worker worker) {
+        if (reqSiteCode == null || reqSiteCode.isBlank()) return;
+        if (!reqSiteCode.trim().equals(worker.getSiteCode())) {
+            throw new BaseException(FAIL);
+        }
     }
 
     private static WorkerDto.GateAttendanceRes toGateRes(AttendanceRecord a) {
@@ -262,28 +281,27 @@ public class WorkerService {
                 acc.accidents++;
             }
         }
+        // 과거 근태 이력은 attendance_log 에만 기록 — attendance_record 는 당일 로스터 전용
         if (row.getAttendanceRecords() != null) {
             for (WorkerScenarioFixtureRow.AttendanceFixtureRow r : row.getAttendanceRecords()) {
-                String zm = requireNonNullElse(r.getZoneMain(), "").trim();
-                String zs = requireNonNullElse(r.getZoneSub(), "").trim();
-                String zt = requireNonNullElse(r.getAssignedTrade(), "").trim();
-                attendanceRepository.findByWorkerIdxAndWorkDate(wid, r.getWorkDate()).ifPresent(attendanceRepository::delete);
-                attendanceRepository.flush();
-                attendanceRepository.save(AttendanceRecord.builder()
-                        .worker(worker)
-                        .workDate(r.getWorkDate())
-                        .clockIn(r.getClockIn())
-                        .clockOut(r.getClockOut())
-                        .manDays(r.getManDays())
-                        .attendanceStatus(r.getAttendanceStatus())
-                        .zoneMain(zm.isEmpty() ? null : zm)
-                        .zoneSub(zs.isEmpty() ? null : zs)
-                        .assignedTrade(zt.isEmpty() ? null : zt)
-                        .employmentKind(requireNonNullElse(
-                                r.getEmploymentKind(),
-                                requireNonNullElse(worker.getEmploymentKind(), EmploymentKind.REGULAR)))
-                        .build());
-                acc.attendanceRecords++;
+                attendanceLogRepository.deleteAllByWorkerIdxAndWorkDate(wid, r.getWorkDate());
+                if (r.getClockIn() != null) {
+                    attendanceLogRepository.save(AttendanceLog.builder()
+                            .workerIdx(wid)
+                            .workDate(r.getWorkDate())
+                            .eventType(AttendanceEventType.CLOCK_IN)
+                            .recognizedAt(r.getClockIn())
+                            .build());
+                    acc.attendanceRecords++;
+                }
+                if (r.getClockOut() != null) {
+                    attendanceLogRepository.save(AttendanceLog.builder()
+                            .workerIdx(wid)
+                            .workDate(r.getWorkDate())
+                            .eventType(AttendanceEventType.CLOCK_OUT)
+                            .recognizedAt(r.getClockOut())
+                            .build());
+                }
             }
         }
     }
