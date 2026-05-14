@@ -25,6 +25,7 @@ import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class WorkerService {
+    private static final String SAFETY_EDUCATION_DOCUMENT_KEYWORD = "기초안전보건교육";
     private final WorkerRepository workerRepository;
     private final AttendanceRecordRepository attendanceRepository;
     private final WorkerDocumentRepository documentRepository;
@@ -308,8 +309,12 @@ public class WorkerService {
         List<Worker> workers = workerRepository.findAllById(attendanceByWorkerIdx.keySet());
         workers.sort(Comparator.comparing(Worker::getName, Comparator.nullsLast(String::compareTo)));
 
+        Set<Long> safetyEducationCompletedWorkerIds = findSafetyEducationCompletedWorkerIds(attendanceByWorkerIdx.keySet());
         List<WorkerDto.WorkerRes> rows = workers.stream()
-                .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx())))
+                .map(w -> WorkerDto.WorkerRes.from(
+                        w,
+                        attendanceByWorkerIdx.get(w.getIdx()),
+                        safetyEducationCompletedWorkerIds.contains(w.getIdx())))
                 .collect(Collectors.toList());
 
         WorkerDto.StateCountRes kpi = aggregateAttendance(rows);
@@ -342,8 +347,12 @@ public class WorkerService {
         List<Worker> rosterWorkers = workerRepository.findAllById(rosterIds);
         rosterWorkers.sort(Comparator.comparing(Worker::getName, Comparator.nullsLast(String::compareTo)));
 
+        Set<Long> safetyEducationCompletedWorkerIds = findSafetyEducationCompletedWorkerIds(rosterIds);
         List<WorkerDto.WorkerRes> allRows = rosterWorkers.stream()
-                .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx())))
+                .map(w -> WorkerDto.WorkerRes.from(
+                        w,
+                        attendanceByWorkerIdx.get(w.getIdx()),
+                        safetyEducationCompletedWorkerIds.contains(w.getIdx())))
                 .collect(Collectors.toList());
         WorkerDto.StateCountRes globalKpi = aggregateAttendance(allRows);
 
@@ -351,7 +360,10 @@ public class WorkerService {
                 .search(req.getPartnerCompany(), req.getSearchName())
                 .stream()
                 .filter(w -> rosterIds.contains(w.getIdx()))
-                .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx())))
+                .map(w -> WorkerDto.WorkerRes.from(
+                        w,
+                        attendanceByWorkerIdx.get(w.getIdx()),
+                        safetyEducationCompletedWorkerIds.contains(w.getIdx())))
                 .filter(item -> statusFilter == null || item.getAttendanceStatus() == statusFilter)
                 .sorted(Comparator.comparing(WorkerDto.WorkerRes::getName, Comparator.nullsLast(String::compareTo)))
                 .collect(Collectors.toList());
@@ -362,6 +374,19 @@ public class WorkerService {
                 .listKpi(listKpi)
                 .rows(rows)
                 .build();
+    }
+
+    private Set<Long> findSafetyEducationCompletedWorkerIds(Collection<Long> workerIds) {
+        if (workerIds == null || workerIds.isEmpty()) {
+            return Set.of();
+        }
+
+        return documentRepository.findAllByWorkerIdxInAndTitleContaining(
+                        new ArrayList<>(workerIds),
+                        SAFETY_EDUCATION_DOCUMENT_KEYWORD)
+                .stream()
+                .map(document -> document.getWorker().getIdx())
+                .collect(Collectors.toSet());
     }
 
     private WorkerDto.StateCountRes aggregateAttendance(List<WorkerDto.WorkerRes> rows) {

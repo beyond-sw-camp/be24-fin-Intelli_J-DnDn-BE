@@ -45,22 +45,13 @@ spec:
 """
     }
   }
-
+  // main, test 분기처리
   environment {
     IMAGE_NAME = 'seungwoo0128/dndn-backend'
-    IMAGE_TAG  = "1.${env.BUILD_NUMBER}"
+    IMAGE_TAG  = "${env.JOB_NAME.contains('test') ? 'test-' : ''}1.${env.BUILD_NUMBER}"
+    NAMESPACE  = "${env.JOB_NAME.contains('test') ? 'test' : 'default'}"
   }
   stages {
-    stage('Checkout') {
-      steps {
-        container('gradle') {
-          checkout([$class: 'GitSCM',
-            branches: [[name: '*/main']],
-            userRemoteConfigs: [[url: 'https://github.com/beyond-sw-camp/be24-fin-Intelli_J-DnDn-BE.git']]
-          ])
-        }
-      }
-    }
 
     stage('Gradle Build') {
       steps {
@@ -102,27 +93,27 @@ spec:
         container('kubectl') {
           script {
             def activeService = sh(
-              script: "kubectl get ingress backend-ingress -o jsonpath='{.spec.rules[0].http.paths[0].backend.service.name}'",
+              script: "kubectl get ingress backend-ingress -n ${NAMESPACE} -o jsonpath='{.spec.rules[0].http.paths[0].backend.service.name}'",
               returnStdout: true
             ).trim()
             def activeVersion   = activeService.contains('blue') ? 'blue' : 'green'
             def inactiveVersion = activeVersion == 'blue' ? 'green' : 'blue'
-            echo "Active: ${activeVersion} → Deploying to: ${inactiveVersion}"
+            echo "Namespace: ${NAMESPACE} | Active: ${activeVersion} → Deploying to: ${inactiveVersion}"
 
-            sh "kubectl set image deployment/dndn-backend-${inactiveVersion} backend=${IMAGE_NAME}:${IMAGE_TAG}"
-            sh "kubectl scale deployment/dndn-backend-${inactiveVersion} --replicas=2"
-            sh "kubectl rollout status deployment/dndn-backend-${inactiveVersion} --timeout=180s"
+            sh "kubectl set image deployment/dndn-backend-${inactiveVersion} backend=${IMAGE_NAME}:${IMAGE_TAG} -n ${NAMESPACE}"
+            sh "kubectl scale deployment/dndn-backend-${inactiveVersion} --replicas=2 -n ${NAMESPACE}"
+            sh "kubectl rollout status deployment/dndn-backend-${inactiveVersion} -n ${NAMESPACE} --timeout=180s"
 
             // Ingress 전환 (외부 트래픽)
             sh """
-              kubectl patch ingress backend-ingress --type=json \
+              kubectl patch ingress backend-ingress -n ${NAMESPACE} --type=json \
                 -p='[{"op":"replace","path":"/spec/rules/0/http/paths/0/backend/service/name","value":"backend-service-${inactiveVersion}"}]'
             """
 
-            // stable backend-service selector 전환 (프론트 nginx proxy_pass용)
-            sh "kubectl patch svc backend-service -p '{\"spec\":{\"selector\":{\"type\":\"backend\",\"version\":\"${inactiveVersion}\"}}}'"
+            // stable backend-service selector 전환
+            sh "kubectl patch svc backend-service -n ${NAMESPACE} -p '{\"spec\":{\"selector\":{\"type\":\"backend\",\"version\":\"${inactiveVersion}\"}}}'"
 
-            sh "kubectl scale deployment/dndn-backend-${activeVersion} --replicas=0"
+            sh "kubectl scale deployment/dndn-backend-${activeVersion} --replicas=0 -n ${NAMESPACE}"
             echo "Switched to: ${inactiveVersion}"
           }
         }

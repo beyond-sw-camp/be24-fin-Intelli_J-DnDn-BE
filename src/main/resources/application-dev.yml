@@ -23,6 +23,7 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
+        default_batch_fetch_size: 1000
         format_sql: true
 
 management:
@@ -82,5 +83,24 @@ weather:
 jwt:
   secret: ${JWT_SECRET}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+
+
+cloud:
+  aws:
+    credentials:
+      access-key: ${AWS_ACCESS_KEY}
+      secret-key: ${AWS_SECRET_KEY}
+    region: ap-northeast-2
+    s3:
+      bucket: ${AWS_BUCKET_NAME}
+      presigned-url-expiration: 600
+
+
+storage:
+  type: local   # 기본값: s3 (운영). 부하테스트할 때만 local로 변경
+  local:
+    base-url: http://localhost:8080   # 로컬 다운로드 엔드포인트의 base URL
+
 file:
   upload-dir: ./uploads
