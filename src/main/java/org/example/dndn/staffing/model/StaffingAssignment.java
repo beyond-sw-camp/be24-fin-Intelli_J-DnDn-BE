@@ -7,7 +7,13 @@ import org.example.dndn.common.model.BaseEntity;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "staffing_assignment")
+@Table(
+    name = "staffing_assignment",
+    uniqueConstraints = @UniqueConstraint(
+        name = "uq_staffing_assignment_worker_date",
+        columnNames = {"worker_idx", "work_date"}
+    )
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)

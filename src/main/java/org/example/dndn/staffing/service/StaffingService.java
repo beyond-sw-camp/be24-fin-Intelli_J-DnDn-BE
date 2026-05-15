@@ -299,15 +299,20 @@ public class StaffingService {
             throw new BaseException(ASSIGN_OVERFLOW);
         }
 
-        for (Long workerIdx : toBind) {
-            assignmentRepository.save(StaffingAssignment.builder()
-                    .zoneSub(zs)
-                    .workerIdx(workerIdx)
-                    .workDate(date)
-                    .confirmed(false)
-                    .build());
+        try {
+            for (Long workerIdx : toBind) {
+                assignmentRepository.save(StaffingAssignment.builder()
+                        .zoneSub(zs)
+                        .workerIdx(workerIdx)
+                        .workDate(date)
+                        .confirmed(false)
+                        .build());
+            }
+            assignmentRepository.flush();
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            // 동시 요청에 의한 중복 배치 시도 — unique constraint 위반으로 무시
+            throw new BaseException(ASSIGN_OVERFLOW);
         }
-        assignmentRepository.flush();
     }
 
     private Set<Long> findSafetyEducationCompletedWorkerIds(List<Long> workerIds) {
