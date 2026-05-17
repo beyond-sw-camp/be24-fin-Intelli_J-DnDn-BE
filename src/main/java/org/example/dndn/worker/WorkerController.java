@@ -59,14 +59,12 @@ public class WorkerController {
             @RequestParam(required = false) String siteCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) AttendanceStatus attendanceStatus,
-            @RequestParam(required = false) String partnerCompany,
             @RequestParam(required = false) String searchName
     ) {
         WorkerDto.SearchReq req = WorkerDto.SearchReq.builder()
                 .siteCode(siteCode)
                 .date(date)
                 .attendanceStatus(attendanceStatus)
-                .partnerCompany(partnerCompany)
                 .searchName(searchName)
                 .build();
         WorkerDto.ListRes dto = workerService.search(req);
@@ -117,15 +115,6 @@ public class WorkerController {
             @PathVariable Long workerIdx
     ) {
         List<WorkerDetailDto.DeploymentRes> dto = workerDetailService.getDeployments(workerIdx);
-        return ResponseEntity.ok(BaseResponse.success(dto));
-    }
-
-    // MANAGEMENT_008 제재 / 주의 이력 조회
-    @GetMapping("/{workerIdx}/penalties")
-    public ResponseEntity<BaseResponse<List<WorkerDetailDto.SanctionRes>>> penalties(
-            @PathVariable Long workerIdx
-    ) {
-        List<WorkerDetailDto.SanctionRes> dto = workerDetailService.getPenalties(workerIdx);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 

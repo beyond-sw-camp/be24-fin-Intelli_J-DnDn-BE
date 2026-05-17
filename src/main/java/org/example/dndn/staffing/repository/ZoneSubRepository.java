@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,6 +25,9 @@ public interface ZoneSubRepository extends JpaRepository<ZoneSub, Long> {
     List<ZoneSub> findAllOrderedWithStaffingGraph();
 
     Optional<ZoneSub> findByWorkPlanIdx(Long workPlanIdx);
+
+    /** sync 루프 전 일괄 선조회 — workPlanIdx IN (...) 1번으로 W번 개별 SELECT 대체 */
+    List<ZoneSub> findAllByWorkPlanIdxIn(Collection<Long> workPlanIdxes);
 
     @EntityGraph(attributePaths = {"zoneMain", "tradeNeeds"})
     @Query("""

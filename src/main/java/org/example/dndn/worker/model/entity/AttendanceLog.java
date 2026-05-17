@@ -26,6 +26,10 @@ public class AttendanceLog {
     @Column(name = "worker_idx", nullable = false)
     private Long workerIdx;
 
+    /** 현장 코드 스냅샷 — 현장별 출입 이벤트 조회 지원 */
+    @Column(name = "site_code", length = 30)
+    private String siteCode;
+
     @Column(name = "work_date", nullable = false)
     private LocalDate workDate;
 

@@ -25,7 +25,6 @@ public class WorkerDto {
         private String siteCode;
         private LocalDate date;
         private AttendanceStatus attendanceStatus;
-        private String partnerCompany;
         private String searchName;
     }
 
@@ -69,7 +68,6 @@ public class WorkerDto {
         private int updated;
         private int total;
         private int documentsSynced;
-        private int sanctionsSynced;
         private int accidentsSynced;
         private int attendanceRecordsSynced;
     }
@@ -106,7 +104,7 @@ public class WorkerDto {
     /**
      * MANAGEMENT_002/003 Worker 1행 조회.
      * 「상용/일용」은 조회일 {@link AttendanceRecord#getEmploymentKind()} → {@link #employmentKind}.
-     * {@link #subLabel} 은 마스터 테이블에 저장되는 공종 라벨이다.
+     * {@link #trade} 는 근무자가 지원한 공종 카테고리이다 (예: 목공, 전기, 토목, 마감).
      */
     @Getter
     @NoArgsConstructor
@@ -118,11 +116,7 @@ public class WorkerDto {
         private String phone;
         private JobRank jobRank;
         private AffiliationKind affiliationKind;
-        /** 중간 전문 건설사명 (예: 구산토건, 삼보이앤씨). 본사는 null. */
-        private String partnerCompany;
-        /** 공종별 협력업체명 (예: 태양목공, 대한철근). PARTNER 일 때만 사용. */
-        private String partnerCompanyDetail;
-        private String subLabel;
+        private String trade;
         private String site;
         private EmploymentKind employmentKind;
         private LocalTime clockIn;
@@ -141,9 +135,7 @@ public class WorkerDto {
                     .phone(w.getPhone())
                     .jobRank(w.getJobRank())
                     .affiliationKind(w.getAffiliationKind())
-                    .partnerCompany(w.getPartnerCompany())
-                    .partnerCompanyDetail(w.getPartnerCompanyDetail())
-                    .subLabel(w.getSubLabel())
+                    .trade(w.getTrade())
                     .site(w.getSite())
                     .employmentKind(a == null ? null : a.getEmploymentKind())
                     .clockIn(a == null ? null : a.getClockIn())

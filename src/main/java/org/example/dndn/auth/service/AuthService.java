@@ -19,7 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.EnumSet;
 import java.util.Set;
 
-import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
+import static org.example.dndn.common.model.BaseResponseStatus.ACCOUNT_NOT_FOUND;
+import static org.example.dndn.common.model.BaseResponseStatus.AUTH_NOT_AUTHENTICATED;
 import static org.example.dndn.common.model.BaseResponseStatus.LOGIN_INVALID_USERINFO;
 import static org.example.dndn.common.model.BaseResponseStatus.LOGIN_ROLE_NOT_ALLOWED_FOR_ADMIN;
 import static org.example.dndn.common.model.BaseResponseStatus.LOGIN_ROLE_NOT_ALLOWED_FOR_SITE;
@@ -53,7 +54,7 @@ public class AuthService {
     public void changePassword(AuthDto.ChangePasswordReq req) {
         Long userIdx = getAuthenticatedIdx();
         SystemUser user = userRepository.findById(userIdx)
-                .orElseThrow(() -> new BaseException(FAIL));
+                .orElseThrow(() -> new BaseException(ACCOUNT_NOT_FOUND));
 
         if (!passwordEncoder.matches(req.getCurrentPassword(), user.getPassword())) {
             throw new BaseException(LOGIN_INVALID_USERINFO);
@@ -65,7 +66,7 @@ public class AuthService {
     private Long getAuthenticatedIdx() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof Long)) {
-            throw new BaseException(FAIL);
+            throw new BaseException(AUTH_NOT_AUTHENTICATED);
         }
         return (Long) auth.getPrincipal();
     }

@@ -21,7 +21,7 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             select ar from AttendanceRecord ar
                 join fetch ar.worker w
             where ar.workDate = :workDate
-                and w.siteCode = :siteCode
+                and ar.siteCode = :siteCode
             """)
     List<AttendanceRecord> findAllByWorkDateAndSiteCode(
             @Param("workDate") LocalDate workDate,
@@ -46,7 +46,7 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
                 join fetch ar.worker w
             where ar.workDate = :workDate
                 and w.jobRank = :jobRank
-                and w.siteCode = :siteCode
+                and ar.siteCode = :siteCode
                 and ar.attendanceStatus in :attendanceStatuses
             """)
     List<AttendanceRecord> findAllByWorkDateAndWorkerJobRankAndSiteCode(

@@ -30,15 +30,17 @@ public enum Trade {
 
     // 마스터 공종 문자열이 이 직종에 해당하는지 한글 라벨로 근사 판별.
     public boolean matchesWorker(Worker worker) {
-        if (worker == null || worker.getSubLabel() == null) {
+        if (worker == null || worker.getTrade() == null) {
             return false;
         }
-        String s = worker.getSubLabel().trim().toLowerCase(Locale.ROOT);
+        String s = worker.getTrade().trim().toLowerCase(Locale.ROOT);
         return switch (this) {
             case CARPENTER -> s.contains("목공") || s.contains("목수") || s.contains("형틀");
             case REBAR -> s.contains("철근");
             case WELDER -> s.contains("용접");
             case TILE -> s.contains("타일")
+                    || s.contains("마감")
+                    || s.contains("토목")
                     || s.contains("인부")
                     || s.contains("보통공")
                     || s.contains("토공")

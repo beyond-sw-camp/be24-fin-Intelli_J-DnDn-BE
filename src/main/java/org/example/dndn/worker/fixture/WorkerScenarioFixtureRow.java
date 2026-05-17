@@ -29,9 +29,7 @@ public class WorkerScenarioFixtureRow {
     private String emergencyRelation;
     private JobRank jobRank;
     private AffiliationKind affiliationKind;
-    private String partnerCompany;
-    private String partnerCompanyDetail;
-    private String subLabel;
+    private String trade;
     private String site;
     private String siteCode;
     private String bloodType;
@@ -43,7 +41,6 @@ public class WorkerScenarioFixtureRow {
     private EmploymentKind employmentKind;
 
     private List<DocumentFixtureRow> documents;
-    private List<SanctionFixtureRow> sanctions;
     private List<AccidentFixtureRow> accidents;
     private List<AttendanceFixtureRow> attendanceRecords;
 
@@ -56,9 +53,7 @@ public class WorkerScenarioFixtureRow {
                 .emergencyRelation(this.emergencyRelation)
                 .jobRank(this.jobRank)
                 .affiliationKind(this.affiliationKind)
-                .partnerCompany(this.partnerCompany)
-                .partnerCompanyDetail(this.partnerCompanyDetail)
-                .subLabel(this.subLabel)
+                .trade(this.trade)
                 .employmentKind(this.employmentKind != null ? this.employmentKind : EmploymentKind.REGULAR)
                 .site(this.site)
                 .siteCode(this.siteCode)
@@ -77,19 +72,6 @@ public class WorkerScenarioFixtureRow {
         private String title;
         private String fileUrl;
         private String storedFileName;
-    }
-
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class SanctionFixtureRow {
-        private LocalDate occurredAt;
-        private String type;
-        private String reason;
-        private String action;
-        private boolean active;
     }
 
     @Getter
@@ -116,9 +98,6 @@ public class WorkerScenarioFixtureRow {
         private LocalTime clockOut;
         private BigDecimal manDays;
         private AttendanceStatus attendanceStatus;
-        private String zoneMain;
-        private String zoneSub;
-        private String assignedTrade;
         private EmploymentKind employmentKind;
     }
 }
