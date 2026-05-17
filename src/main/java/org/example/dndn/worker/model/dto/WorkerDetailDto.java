@@ -1,7 +1,11 @@
 package org.example.dndn.worker.model.dto;
 
 import lombok.*;
-import org.example.dndn.worker.model.entity.*;
+import org.example.dndn.staffing.model.StaffingLog;
+import org.example.dndn.worker.model.entity.AttendanceRecord;
+import org.example.dndn.worker.model.entity.SafetyAccident;
+import org.example.dndn.worker.model.entity.Worker;
+import org.example.dndn.worker.model.entity.WorkerDocument;
 import org.example.dndn.worker.model.enums.AffiliationKind;
 import org.example.dndn.worker.model.enums.AttendanceStatus;
 import org.example.dndn.worker.model.enums.EmploymentKind;
@@ -67,10 +71,6 @@ public class WorkerDetailDto {
         private Long idx;
         private String name;
         private AffiliationKind affiliationKind;
-        /** 중간 전문 건설사명 (예: 구산토건, 삼보이앤씨). 본사는 null. */
-        private String partnerCompany;
-        /** 공종별 협력업체명 (예: 태양목공, 대한철근). PARTNER 일 때만 사용. */
-        private String partnerCompanyDetail;
         private JobRank jobRank;
         private String site;
         private String phone;
@@ -89,8 +89,6 @@ public class WorkerDetailDto {
                     .idx(w.getIdx())
                     .name(w.getName())
                     .affiliationKind(w.getAffiliationKind())
-                    .partnerCompany(w.getPartnerCompany())
-                    .partnerCompanyDetail(w.getPartnerCompanyDetail())
                     .jobRank(w.getJobRank())
                     .site(w.getSite())
                     .phone(w.getPhone())
@@ -136,27 +134,16 @@ public class WorkerDetailDto {
         private LocalDate date;
         private LocalTime clockIn;
         private LocalTime clockOut;
-        private String zoneMain;
-        private String zoneSub;
-        /** 표시용 한 줄 — {@link WorkerDetailDto#formatZoneLine} */
-        private String zoneDisplay;
-        private String assignedTrade;
-        /** 당일 고용 구분 (상용/일용) — {@link AttendanceRecord#getEmploymentKind()} */
+        /** 당일 고용 구분 (상용/일용) */
         private EmploymentKind employmentKind;
         private AttendanceStatus attendanceStatus;
         private BigDecimal manDays;
 
         public static AttendanceRes from(AttendanceRecord a) {
-            String zm = a.getZoneMain();
-            String zs = a.getZoneSub();
             return AttendanceRes.builder()
                     .date(a.getWorkDate())
                     .clockIn(a.getClockIn())
                     .clockOut(a.getClockOut())
-                    .zoneMain(zm)
-                    .zoneSub(zs)
-                    .zoneDisplay(formatZoneLine(zm, zs))
-                    .assignedTrade(a.getAssignedTrade())
                     .employmentKind(a.getEmploymentKind())
                     .attendanceStatus(a.getAttendanceStatus())
                     .manDays(a.getManDays())
@@ -164,7 +151,7 @@ public class WorkerDetailDto {
         }
     }
 
-    /** MANAGEMENT_007 구역·공종 배치 요약 1건 — `worker_zone_history` 없이 {@link AttendanceRecord} 스냅샷 */
+    /** MANAGEMENT_007 구역 배치 확정 이력 1건 — {@code staffing_log} 기반 */
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -172,50 +159,26 @@ public class WorkerDetailDto {
     public static class DeploymentRes {
         private Long idx;
         private LocalDate assignedAt;
+        /** staffing_log.created_at — 가장 최근 확정 시각 (프론트 일자/시간 표시용) */
+        private LocalDateTime confirmedAt;
         private String zoneMain;
         private String zoneSub;
         private String zoneDisplay;
-        /** 공종 — {@link AttendanceRecord#getAssignedTrade()} */
-        private String assignedTrade;
-        /** 당일 고용 구분 — {@link AttendanceRecord#getEmploymentKind()} */
-        private EmploymentKind employmentKind;
+        private String tradeName;
+        private String siteCode;
 
-        public static DeploymentRes from(AttendanceRecord a) {
-            String zm = a.getZoneMain();
-            String zs = a.getZoneSub();
+        public static DeploymentRes from(StaffingLog log) {
+            String zm = log.getZoneMainTitle();
+            String zs = log.getZoneSubTitle();
             return DeploymentRes.builder()
-                    .idx(a.getIdx())
-                    .assignedAt(a.getWorkDate())
+                    .idx(log.getIdx())
+                    .assignedAt(log.getWorkDate())
+                    .confirmedAt(log.getCreatedAt())
                     .zoneMain(zm)
                     .zoneSub(zs)
                     .zoneDisplay(formatZoneLine(zm, zs))
-                    .assignedTrade(a.getAssignedTrade())
-                    .employmentKind(a.getEmploymentKind())
-                    .build();
-        }
-    }
-
-    // MANAGEMENT_008 제재 / 주의 이력
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class SanctionRes {
-        private Long idx;
-        private LocalDate occurredAt;
-        private String type;
-        private String reason;
-        private String action;
-        private boolean active;
-
-        public static SanctionRes from(WorkerSanction s) {
-            return SanctionRes.builder()
-                    .idx(s.getIdx())
-                    .occurredAt(s.getOccurredAt())
-                    .type(s.getType())
-                    .reason(s.getReason())
-                    .action(s.getAction())
-                    .active(s.isActive())
+                    .tradeName(log.getTradeName())
+                    .siteCode(log.getSiteCode())
                     .build();
         }
     }

@@ -20,12 +20,13 @@ public class StaffingController {
 
     private final StaffingService staffingService;
 
-    // STAFFING_003 — 기본 구역 정보 조회.
+    // STAFFING_003 — 기본 구역 정보 조회 (siteCode 로 현장 분리).
     @GetMapping("/zones")
     public ResponseEntity<BaseResponse<List<StaffingDto.ZoneMainRes>>> getZones(
+            @RequestParam(required = false) String siteCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
     ) {
-        List<StaffingDto.ZoneMainRes> dto = staffingService.loadZoneMainTree(rosterDate);
+        List<StaffingDto.ZoneMainRes> dto = staffingService.loadZoneMainTree(rosterDate, siteCode);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
@@ -114,23 +115,36 @@ public class StaffingController {
     }
 
     /**
-     * 최종배치(확정): {@code staffing_assignment} → 당일 {@code attendance_record} 구역 반영.
+     * 최종배치(확정): {@code staffing_assignment} → {@code staffing_log} 스냅샷 기록.
+     * siteCode 전달 시 해당 현장 배치만 확정한다.
      * POST /staffing/save
      */
     @PostMapping("/save")
     public ResponseEntity<BaseResponse<StaffingDto.SaveSummaryRes>> savePlacements(
+            @RequestParam(required = false) String siteCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
     ) {
-        StaffingDto.SaveSummaryRes dto = staffingService.finalizePlacementsToAttendance(rosterDate);
+        StaffingDto.SaveSummaryRes dto = staffingService.finalizePlacementsToAttendance(rosterDate, siteCode);
         return ResponseEntity.ok(BaseResponse.success("배치 저장 완료", dto));
     }
 
-    // STAFFING_002 — 투입 인원 초기화.
-    @PostMapping("/reset")
-    public ResponseEntity<BaseResponse<Void>> reset(
+    // staffing_log 기준 확정 배치 근무자 조회 (당일 + 현장 필터)
+    @GetMapping("/logs")
+    public ResponseEntity<BaseResponse<List<StaffingDto.ConfirmedWorkerRes>>> getConfirmedWorkers(
+            @RequestParam(required = false) String siteCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
     ) {
-        staffingService.resetBoard(rosterDate);
+        List<StaffingDto.ConfirmedWorkerRes> dto = staffingService.getConfirmedWorkers(rosterDate, siteCode);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
+
+    // STAFFING_002 — 투입 인원 초기화 (siteCode 전달 시 해당 현장만 초기화).
+    @PostMapping("/reset")
+    public ResponseEntity<BaseResponse<Void>> reset(
+            @RequestParam(required = false) String siteCode,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
+    ) {
+        staffingService.resetBoard(rosterDate, siteCode);
         return ResponseEntity.ok(BaseResponse.success(null));
     }
 }

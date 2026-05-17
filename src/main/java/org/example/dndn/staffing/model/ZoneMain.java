@@ -3,6 +3,7 @@ package org.example.dndn.staffing.model;
 import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndn.common.model.BaseEntity;
+import org.example.dndn.project.model.entity.Project;
 import org.hibernate.annotations.BatchSize;
 
 import java.util.ArrayList;
@@ -32,16 +33,21 @@ public class ZoneMain extends BaseEntity {
     @Column(name = "source_key", length = 80)
     private String sourceKey;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id")
+    private Project project;
+
     @BatchSize(size = 64)
     @OneToMany(mappedBy = "zoneMain", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     @OrderBy("displayOrder ASC")
     private List<ZoneSub> zoneSubs = new ArrayList<>();
 
-    public void updateScheduleGroup(String title, int displayOrder, String sourceKey) {
+    public void updateScheduleGroup(String title, int displayOrder, String sourceKey, Project project) {
         this.title = title;
         this.displayOrder = displayOrder;
         this.scheduleGenerated = true;
         this.sourceKey = sourceKey;
+        if (project != null) this.project = project;
     }
 }

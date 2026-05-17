@@ -28,11 +28,7 @@ public class StaffingAssignment extends BaseEntity {
     @Column(name = "work_date")
     private LocalDate workDate;
 
-    @Column(nullable = false)
-    private boolean confirmed;
-
-    /** 최종배치(`/staffing/save`) 반영 여부. 초안 배치에서는 {@code false}. */
-    public void markConfirmed(boolean confirmed) {
-        this.confirmed = confirmed;
-    }
+    /** 현장 코드 스냅샷 — worker.siteCode 기준, 현장별 배치 현황 조회·초기화·확정 지원 */
+    @Column(name = "site_code", length = 30)
+    private String siteCode;
 }

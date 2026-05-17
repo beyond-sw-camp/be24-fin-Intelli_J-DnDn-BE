@@ -11,20 +11,13 @@ import java.util.List;
 
 public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssignment, Long> {
 
-    @Query("select distinct a.workerIdx from StaffingAssignment a")
-    List<Long> findDistinctAssignedWorkerIdxes();
-
     @Query("select distinct a.workerIdx from StaffingAssignment a where a.workDate = :workDate")
     List<Long> findDistinctAssignedWorkerIdxesByWorkDate(@Param("workDate") LocalDate workDate);
 
-    @Query("""
-            select distinct a from StaffingAssignment a
-                join fetch a.zoneSub zs
-                join fetch zs.zoneMain zm
-            where zs.idx = :zoneSubIdx
-            order by a.idx asc
-            """)
-    List<StaffingAssignment> findAllByZoneSubWithHierarchy(@Param("zoneSubIdx") Long zoneSubIdx);
+    @Query("select distinct a.workerIdx from StaffingAssignment a where a.workDate = :workDate and a.siteCode = :siteCode")
+    List<Long> findDistinctAssignedWorkerIdxesByWorkDateAndSiteCode(
+            @Param("workDate") LocalDate workDate,
+            @Param("siteCode") String siteCode);
 
     @Query("""
             select distinct a from StaffingAssignment a
@@ -38,39 +31,15 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
             @Param("zoneSubIdx") Long zoneSubIdx,
             @Param("workDate") LocalDate workDate);
 
-    void deleteByZoneSub_IdxAndWorkerIdx(Long zoneSubIdx, Long workerIdx);
-
     void deleteByZoneSub_IdxAndWorkerIdxAndWorkDate(Long zoneSubIdx, Long workerIdx, LocalDate workDate);
 
-    boolean existsByZoneSub_IdxAndWorkerIdx(Long zoneSubIdx, Long workerIdx);
-
     boolean existsByZoneSub_IdxAndWorkerIdxAndWorkDate(Long zoneSubIdx, Long workerIdx, LocalDate workDate);
-
-    boolean existsByWorkerIdx(Long workerIdx);
 
     boolean existsByWorkerIdxAndWorkDate(Long workerIdx, LocalDate workDate);
 
     int countByZoneSub_IdxAndWorkDate(Long zoneSubIdx, LocalDate workDate);
 
-    @Query("""
-            select a from StaffingAssignment a
-                join fetch a.zoneSub zs
-                join fetch zs.zoneMain zm
-            where a.workerIdx = :workerIdx
-            order by a.idx asc
-            """)
-    List<StaffingAssignment> findAssignmentsWithZonesByWorkerOrderByIdxAsc(@Param("workerIdx") Long workerIdx);
-
     /** STAFFING_008 우측 패널 — 명단(workerIdx 들) 기준 최초 배치 행을 찾을 때 로드(IN 비어 있으면 호출하지 말 것). */
-    @Query("""
-            select a from StaffingAssignment a
-                join fetch a.zoneSub zs
-                join fetch zs.zoneMain zm
-            where a.workerIdx in :workerIdxes
-            order by a.workerIdx asc, a.idx asc
-            """)
-    List<StaffingAssignment> findAllWithZonesByWorkerIdxIn(@Param("workerIdxes") Collection<Long> workerIdxes);
-
     @Query("""
             select a from StaffingAssignment a
                 join fetch a.zoneSub zs
@@ -83,15 +52,6 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
             @Param("workerIdxes") Collection<Long> workerIdxes,
             @Param("workDate") LocalDate workDate);
 
-    /** 최종배치 시 전체 배치 행 + 구역 계층 로드 */
-    @Query("""
-            select a from StaffingAssignment a
-                join fetch a.zoneSub zs
-                join fetch zs.zoneMain zm
-            order by a.idx asc
-            """)
-    List<StaffingAssignment> findAllWithZoneHierarchyOrderByIdxAsc();
-
     @Query("""
             select a from StaffingAssignment a
                 join fetch a.zoneSub zs
@@ -102,5 +62,19 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
     List<StaffingAssignment> findAllWithZoneHierarchyByWorkDateOrderByIdxAsc(
             @Param("workDate") LocalDate workDate);
 
+    @Query("""
+            select a from StaffingAssignment a
+                join fetch a.zoneSub zs
+                join fetch zs.zoneMain zm
+            where a.workDate = :workDate
+              and a.siteCode = :siteCode
+            order by a.idx asc
+            """)
+    List<StaffingAssignment> findAllWithZoneHierarchyByWorkDateAndSiteCodeOrderByIdxAsc(
+            @Param("workDate") LocalDate workDate,
+            @Param("siteCode") String siteCode);
+
     void deleteAllByWorkDate(LocalDate workDate);
+
+    void deleteAllByWorkDateAndSiteCode(LocalDate workDate, String siteCode);
 }

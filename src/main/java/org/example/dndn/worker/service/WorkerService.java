@@ -31,7 +31,6 @@ public class WorkerService {
     private final AttendanceRecordRepository attendanceRepository;
     private final AttendanceLogRepository attendanceLogRepository;
     private final WorkerDocumentRepository documentRepository;
-    private final WorkerSanctionRepository sanctionRepository;
     private final SafetyAccidentRepository accidentRepository;
     private final WorkerFixtureGenerator workerFixtureGenerator;
     private final ManagementAttendanceProperties attendanceProps;
@@ -50,8 +49,7 @@ public class WorkerService {
         if (payload.isEmpty()) {
             return WorkerDto.SyncRes.builder()
                     .created(0).updated(0).total(0)
-                    .documentsSynced(0).sanctionsSynced(0)
-                    .accidentsSynced(0).attendanceRecordsSynced(0)
+                    .documentsSynced(0).accidentsSynced(0).attendanceRecordsSynced(0)
                     .build();
         }
         int created = 0, updated = 0;
@@ -80,7 +78,6 @@ public class WorkerService {
                 .updated(updated)
                 .total(payload.size())
                 .documentsSynced(detail.documents)
-                .sanctionsSynced(detail.sanctions)
                 .accidentsSynced(detail.accidents)
                 .attendanceRecordsSynced(detail.attendanceRecords)
                 .build();
@@ -105,16 +102,15 @@ public class WorkerService {
                 .clockOut(null)
                 .manDays(null)
                 .attendanceStatus(AttendanceStatus.PRESENT)
-                .zoneMain(null)
-                .zoneSub(null)
-                .assignedTrade(null)
                 .employmentKind(preservedEk)
+                .siteCode(worker.getSiteCode())
                 .build());
 
         attendanceLogRepository.deleteAllByWorkerIdxAndWorkDate(wid, rosterDate);
         attendanceLogRepository.save(AttendanceLog.builder()
                 .workerIdx(wid)
                 .workDate(rosterDate)
+                .siteCode(worker.getSiteCode())
                 .eventType(AttendanceEventType.CLOCK_IN)
                 .recognizedAt(clockIn)
                 .build());
@@ -146,14 +142,13 @@ public class WorkerService {
                 .clockOut(old.getClockOut())
                 .manDays(old.getManDays())
                 .attendanceStatus(next)
-                .zoneMain(old.getZoneMain())
-                .zoneSub(old.getZoneSub())
-                .assignedTrade(old.getAssignedTrade())
                 .employmentKind(old.getEmploymentKind())
+                .siteCode(worker.getSiteCode())
                 .build());
         attendanceLogRepository.save(AttendanceLog.builder()
                 .workerIdx(worker.getIdx())
                 .workDate(date)
+                .siteCode(worker.getSiteCode())
                 .eventType(AttendanceEventType.CLOCK_IN)
                 .recognizedAt(req.getRecognizedAt())
                 .build());
@@ -187,14 +182,13 @@ public class WorkerService {
                 .clockOut(req.getRecognizedAt())
                 .manDays(old.getManDays())
                 .attendanceStatus(next)
-                .zoneMain(old.getZoneMain())
-                .zoneSub(old.getZoneSub())
-                .assignedTrade(old.getAssignedTrade())
                 .employmentKind(old.getEmploymentKind())
+                .siteCode(worker.getSiteCode())
                 .build());
         attendanceLogRepository.save(AttendanceLog.builder()
                 .workerIdx(worker.getIdx())
                 .workDate(date)
+                .siteCode(worker.getSiteCode())
                 .eventType(AttendanceEventType.CLOCK_OUT)
                 .recognizedAt(req.getRecognizedAt())
                 .build());
@@ -237,26 +231,6 @@ public class WorkerService {
                         .storedFileName(r.getStoredFileName())
                         .build());
                 acc.documents++;
-            }
-        }
-        if (row.getSanctions() != null) {
-            for (WorkerScenarioFixtureRow.SanctionFixtureRow r : row.getSanctions()) {
-                if (sanctionRepository.existsByWorkerIdxAndOccurredAtAndTypeAndReason(
-                        wid,
-                        r.getOccurredAt(),
-                        requireNonNullElse(r.getType(), ""),
-                        requireNonNullElse(r.getReason(), ""))) {
-                    continue;
-                }
-                sanctionRepository.save(WorkerSanction.builder()
-                        .worker(worker)
-                        .occurredAt(r.getOccurredAt())
-                        .type(r.getType())
-                        .reason(r.getReason())
-                        .action(r.getAction())
-                        .active(r.isActive())
-                        .build());
-                acc.sanctions++;
             }
         }
         if (row.getAccidents() != null) {
@@ -309,7 +283,6 @@ public class WorkerService {
 
     private static final class SyncDetailAccumulator {
         int documents;
-        int sanctions;
         int accidents;
         int attendanceRecords;
     }
@@ -399,7 +372,7 @@ public class WorkerService {
         WorkerDto.StateCountRes globalKpi = aggregateAttendance(allRows);
 
         List<WorkerDto.WorkerRes> rows = workerRepository
-                .search(req.getPartnerCompany(), req.getSearchName())
+                .search(req.getSearchName())
                 .stream()
                 .filter(w -> rosterIds.contains(w.getIdx()))
                 .map(w -> WorkerDto.WorkerRes.from(

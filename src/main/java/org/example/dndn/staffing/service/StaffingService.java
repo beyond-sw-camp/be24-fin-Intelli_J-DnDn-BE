@@ -3,13 +3,17 @@ package org.example.dndn.staffing.service;
 import lombok.RequiredArgsConstructor;
 import org.example.dndn.auth.security.AuthAccessService;
 import org.example.dndn.common.exception.BaseException;
+import org.example.dndn.project.model.entity.MasterSchedule;
+import org.example.dndn.project.model.entity.Project;
 import org.example.dndn.staffing.model.StaffingAssignment;
 import org.example.dndn.staffing.model.StaffingDto;
+import org.example.dndn.staffing.model.StaffingLog;
 import org.example.dndn.staffing.model.Trade;
 import org.example.dndn.staffing.model.TradeNeed;
 import org.example.dndn.staffing.model.ZoneMain;
 import org.example.dndn.staffing.model.ZoneSub;
 import org.example.dndn.staffing.repository.StaffingAssignmentRepository;
+import org.example.dndn.staffing.repository.StaffingLogRepository;
 import org.example.dndn.staffing.repository.TradeNeedRepository;
 import org.example.dndn.staffing.repository.ZoneMainRepository;
 import org.example.dndn.staffing.repository.ZoneSubRepository;
@@ -22,7 +26,6 @@ import org.example.dndn.worker.model.enums.JobRank;
 import org.example.dndn.worker.repository.AttendanceRecordRepository;
 import org.example.dndn.worker.repository.WorkerDocumentRepository;
 import org.example.dndn.worker.repository.WorkerRepository;
-import org.example.dndn.worker.service.AttendanceDeploymentSyncService;
 import org.example.dndn.worker.service.FatigueCalculationService;
 import org.example.dndn.workplan.WorkPlanRepository;
 import org.example.dndn.workplan.model.entity.WorkPlan;
@@ -64,32 +67,43 @@ public class StaffingService {
     private static final String SAFETY_EDUCATION_DOCUMENT_KEYWORD = "기초안전보건교육";
 
     private final StaffingAssignmentRepository assignmentRepository;
+    private final StaffingLogRepository staffingLogRepository;
     private final ZoneMainRepository zoneMainRepository;
     private final ZoneSubRepository zoneSubRepository;
     private final TradeNeedRepository tradeNeedRepository;
     private final WorkerRepository workerRepository;
     private final WorkerDocumentRepository workerDocumentRepository;
     private final AttendanceRecordRepository attendanceRecordRepository;
-    private final AttendanceDeploymentSyncService attendanceDeploymentSyncService;
     private final FatigueCalculationService fatigueCalculationService;
     private final WorkPlanRepository workPlanRepository;
     private final AuthAccessService authAccessService;
 
     // STAFFING_003 — 인력 배치 보드 좌측 기본 구역 트리(ZoneMain · ZoneSub 요약 및 집계)
     @Transactional
-    public List<StaffingDto.ZoneMainRes> loadZoneMainTree(LocalDate rosterDate) {
+    public List<StaffingDto.ZoneMainRes> loadZoneMainTree(LocalDate rosterDate, String siteCode) {
         LocalDate date = normalizeDate(rosterDate);
         List<ZoneSub> scheduleSubZones = syncScheduleZonesFromWorkPlans(date);
         if (!scheduleSubZones.isEmpty()) {
+            if (siteCode != null && !siteCode.isBlank()) {
+                String fragment = "[" + siteCode.trim() + "]";
+                scheduleSubZones = scheduleSubZones.stream()
+                        .filter(zs -> {
+                            Project p = zs.getZoneMain().getProject();
+                            return p != null && p.getName() != null && p.getName().contains(fragment);
+                        })
+                        .toList();
+            }
             return buildZoneMainResponses(scheduleSubZones, date);
         }
-        return zoneMainRepository.findAllByOrderByDisplayOrderAsc().stream()
-                .map(StaffingDto.ZoneMainRes::from)
-                .toList();
-    }
 
-    public List<StaffingDto.ZoneMainRes> loadZoneMainTree() {
-        return loadZoneMainTree(LocalDate.now());
+        List<ZoneMain> zoneMains = (siteCode != null && !siteCode.isBlank())
+                ? zoneMainRepository.findAllByProject_NameContainingOrderByDisplayOrderAsc("[" + siteCode.trim() + "]")
+                : zoneMainRepository.findAllByOrderByDisplayOrderAsc();
+
+        List<ZoneSub> subZones = zoneMains.stream()
+                .flatMap(zm -> zm.getZoneSubs().stream())
+                .toList();
+        return buildZoneMainResponses(subZones, date);
     }
 
     /** STAFFING_004 — 상세 구역(ZoneSub) 단건 및 직종별 충원률 원천 데이터 */
@@ -99,10 +113,6 @@ public class StaffingService {
                 .orElseThrow(() -> new BaseException(FAIL));
         EnumMap<Trade, Integer> filledByTrade = countAssignmentsByTrade(zs, date);
         return buildZoneSubResponse(zs, date, filledByTrade);
-    }
-
-    public StaffingDto.ZoneSubRes loadZoneSubDetail(Long zoneSubIdx) {
-        return loadZoneSubDetail(zoneSubIdx, LocalDate.now());
     }
 
     // STAFFING_005 — 상세 구역 이름·직종별 필요 인원 갱신. 전부 삭제 후 요청 목록으로 재등록
@@ -180,13 +190,10 @@ public class StaffingService {
                 .toList();
     }
 
-    // STAFFING_006 DELETE — 해당 ZoneSub 에서 배치 행만 삭제(근태 구역은 최종배치 /staffing/save 시에만 반영).
+    // STAFFING_006 DELETE — 해당 ZoneSub 에서 배치 행만 삭제(구역 배치 확정은 /staffing/save 시 staffing_log 에 기록).
     @Transactional
     public void unassignWorkerFromZoneSub(Long zoneSubIdx, Long workerIdx, LocalDate rosterDate) {
         LocalDate date = normalizeDate(rosterDate);
-        if (!assignmentRepository.existsByZoneSub_IdxAndWorkerIdxAndWorkDate(zoneSubIdx, workerIdx, date)) {
-            return;
-        }
         assignmentRepository.deleteByZoneSub_IdxAndWorkerIdxAndWorkDate(zoneSubIdx, workerIdx, date);
         assignmentRepository.flush();
     }
@@ -219,7 +226,10 @@ public class StaffingService {
             }
         }
 
-        HashSet<Long> staffedIdxes = new HashSet<>(assignmentRepository.findDistinctAssignedWorkerIdxesByWorkDate(date));
+        HashSet<Long> staffedIdxes = new HashSet<>(
+                (siteCode != null && !siteCode.isBlank())
+                        ? assignmentRepository.findDistinctAssignedWorkerIdxesByWorkDateAndSiteCode(date, siteCode.trim())
+                        : assignmentRepository.findDistinctAssignedWorkerIdxesByWorkDate(date));
 
         String kw = req.getKeyword() == null ? "" : req.getKeyword().trim().toLowerCase();
         AffiliationKind affFilter = req.getAffiliationKind();
@@ -233,8 +243,7 @@ public class StaffingService {
             }
             if (!kw.isEmpty()) {
                 String name = w.getName() == null ? "" : w.getName().toLowerCase();
-                String pc = (w.getPartnerCompany() == null ? "" : w.getPartnerCompany()).toLowerCase();
-                if (!name.contains(kw) && !pc.contains(kw)) {
+                if (!name.contains(kw)) {
                     continue;
                 }
             }
@@ -271,6 +280,7 @@ public class StaffingService {
 
         LinkedHashSet<Long> unique = new LinkedHashSet<>(ids);
         List<Long> toBind = new ArrayList<>(unique.size());
+        Map<Long, String> siteCodeByWorkerIdx = new HashMap<>();
         for (Long workerIdx : unique) {
             if (workerIdx == null) {
                 throw new BaseException(FAIL);
@@ -287,6 +297,7 @@ public class StaffingService {
                 throw new BaseException(FAIL);
             }
             toBind.add(workerIdx);
+            siteCodeByWorkerIdx.put(workerIdx, worker.getSiteCode() != null ? worker.getSiteCode() : "");
         }
 
         if (toBind.isEmpty()) {
@@ -304,7 +315,7 @@ public class StaffingService {
                     .zoneSub(zs)
                     .workerIdx(workerIdx)
                     .workDate(date)
-                    .confirmed(false)
+                    .siteCode(siteCodeByWorkerIdx.get(workerIdx))
                     .build());
         }
         assignmentRepository.flush();
@@ -365,36 +376,99 @@ public class StaffingService {
         return out;
     }
 
-    // STAFFING_002 — 투입 인원 초기화
+    // STAFFING_002 — 투입 인원 초기화 (siteCode 전달 시 해당 현장 배치만 삭제)
     @Transactional
-    public void resetBoard(LocalDate rosterDate) {
+    public void resetBoard(LocalDate rosterDate, String siteCode) {
         LocalDate date = normalizeDate(rosterDate);
-        for (Long workerIdx : assignmentRepository.findDistinctAssignedWorkerIdxesByWorkDate(date)) {
-            attendanceDeploymentSyncService.clearPlacementIfPresent(workerIdx, date);
+        if (siteCode != null && !siteCode.isBlank()) {
+            assignmentRepository.deleteAllByWorkDateAndSiteCode(date, siteCode.trim());
+        } else {
+            assignmentRepository.deleteAllByWorkDate(date);
         }
-        assignmentRepository.deleteAllByWorkDate(date);
     }
 
     /**
-     * 배치 확정(최종배치): 현재 {@code staffing_assignment} 의 구역을 해당 일 근태 행의
-     * {@code zone_main} / {@code zone_sub} 에 반영하고, 배치 행을 {@code confirmed = true} 로 둔다.
+     * staffing_log 기반 확정 배치 근무자 조회.
+     * workDate + siteCode 로 필터링 후, 근무자별 가장 최근 로그만 남겨 반환한다.
+     */
+    public List<StaffingDto.ConfirmedWorkerRes> getConfirmedWorkers(LocalDate rosterDate, String siteCode) {
+        LocalDate date = normalizeDate(rosterDate);
+        List<StaffingLog> logs = (siteCode != null && !siteCode.isBlank())
+                ? staffingLogRepository.findAllBySiteCodeAndWorkDateOrderByCreatedAtDesc(siteCode.trim(), date)
+                : staffingLogRepository.findAllByWorkDateOrderByCreatedAtDesc(date);
+        if (logs.isEmpty()) {
+            return List.of();
+        }
+
+        // 근무자별 최신 로그만 유지 (logs 는 created_at DESC 정렬 보장)
+        Map<Long, StaffingLog> latestByWorker = new LinkedHashMap<>();
+        for (StaffingLog log : logs) {
+            latestByWorker.putIfAbsent(log.getWorkerIdx(), log);
+        }
+
+        List<Long> workerIds = new ArrayList<>(latestByWorker.keySet());
+        Map<Long, Worker> workerMap = workerRepository.findAllById(workerIds).stream()
+                .collect(Collectors.toMap(Worker::getIdx, w -> w, (a, b) -> a));
+
+        return workerIds.stream()
+                .map(wid -> {
+                    StaffingLog log = latestByWorker.get(wid);
+                    Worker w = workerMap.get(wid);
+                    if (w == null) return null;
+                    String affiliationLabel = w.getAffiliationKind() == AffiliationKind.DIRECT ? "본사" : "협력사";
+                    String sub = w.getAffiliationKind() == AffiliationKind.DIRECT ? "직영" : w.getTrade();
+                    String affiliationLine = affiliationLabel + " / " + (sub == null ? "" : sub.trim());
+                    String main = log.getZoneMainTitle() != null ? log.getZoneMainTitle() : "";
+                    String sub2 = log.getZoneSubTitle() != null ? log.getZoneSubTitle() : "";
+                    String placement = sub2.isBlank() ? main : (main + " · " + sub2);
+                    return StaffingDto.ConfirmedWorkerRes.builder()
+                            .workerIdx(wid)
+                            .name(w.getName())
+                            .affiliationKind(w.getAffiliationKind())
+                            .affiliationLine(affiliationLine)
+                            .zoneMainTitle(log.getZoneMainTitle())
+                            .zoneSubTitle(log.getZoneSubTitle())
+                            .placement(placement.isBlank() ? "미배치" : placement)
+                            .tradeName(log.getTradeName())
+                            .confirmedAt(log.getCreatedAt())
+                            .build();
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /**
+     * 배치 확정(최종배치): 현재 {@code staffing_assignment} 의 구역 스냅샷을 {@code staffing_log} 에 기록한다.
+     * 기록 후 배치 행은 유지된다(보드에서 계속 조회 가능).
      */
     @Transactional
-    public StaffingDto.SaveSummaryRes finalizePlacementsToAttendance(LocalDate rosterDate) {
+    public StaffingDto.SaveSummaryRes finalizePlacementsToAttendance(LocalDate rosterDate, String siteCode) {
         LocalDate date = normalizeDate(rosterDate);
-        List<StaffingAssignment> all = assignmentRepository.findAllWithZoneHierarchyByWorkDateOrderByIdxAsc(date);
+        List<StaffingAssignment> all = (siteCode != null && !siteCode.isBlank())
+                ? assignmentRepository.findAllWithZoneHierarchyByWorkDateAndSiteCodeOrderByIdxAsc(date, siteCode.trim())
+                : assignmentRepository.findAllWithZoneHierarchyByWorkDateOrderByIdxAsc(date);
         if (all.isEmpty()) {
             return StaffingDto.SaveSummaryRes.builder().assignedCount(0).unassignedCount(0).build();
         }
+
+        List<Long> workerIds = all.stream().map(StaffingAssignment::getWorkerIdx).distinct().toList();
+        Map<Long, String> siteCodeByWorkerIdx = workerRepository.findAllById(workerIds).stream()
+                .collect(Collectors.toMap(Worker::getIdx, w -> w.getSiteCode() != null ? w.getSiteCode() : "", (a, b) -> a));
+
         for (StaffingAssignment a : all) {
             ZoneSub zs = a.getZoneSub();
             ZoneMain zm = zs.getZoneMain();
-            attendanceDeploymentSyncService.applyZonePlacementIfPresent(
-                    a.getWorkerIdx(), date, zm.getTitle(), zs.getTitle(), zs.getTradeName());
-            a.markConfirmed(true);
+            staffingLogRepository.save(StaffingLog.builder()
+                    .workerIdx(a.getWorkerIdx())
+                    .workDate(date)
+                    .zoneSubIdx(zs.getIdx())
+                    .zoneMainTitle(zm.getTitle())
+                    .zoneSubTitle(zs.getTitle())
+                    .tradeName(zs.getTradeName())
+                    .siteCode(siteCodeByWorkerIdx.getOrDefault(a.getWorkerIdx(), ""))
+                    .build());
         }
-        assignmentRepository.saveAll(all);
-        assignmentRepository.flush();
+        staffingLogRepository.flush();
         return StaffingDto.SaveSummaryRes.builder()
                 .assignedCount(all.size())
                 .unassignedCount(0)
@@ -479,7 +553,7 @@ public class StaffingService {
                         .zoneSub(zs)
                         .workerIdx(w.getIdx())
                         .workDate(date)
-                        .confirmed(false)
+                        .siteCode(w.getSiteCode())
                         .build());
                 assignedNow++;
                 remainingSlots--;
@@ -552,7 +626,7 @@ public class StaffingService {
                                 .scheduleGenerated(true)
                                 .sourceKey(groupKey)
                                 .build());
-                group.updateScheduleGroup(scheduleGroupTitle(plan), groupOrder++, groupKey);
+                group.updateScheduleGroup(scheduleGroupTitle(plan), groupOrder++, groupKey, resolveProjectFromPlan(plan));
                 group = zoneMainRepository.save(group);
                 groupByKey.put(groupKey, group);
             }
@@ -638,7 +712,7 @@ public class StaffingService {
             result.add(StaffingDto.ZoneMainRes.builder()
                     .idx(main.getIdx())
                     .title(main.getTitle())
-                    .source("WORK_PLAN")
+                    .source(main.isScheduleGenerated() ? "WORK_PLAN" : "MANUAL")
                     .totalAssigned(totalAssigned)
                     .totalRequired(totalRequired)
                     .subZones(summaries)
@@ -788,5 +862,17 @@ public class StaffingService {
 
     private static String nullToDefault(String text, String fallback) {
         return notBlank(text) ? text : fallback;
+    }
+
+    private Project resolveProjectFromPlan(WorkPlan plan) {
+        if (plan.getTradeProcess() != null) {
+            MasterSchedule ms = plan.getTradeProcess().getMasterSchedule();
+            if (ms != null) return ms.getProject();
+        }
+        if (plan.getParentWorkPlan() != null && plan.getParentWorkPlan().getTradeProcess() != null) {
+            MasterSchedule ms = plan.getParentWorkPlan().getTradeProcess().getMasterSchedule();
+            if (ms != null) return ms.getProject();
+        }
+        return null;
     }
 }

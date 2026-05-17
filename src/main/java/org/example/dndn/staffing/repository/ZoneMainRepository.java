@@ -9,9 +9,13 @@ import java.util.Optional;
 
 public interface ZoneMainRepository extends JpaRepository<ZoneMain, Long> {
 
-    // STAFFING_003 — 표시 순서대로 ZoneMain 과 소속 ZoneSub 를 한 번에 로드
+    // STAFFING_003 — 표시 순서대로 ZoneMain + ZoneSub 전체 로드 (현장 필터 없음)
     @EntityGraph(attributePaths = {"zoneSubs"})
     List<ZoneMain> findAllByOrderByDisplayOrderAsc();
+
+    // STAFFING_003 — 현장 코드(project.name LIKE %[siteCode]%) 기준 필터
+    @EntityGraph(attributePaths = {"zoneSubs"})
+    List<ZoneMain> findAllByProject_NameContainingOrderByDisplayOrderAsc(String siteCodeFragment);
 
     Optional<ZoneMain> findBySourceKey(String sourceKey);
 }

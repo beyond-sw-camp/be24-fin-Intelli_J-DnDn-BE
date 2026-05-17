@@ -134,8 +134,8 @@ public class FatigueCalculationService {
             tradeExplanation =
                     "목공·철근·용접·타일 문자열 미매칭 — 기본("
                             + TRADE_UNKNOWN_POINTS
-                            + "점)·subLabel="
-                            + nullable(worker.getSubLabel());
+                            + "점)·trade="
+                            + nullable(worker.getTrade());
         }
 
         return WorkerDetailDto.FatigueSummaryRes.builder()
@@ -167,8 +167,8 @@ public class FatigueCalculationService {
     }
 
     private static String humanTradeLabel(Worker w, Trade t) {
-        return w.getSubLabel() != null && !w.getSubLabel().isBlank()
-                ? t.name() + "(" + w.getSubLabel().trim() + ")"
+        return w.getTrade() != null && !w.getTrade().isBlank()
+                ? t.name() + "(" + w.getTrade().trim() + ")"
                 : t.name();
     }
 
