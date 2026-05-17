@@ -26,6 +26,7 @@ public enum BaseResponseStatus {
 
     // 3300번대 인력 배치(STAFFING) 오류 — 프론트 모달 매핑
     ASSIGN_OVERFLOW(false, 3350, "투입 가능 인원을 초과했습니다."),
+    STAFFING_WORKER_NOT_PERMITTED(false, 3351, "현재 계정 권한으로 배치할 수 없는 작업자입니다."),
 
     // ★ 3400번대 문서 관리 오류
     DOCUMENT_DUPLICATE_MASTER(false, 3401, "마스터 공정표는 이미 등록되어 있습니다. 기존 문서를 먼저 삭제해주세요."),

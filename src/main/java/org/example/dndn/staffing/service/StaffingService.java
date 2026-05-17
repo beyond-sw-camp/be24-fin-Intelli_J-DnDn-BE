@@ -1,6 +1,7 @@
 package org.example.dndn.staffing.service;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dndn.auth.model.entity.SystemUser;
 import org.example.dndn.auth.security.AuthAccessService;
 import org.example.dndn.common.exception.BaseException;
 import org.example.dndn.project.model.entity.MasterSchedule;
@@ -54,6 +55,7 @@ import java.util.regex.Pattern;
 
 import static org.example.dndn.common.model.BaseResponseStatus.ASSIGN_OVERFLOW;
 import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
+import static org.example.dndn.common.model.BaseResponseStatus.STAFFING_WORKER_NOT_PERMITTED;
 
 @Service
 @RequiredArgsConstructor
@@ -194,6 +196,14 @@ public class StaffingService {
     @Transactional
     public void unassignWorkerFromZoneSub(Long zoneSubIdx, Long workerIdx, LocalDate rosterDate) {
         LocalDate date = normalizeDate(rosterDate);
+        SystemUser currentUser = authAccessService.currentUser().orElse(null);
+        if (currentUser != null) {
+            Worker worker = workerRepository.findById(workerIdx)
+                    .orElseThrow(() -> new BaseException(FAIL));
+            if (!canCurrentUserStaffWorker(currentUser, worker)) {
+                throw new BaseException(STAFFING_WORKER_NOT_PERMITTED);
+            }
+        }
         assignmentRepository.deleteByZoneSub_IdxAndWorkerIdxAndWorkDate(zoneSubIdx, workerIdx, date);
     }
 
@@ -230,10 +240,14 @@ public class StaffingService {
         String kw = req.getKeyword() == null ? "" : req.getKeyword().trim().toLowerCase();
         AffiliationKind affFilter = req.getAffiliationKind();
         boolean onlyUnassigned = req.isUnassignedOnly();
+        SystemUser currentUser = authAccessService.currentUser().orElse(null);
 
         List<StaffingDto.AssignedWorkerRes> rows = new ArrayList<>(rosterRows.size());
         for (AttendanceRecord ar : rosterRows) {
             Worker w = ar.getWorker();
+            if (!canCurrentUserStaffWorker(currentUser, w)) {
+                continue;
+            }
             if (affFilter != null && w.getAffiliationKind() != affFilter) {
                 continue;
             }
@@ -277,6 +291,7 @@ public class StaffingService {
         LinkedHashSet<Long> unique = new LinkedHashSet<>(ids);
         List<Long> toBind = new ArrayList<>(unique.size());
         Map<Long, String> siteCodeByWorkerIdx = new HashMap<>();
+        SystemUser currentUser = authAccessService.currentUser().orElse(null);
         for (Long workerIdx : unique) {
             if (workerIdx == null) {
                 throw new BaseException(FAIL);
@@ -291,6 +306,9 @@ public class StaffingService {
             Worker worker = workerRepository.findById(workerIdx).orElseThrow(() -> new BaseException(FAIL));
             if (worker.getJobRank() != JobRank.WORKER) {
                 throw new BaseException(FAIL);
+            }
+            if (!canCurrentUserStaffWorker(currentUser, worker)) {
+                throw new BaseException(STAFFING_WORKER_NOT_PERMITTED);
             }
             toBind.add(workerIdx);
             siteCodeByWorkerIdx.put(workerIdx, worker.getSiteCode() != null ? worker.getSiteCode() : "");
@@ -871,6 +889,25 @@ public class StaffingService {
 
     private static String nullToDefault(String text, String fallback) {
         return notBlank(text) ? text : fallback;
+    }
+
+    /**
+     * 현재 로그인 사용자가 해당 작업자를 인력배치할 수 있는지 검사.
+     * <ul>
+     *   <li>SITE_DIRECTOR / SITE_MANAGER → 본사(DIRECT) 작업자만 배치 가능</li>
+     *   <li>SECTION_LEADER / SECTION_SUPERVISOR → 자신의 공종과 일치하는 작업자만 배치 가능</li>
+     *   <li>ADMIN / HEADQUARTOR → 제한 없음</li>
+     * </ul>
+     */
+    private boolean canCurrentUserStaffWorker(SystemUser user, Worker worker) {
+        if (user == null) return true;
+        return switch (user.getRole()) {
+            case SITE_DIRECTOR, SITE_MANAGER ->
+                    worker.getAffiliationKind() == AffiliationKind.DIRECT;
+            case SECTION_LEADER, SECTION_SUPERVISOR ->
+                    authAccessService.tradeMatches(worker.getTrade(), user.getTrade());
+            default -> true;
+        };
     }
 
     private Project resolveProjectFromPlan(WorkPlan plan) {
