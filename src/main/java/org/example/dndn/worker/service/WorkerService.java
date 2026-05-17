@@ -20,7 +20,12 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNullElse;
-import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
+import static org.example.dndn.common.model.BaseResponseStatus.WORKER_ATTENDANCE_NOT_FOUND;
+import static org.example.dndn.common.model.BaseResponseStatus.WORKER_CLOCK_IN_REQUIRED;
+import static org.example.dndn.common.model.BaseResponseStatus.WORKER_NOT_FOUND;
+import static org.example.dndn.common.model.BaseResponseStatus.WORKER_SITE_MISMATCH;
+import static org.example.dndn.common.model.BaseResponseStatus.WORKER_SYNC_MISSING_DATE;
+import static org.example.dndn.common.model.BaseResponseStatus.WORKER_SYNC_MISSING_SITE_CODE;
 
 @Service
 @RequiredArgsConstructor
@@ -40,10 +45,10 @@ public class WorkerService {
     @Transactional
     public WorkerDto.SyncRes syncWorkforce(String siteCode, LocalDate rosterDate) {
         if (siteCode == null || siteCode.isBlank()) {
-            throw new BaseException(FAIL);
+            throw new BaseException(WORKER_SYNC_MISSING_SITE_CODE);
         }
         if (rosterDate == null) {
-            throw new BaseException(FAIL);
+            throw new BaseException(WORKER_SYNC_MISSING_DATE);
         }
         List<WorkerScenarioFixtureRow> payload = workerFixtureGenerator.generate(siteCode);
         if (payload.isEmpty()) {
@@ -132,11 +137,10 @@ public class WorkerService {
     public WorkerDto.GateAttendanceRes recordGateClockIn(WorkerDto.GateClockInReq req) {
         LocalDate date = req.getWorkDate() != null ? req.getWorkDate() : LocalDate.now();
         Worker worker = workerRepository.findById(req.getWorkerIdx())
-                .orElseThrow(() -> new BaseException(FAIL));
+                .orElseThrow(() -> new BaseException(WORKER_NOT_FOUND));
         validateSiteCode(req.getSiteCode(), worker);
         AttendanceRecord old = attendanceRepository.findByWorkerIdxAndWorkDate(req.getWorkerIdx(), date)
-                .orElseThrow(() -> new BaseException(FAIL));
-                // .orElseThrow(() -> new BaseException("ATT_NOT_FOUND", "해당 일자 명단에 없습니다."));
+                .orElseThrow(() -> new BaseException(WORKER_ATTENDANCE_NOT_FOUND));
         LocalTime deadline = attendanceProps.getOfficialStart().plusMinutes(attendanceProps.getLateGraceMinutes());
         AttendanceStatus next = req.getRecognizedAt().isAfter(deadline) ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
 
@@ -167,14 +171,12 @@ public class WorkerService {
     public WorkerDto.GateAttendanceRes recordGateClockOut(WorkerDto.GateClockOutReq req) {
         LocalDate date = req.getWorkDate() != null ? req.getWorkDate() : LocalDate.now();
         Worker worker = workerRepository.findById(req.getWorkerIdx())
-                .orElseThrow(() -> new BaseException(FAIL));
+                .orElseThrow(() -> new BaseException(WORKER_NOT_FOUND));
         validateSiteCode(req.getSiteCode(), worker);
         AttendanceRecord old = attendanceRepository.findByWorkerIdxAndWorkDate(req.getWorkerIdx(), date)
-                .orElseThrow(() -> new BaseException(FAIL));
-                // .orElseThrow(() -> new BaseException("ATT_NOT_FOUND", "해당 일자 명단에 없습니다."));
+                .orElseThrow(() -> new BaseException(WORKER_ATTENDANCE_NOT_FOUND));
         if (old.getClockIn() == null) {
-            throw new BaseException(FAIL);
-            // throw new BaseException("ATT_CLOCK_IN_MISSING", "출근 기록 없이 퇴근할 수 없습니다.");
+            throw new BaseException(WORKER_CLOCK_IN_REQUIRED);
         }
         AttendanceStatus next = req.getRecognizedAt().isBefore(attendanceProps.getOfficialEnd())
                 ? AttendanceStatus.EARLY_LEAVE
@@ -206,7 +208,7 @@ public class WorkerService {
     private static void validateSiteCode(String reqSiteCode, Worker worker) {
         if (reqSiteCode == null || reqSiteCode.isBlank()) return;
         if (!reqSiteCode.trim().equals(worker.getSiteCode())) {
-            throw new BaseException(FAIL);
+            throw new BaseException(WORKER_SITE_MISMATCH);
         }
     }
 

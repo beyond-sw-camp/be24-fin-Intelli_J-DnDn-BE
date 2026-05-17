@@ -16,7 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
+import static org.example.dndn.common.model.BaseResponseStatus.ACCOUNT_DUPLICATE_LOGIN_ID;
+import static org.example.dndn.common.model.BaseResponseStatus.ACCOUNT_NOT_FOUND;
+import static org.example.dndn.common.model.BaseResponseStatus.ACCOUNT_REQUEST_ALREADY_PROCESSED;
+import static org.example.dndn.common.model.BaseResponseStatus.ACCOUNT_REQUEST_NOT_FOUND;
 
 @Service
 @RequiredArgsConstructor
@@ -31,7 +34,7 @@ public class AccountRequestService {
     @Transactional
     public AccountRequestDto.Res create(Long requesterIdx, AccountRequestDto.CreateReq req) {
         SystemUser requester = userRepository.findById(requesterIdx)
-                .orElseThrow(() -> new BaseException(FAIL));
+                .orElseThrow(() -> new BaseException(ACCOUNT_NOT_FOUND));
 
         AccountRequest saved = requestRepository.save(AccountRequest.builder()
                 .requester(requester)
@@ -61,10 +64,10 @@ public class AccountRequestService {
     public AccountRequestDto.Res approve(Long idx, AccountRequestDto.ApproveReq req) {
         AccountRequest request = findById(idx);
         if (request.getStatus() != RequestStatus.PENDING) {
-            throw new BaseException(FAIL);
+            throw new BaseException(ACCOUNT_REQUEST_ALREADY_PROCESSED);
         }
         if (userRepository.existsByLoginId(request.getRequestedLoginId())) {
-            throw new BaseException(FAIL);
+            throw new BaseException(ACCOUNT_DUPLICATE_LOGIN_ID);
         }
 
         String rawPassword = (req.getInitialPassword() != null && req.getInitialPassword().length() >= 8)
@@ -90,7 +93,7 @@ public class AccountRequestService {
     public AccountRequestDto.Res reject(Long idx, AccountRequestDto.RejectReq req) {
         AccountRequest request = findById(idx);
         if (request.getStatus() != RequestStatus.PENDING) {
-            throw new BaseException(FAIL);
+            throw new BaseException(ACCOUNT_REQUEST_ALREADY_PROCESSED);
         }
         request.reject(req.getNote());
         return AccountRequestDto.Res.from(request);
@@ -98,6 +101,6 @@ public class AccountRequestService {
 
     private AccountRequest findById(Long idx) {
         return requestRepository.findById(idx)
-                .orElseThrow(() -> new BaseException(FAIL));
+                .orElseThrow(() -> new BaseException(ACCOUNT_REQUEST_NOT_FOUND));
     }
 }

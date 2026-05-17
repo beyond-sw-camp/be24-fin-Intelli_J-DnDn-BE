@@ -54,15 +54,21 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.example.dndn.common.model.BaseResponseStatus.ASSIGN_OVERFLOW;
-import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
+import static org.example.dndn.common.model.BaseResponseStatus.STAFFING_ALREADY_ASSIGNED;
+import static org.example.dndn.common.model.BaseResponseStatus.STAFFING_INVALID_JOB_RANK;
+import static org.example.dndn.common.model.BaseResponseStatus.STAFFING_INVALID_REQUEST;
+import static org.example.dndn.common.model.BaseResponseStatus.STAFFING_INVALID_TITLE;
+import static org.example.dndn.common.model.BaseResponseStatus.STAFFING_WORKER_NOT_FOUND;
 import static org.example.dndn.common.model.BaseResponseStatus.STAFFING_WORKER_NOT_PERMITTED;
+import static org.example.dndn.common.model.BaseResponseStatus.STAFFING_ZONE_NOT_FOUND;
+import static org.example.dndn.common.model.BaseResponseStatus.WORKER_NOT_FOUND;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class StaffingService {
 
-    /** 명단·스냅샷 조회 시 “출근 처리됨”으로 볼 근태(지각 포함). */
+    /** 명단·스냅샷 조회 시 "출근 처리됨"으로 볼 근태(지각 포함). */
     private static final List<AttendanceStatus> STAFFING_ATTENDANCE_ONSITE =
             List.of(AttendanceStatus.PRESENT, AttendanceStatus.LATE);
     private static final Pattern TIME_TOKEN = Pattern.compile("\\b\\d{1,2}:\\d{2}\\b");
@@ -112,7 +118,7 @@ public class StaffingService {
     public StaffingDto.ZoneSubRes loadZoneSubDetail(Long zoneSubIdx, LocalDate rosterDate) {
         LocalDate date = normalizeDate(rosterDate);
         ZoneSub zs = zoneSubRepository.findWithStaffingRelationsByIdx(zoneSubIdx)
-                .orElseThrow(() -> new BaseException(FAIL));
+                .orElseThrow(() -> new BaseException(STAFFING_ZONE_NOT_FOUND));
         EnumMap<Trade, Integer> filledByTrade = countAssignmentsByTrade(zs, date);
         return buildZoneSubResponse(zs, date, filledByTrade);
     }
@@ -121,11 +127,12 @@ public class StaffingService {
     @Transactional
     public void updateZoneSub(Long zoneSubIdx, StaffingDto.ZoneUpdateReq req) {
         if (req == null) {
-            throw new BaseException(FAIL);
+            throw new BaseException(STAFFING_INVALID_REQUEST);
         }
-        ZoneSub zs = zoneSubRepository.findById(zoneSubIdx).orElseThrow(() -> new BaseException(FAIL));
+        ZoneSub zs = zoneSubRepository.findById(zoneSubIdx)
+                .orElseThrow(() -> new BaseException(STAFFING_ZONE_NOT_FOUND));
         if (req.getTitle() == null || req.getTitle().isBlank()) {
-            throw new BaseException(FAIL);
+            throw new BaseException(STAFFING_INVALID_TITLE);
         }
         zs.rename(req.getTitle().trim());
 
@@ -154,7 +161,7 @@ public class StaffingService {
             Long zoneSubIdx, LocalDate rosterDate) {
         LocalDate date = normalizeDate(rosterDate);
         if (!zoneSubRepository.existsById(zoneSubIdx)) {
-            throw new BaseException(FAIL);
+            throw new BaseException(STAFFING_ZONE_NOT_FOUND);
         }
         List<StaffingAssignment> rows =
                 assignmentRepository.findAllByZoneSubAndWorkDateWithHierarchy(zoneSubIdx, date);
@@ -199,7 +206,7 @@ public class StaffingService {
         SystemUser currentUser = authAccessService.currentUser().orElse(null);
         if (currentUser != null) {
             Worker worker = workerRepository.findById(workerIdx)
-                    .orElseThrow(() -> new BaseException(FAIL));
+                    .orElseThrow(() -> new BaseException(WORKER_NOT_FOUND));
             if (!canCurrentUserStaffWorker(currentUser, worker)) {
                 throw new BaseException(STAFFING_WORKER_NOT_PERMITTED);
             }
@@ -277,7 +284,7 @@ public class StaffingService {
     public void assignWorkers(Long zoneSubIdx, StaffingDto.AssignReq req, LocalDate rosterDate) {
         LocalDate date = normalizeDate(rosterDate);
         if (req == null) {
-            throw new BaseException(FAIL);
+            throw new BaseException(STAFFING_INVALID_REQUEST);
         }
 
         List<Long> ids = req.getWorkerIds();
@@ -286,7 +293,7 @@ public class StaffingService {
         }
 
         ZoneSub zs = zoneSubRepository.findWithStaffingRelationsByIdx(zoneSubIdx)
-                .orElseThrow(() -> new BaseException(FAIL));
+                .orElseThrow(() -> new BaseException(STAFFING_ZONE_NOT_FOUND));
 
         LinkedHashSet<Long> unique = new LinkedHashSet<>(ids);
         List<Long> toBind = new ArrayList<>(unique.size());
@@ -294,18 +301,19 @@ public class StaffingService {
         SystemUser currentUser = authAccessService.currentUser().orElse(null);
         for (Long workerIdx : unique) {
             if (workerIdx == null) {
-                throw new BaseException(FAIL);
+                throw new BaseException(STAFFING_INVALID_REQUEST);
             }
             if (assignmentRepository.existsByZoneSub_IdxAndWorkerIdxAndWorkDate(zoneSubIdx, workerIdx, date)) {
                 continue;
             }
             if (assignmentRepository.existsByWorkerIdxAndWorkDate(workerIdx, date)) {
-                throw new BaseException(FAIL);
+                throw new BaseException(STAFFING_ALREADY_ASSIGNED);
             }
 
-            Worker worker = workerRepository.findById(workerIdx).orElseThrow(() -> new BaseException(FAIL));
+            Worker worker = workerRepository.findById(workerIdx)
+                    .orElseThrow(() -> new BaseException(STAFFING_WORKER_NOT_FOUND));
             if (worker.getJobRank() != JobRank.WORKER) {
-                throw new BaseException(FAIL);
+                throw new BaseException(STAFFING_INVALID_JOB_RANK);
             }
             if (!canCurrentUserStaffWorker(currentUser, worker)) {
                 throw new BaseException(STAFFING_WORKER_NOT_PERMITTED);

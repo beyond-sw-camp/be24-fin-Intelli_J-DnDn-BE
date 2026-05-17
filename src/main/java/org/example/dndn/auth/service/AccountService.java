@@ -12,7 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
+import static org.example.dndn.common.model.BaseResponseStatus.ACCOUNT_DUPLICATE_LOGIN_ID;
+import static org.example.dndn.common.model.BaseResponseStatus.ACCOUNT_NOT_FOUND;
 
 @Service
 @RequiredArgsConstructor
@@ -35,7 +36,7 @@ public class AccountService {
     @Transactional
     public AccountDto.Res create(AccountDto.CreateReq req) {
         if (userRepository.existsByLoginId(req.getLoginId())) {
-            throw new BaseException(FAIL);
+            throw new BaseException(ACCOUNT_DUPLICATE_LOGIN_ID);
         }
         SystemUser saved = userRepository.save(SystemUser.builder()
                 .loginId(req.getLoginId())
@@ -67,6 +68,6 @@ public class AccountService {
 
     private SystemUser findById(Long idx) {
         return userRepository.findById(idx)
-                .orElseThrow(() -> new BaseException(FAIL));
+                .orElseThrow(() -> new BaseException(ACCOUNT_NOT_FOUND));
     }
 }

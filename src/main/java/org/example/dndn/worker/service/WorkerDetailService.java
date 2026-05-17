@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.example.dndn.common.model.BaseResponseStatus.FAIL;
+import static org.example.dndn.common.model.BaseResponseStatus.WORKER_NOT_FOUND;
 
 @Service
 @RequiredArgsConstructor
@@ -94,6 +94,7 @@ public class WorkerDetailService {
                 .map(WorkerDetailDto.DeploymentRes::from)
                 .collect(Collectors.toList());
     }
+
     /** MANAGEMENT_009 안전 사고 이력 조회 */
     public List<WorkerDetailDto.AccidentRes> getAccidents(Long workerIdx) {
         ensureExists(workerIdx);
@@ -104,12 +105,12 @@ public class WorkerDetailService {
 
     private Worker findWorker(Long workerIdx) {
         return workerRepository.findById(workerIdx)
-                .orElseThrow(() -> new BaseException(FAIL));
+                .orElseThrow(() -> new BaseException(WORKER_NOT_FOUND));
     }
 
     private void ensureExists(Long workerIdx) {
         if (!workerRepository.existsById(workerIdx)) {
-            throw new BaseException(FAIL);
+            throw new BaseException(WORKER_NOT_FOUND);
         }
     }
 }
