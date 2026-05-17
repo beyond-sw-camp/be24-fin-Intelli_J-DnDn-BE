@@ -77,4 +77,20 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
     void deleteAllByWorkDate(LocalDate workDate);
 
     void deleteAllByWorkDateAndSiteCode(LocalDate workDate, String siteCode);
+
+    /** buildZoneMainResponses 용 — ZoneSub별 배치 수를 GROUP BY 1쿼리로 집계 (M번 COUNT 대체) */
+    @Query("""
+            select a.zoneSub.idx as zoneSubIdx, count(a) as cnt
+            from StaffingAssignment a
+            where a.zoneSub.idx in :zoneSubIdxes and a.workDate = :workDate
+            group by a.zoneSub.idx
+            """)
+    List<ZoneSubCountProjection> countGroupedByZoneSubIdxAndWorkDate(
+            @Param("zoneSubIdxes") Collection<Long> zoneSubIdxes,
+            @Param("workDate") LocalDate workDate);
+
+    interface ZoneSubCountProjection {
+        Long getZoneSubIdx();
+        Long getCnt();
+    }
 }

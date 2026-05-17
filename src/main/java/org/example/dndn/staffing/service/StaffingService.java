@@ -195,7 +195,6 @@ public class StaffingService {
     public void unassignWorkerFromZoneSub(Long zoneSubIdx, Long workerIdx, LocalDate rosterDate) {
         LocalDate date = normalizeDate(rosterDate);
         assignmentRepository.deleteByZoneSub_IdxAndWorkerIdxAndWorkDate(zoneSubIdx, workerIdx, date);
-        assignmentRepository.flush();
     }
 
     // STAFFING_008 근태 명단 필터 — PRESENT·LATE(지각)만 포함, 현장 분리
@@ -226,10 +225,7 @@ public class StaffingService {
             }
         }
 
-        HashSet<Long> staffedIdxes = new HashSet<>(
-                (siteCode != null && !siteCode.isBlank())
-                        ? assignmentRepository.findDistinctAssignedWorkerIdxesByWorkDateAndSiteCode(date, siteCode.trim())
-                        : assignmentRepository.findDistinctAssignedWorkerIdxesByWorkDate(date));
+        HashSet<Long> staffedIdxes = new HashSet<>(firstAssignByWorker.keySet());
 
         String kw = req.getKeyword() == null ? "" : req.getKeyword().trim().toLowerCase();
         AffiliationKind affFilter = req.getAffiliationKind();
@@ -318,7 +314,6 @@ public class StaffingService {
                     .siteCode(siteCodeByWorkerIdx.get(workerIdx))
                     .build());
         }
-        assignmentRepository.flush();
     }
 
     private Set<Long> findSafetyEducationCompletedWorkerIds(List<Long> workerIds) {
@@ -330,7 +325,7 @@ public class StaffingService {
                         workerIds,
                         SAFETY_EDUCATION_DOCUMENT_KEYWORD)
                 .stream()
-                .map(document -> document.getWorker().getIdx())
+                .map(document -> document.getWorkerIdx())
                 .collect(Collectors.toSet());
     }
 
@@ -468,7 +463,6 @@ public class StaffingService {
                     .siteCode(siteCodeByWorkerIdx.getOrDefault(a.getWorkerIdx(), ""))
                     .build());
         }
-        staffingLogRepository.flush();
         return StaffingDto.SaveSummaryRes.builder()
                 .assignedCount(all.size())
                 .unassignedCount(0)
@@ -559,8 +553,6 @@ public class StaffingService {
                 remainingSlots--;
             }
         }
-        assignmentRepository.flush();
-
         return StaffingDto.SaveSummaryRes.builder()
                 .assignedCount(assignedNow)
                 .unassignedCount(queue.size())
@@ -612,6 +604,14 @@ public class StaffingService {
             return List.of();
         }
 
+        Set<String> allGroupKeys = weeklyPlans.stream().map(this::scheduleGroupKey).collect(Collectors.toSet());
+        Map<String, ZoneMain> existingMains = zoneMainRepository.findAllBySourceKeyIn(allGroupKeys)
+                .stream().collect(Collectors.toMap(ZoneMain::getSourceKey, zm -> zm, (a, b) -> a));
+
+        Set<Long> allPlanIdxes = weeklyPlans.stream().map(WorkPlan::getIdx).collect(Collectors.toSet());
+        Map<Long, ZoneSub> existingSubsByPlanIdx = zoneSubRepository.findAllByWorkPlanIdxIn(allPlanIdxes)
+                .stream().collect(Collectors.toMap(ZoneSub::getWorkPlanIdx, zs -> zs, (a, b) -> a));
+
         Map<String, ZoneMain> groupByKey = new LinkedHashMap<>();
         int groupOrder = 0;
         int subOrder = 0;
@@ -619,19 +619,21 @@ public class StaffingService {
             String groupKey = scheduleGroupKey(plan);
             ZoneMain group = groupByKey.get(groupKey);
             if (group == null) {
-                group = zoneMainRepository.findBySourceKey(groupKey)
-                        .orElseGet(() -> ZoneMain.builder()
-                                .title(scheduleGroupTitle(plan))
-                                .displayOrder(groupByKey.size())
-                                .scheduleGenerated(true)
-                                .sourceKey(groupKey)
-                                .build());
+                group = existingMains.getOrDefault(groupKey, null);
+                if (group == null) {
+                    group = ZoneMain.builder()
+                            .title(scheduleGroupTitle(plan))
+                            .displayOrder(groupByKey.size())
+                            .scheduleGenerated(true)
+                            .sourceKey(groupKey)
+                            .build();
+                }
                 group.updateScheduleGroup(scheduleGroupTitle(plan), groupOrder++, groupKey, resolveProjectFromPlan(plan));
                 group = zoneMainRepository.save(group);
                 groupByKey.put(groupKey, group);
             }
 
-            ZoneSub sub = zoneSubRepository.findByWorkPlanIdx(plan.getIdx()).orElse(null);
+            ZoneSub sub = existingSubsByPlanIdx.get(plan.getIdx());
             if (sub == null) {
                 sub = ZoneSub.builder()
                         .zoneMain(group)
@@ -658,7 +660,6 @@ public class StaffingService {
             sub = zoneSubRepository.save(sub);
             replaceTradeNeedsFromWorkPlan(sub, plan);
         }
-        zoneSubRepository.flush();
         return zoneSubRepository.findAllScheduleSubZonesByWorkDate(date);
     }
 
@@ -694,6 +695,14 @@ public class StaffingService {
     }
 
     private List<StaffingDto.ZoneMainRes> buildZoneMainResponses(List<ZoneSub> subZones, LocalDate date) {
+        Set<Long> subIdxes = subZones.stream().map(ZoneSub::getIdx).collect(Collectors.toSet());
+        Map<Long, Long> countBySubIdx = subIdxes.isEmpty() ? Map.of()
+                : assignmentRepository.countGroupedByZoneSubIdxAndWorkDate(subIdxes, date)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                StaffingAssignmentRepository.ZoneSubCountProjection::getZoneSubIdx,
+                                StaffingAssignmentRepository.ZoneSubCountProjection::getCnt));
+
         Map<Long, List<ZoneSub>> grouped = subZones.stream()
                 .collect(Collectors.groupingBy(
                         zs -> zs.getZoneMain().getIdx(),
@@ -705,7 +714,7 @@ public class StaffingService {
             if (rows.isEmpty()) continue;
             ZoneMain main = rows.get(0).getZoneMain();
             List<StaffingDto.ZoneSubSummaryRes> summaries = rows.stream()
-                    .map(zs -> buildZoneSubSummary(zs, date))
+                    .map(zs -> buildZoneSubSummary(zs, countBySubIdx.getOrDefault(zs.getIdx(), 0L).intValue()))
                     .toList();
             int totalAssigned = summaries.stream().mapToInt(StaffingDto.ZoneSubSummaryRes::getAssignedCount).sum();
             int totalRequired = summaries.stream().mapToInt(StaffingDto.ZoneSubSummaryRes::getRequired).sum();
@@ -721,7 +730,7 @@ public class StaffingService {
         return result;
     }
 
-    private StaffingDto.ZoneSubSummaryRes buildZoneSubSummary(ZoneSub zs, LocalDate date) {
+    private StaffingDto.ZoneSubSummaryRes buildZoneSubSummary(ZoneSub zs, int assignedCount) {
         return StaffingDto.ZoneSubSummaryRes.builder()
                 .idx(zs.getIdx())
                 .workPlanId(zs.getWorkPlanIdx())
@@ -731,7 +740,7 @@ public class StaffingService {
                 .workTime(zs.getWorkTime())
                 .workDate(zs.getWorkDate())
                 .required(zs.getRequired())
-                .assignedCount(assignmentRepository.countByZoneSub_IdxAndWorkDate(zs.getIdx(), date))
+                .assignedCount(assignedCount)
                 .build();
     }
 

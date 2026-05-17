@@ -55,18 +55,25 @@ public class WorkerService {
         int created = 0, updated = 0;
         SyncDetailAccumulator detail = new SyncDetailAccumulator();
 
+        Set<String> externalCodes = payload.stream()
+                .map(WorkerScenarioFixtureRow::getExternalCode)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<String, Worker> existingByCode = workerRepository.findAllByExternalCodeIn(externalCodes)
+                .stream()
+                .collect(Collectors.toMap(Worker::getExternalCode, w -> w, (a, b) -> a));
+
         for (WorkerScenarioFixtureRow item : payload) {
             Worker worker;
-            Optional<Worker> existing = workerRepository.findByExternalCode(item.getExternalCode());
-            if (existing.isPresent()) {
-                worker = existing.get();
-                worker.updateFromSync(item.toWorkerEntity());
+            Worker existing = item.getExternalCode() != null ? existingByCode.get(item.getExternalCode()) : null;
+            if (existing != null) {
+                existing.updateFromSync(item.toWorkerEntity());
+                worker = existing;
                 updated++;
             } else {
                 worker = workerRepository.save(item.toWorkerEntity());
                 created++;
             }
-            workerRepository.flush();
 
             mergeScenarioDetailsFromFixture(worker, item, detail);
             normalizeRosterDayPending(worker, rosterDate, detail);
@@ -318,8 +325,12 @@ public class WorkerService {
                     .build();
         }
 
-        List<Worker> workers = workerRepository.findAllById(attendanceByWorkerIdx.keySet());
-        workers.sort(Comparator.comparing(Worker::getName, Comparator.nullsLast(String::compareTo)));
+        List<Worker> workers = records.stream()
+                .map(AttendanceRecord::getWorker)
+                .filter(Objects::nonNull)
+                .distinct()
+                .sorted(Comparator.comparing(Worker::getName, Comparator.nullsLast(String::compareTo)))
+                .toList();
 
         Set<Long> safetyEducationCompletedWorkerIds = findSafetyEducationCompletedWorkerIds(attendanceByWorkerIdx.keySet());
         List<WorkerDto.WorkerRes> rows = workers.stream()
@@ -359,8 +370,12 @@ public class WorkerService {
         }
 
         Set<Long> rosterIds = attendanceByWorkerIdx.keySet();
-        List<Worker> rosterWorkers = workerRepository.findAllById(rosterIds);
-        rosterWorkers.sort(Comparator.comparing(Worker::getName, Comparator.nullsLast(String::compareTo)));
+        List<Worker> rosterWorkers = records.stream()
+                .map(AttendanceRecord::getWorker)
+                .filter(Objects::nonNull)
+                .distinct()
+                .sorted(Comparator.comparing(Worker::getName, Comparator.nullsLast(String::compareTo)))
+                .toList();
 
         Set<Long> safetyEducationCompletedWorkerIds = findSafetyEducationCompletedWorkerIds(rosterIds);
         List<WorkerDto.WorkerRes> allRows = rosterWorkers.stream()
@@ -372,7 +387,7 @@ public class WorkerService {
         WorkerDto.StateCountRes globalKpi = aggregateAttendance(allRows);
 
         List<WorkerDto.WorkerRes> rows = workerRepository
-                .search(req.getSearchName())
+                .search(req.getSearchName(), siteCode)
                 .stream()
                 .filter(w -> rosterIds.contains(w.getIdx()))
                 .map(w -> WorkerDto.WorkerRes.from(
@@ -400,7 +415,7 @@ public class WorkerService {
                         new ArrayList<>(workerIds),
                         SAFETY_EDUCATION_DOCUMENT_KEYWORD)
                 .stream()
-                .map(document -> document.getWorker().getIdx())
+                .map(WorkerDocument::getWorkerIdx)
                 .collect(Collectors.toSet());
     }
 
