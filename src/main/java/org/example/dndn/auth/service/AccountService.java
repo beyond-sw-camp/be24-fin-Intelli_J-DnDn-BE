@@ -66,6 +66,11 @@ public class AccountService {
         user.deactivate();
     }
 
+    public boolean isEmailAvailable(String email) {
+        if (email == null || email.isBlank()) return true;
+        return !userRepository.existsByEmail(email.toLowerCase().trim());
+    }
+
     private SystemUser findById(Long idx) {
         return userRepository.findById(idx)
                 .orElseThrow(() -> new BaseException(ACCOUNT_NOT_FOUND));
