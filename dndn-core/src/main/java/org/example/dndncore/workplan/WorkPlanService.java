@@ -1,17 +1,18 @@
 package org.example.dndncore.workplan;
 
-import lombok.RequiredArgsConstructor;
 import org.example.dndncore.auth.security.AuthAccessService;
 import org.example.dndncore.project.repository.TradeProcessRepository;
 import org.example.dndncore.project.model.entity.TradeProcess;
 import org.example.dndncore.report.DailyReportRepository;
 import org.example.dndncore.report.model.DailyReport;
+import org.example.dndncore.staffing.service.StaffingService;
 import org.example.dndncore.workplan.model.*;
 import org.example.dndncore.workplan.model.entity.WorkPlan;
 import org.example.dndncore.workplan.model.entity.WorkPlanExtension;
 import org.example.dndncore.workplan.model.enums.PlanStatus;
 import org.example.dndncore.workplan.model.enums.PlanType;
 import org.example.dndncore.workplan.model.enums.WorkTrade;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,16 +23,26 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class WorkPlanService {
 
     private final WorkPlanRepository workPlanRepository;
     private final DailyReportRepository dailyReportRepository;
     private final AuthAccessService authAccessService;
-    // ── 1단계 추가 ─────────────────────────────────────────────────────────
     private final TradeProcessRepository tradeProcessRepository;
-    // ────────────────────────────────────────────────────────────────────────
+    private final StaffingService staffingService;
+
+    public WorkPlanService(WorkPlanRepository workPlanRepository,
+                           DailyReportRepository dailyReportRepository,
+                           AuthAccessService authAccessService,
+                           TradeProcessRepository tradeProcessRepository,
+                           @Lazy StaffingService staffingService) {
+        this.workPlanRepository = workPlanRepository;
+        this.dailyReportRepository = dailyReportRepository;
+        this.authAccessService = authAccessService;
+        this.tradeProcessRepository = tradeProcessRepository;
+        this.staffingService = staffingService;
+    }
 
     // 작업 계획 등록
     @Transactional
@@ -42,7 +53,9 @@ public class WorkPlanService {
         linkParentWorkPlanIfPresent(plan, dto.getParentWorkPlanId());
         authAccessService.assertWorkPlanAccess(plan);
 
-        return workPlanRepository.save(plan).getIdx();
+        Long savedId = workPlanRepository.save(plan).getIdx();
+        triggerZoneSync(plan.getStartDate());
+        return savedId;
     }
 
     public List<WorkPlanDto.workPlanRes> listByProject(Long projectId) {
@@ -147,6 +160,7 @@ public class WorkPlanService {
         linkTradeProcessIfPresent(plan, dto.getTradeProcessId());
         linkParentWorkPlanIfPresent(plan, dto.getParentWorkPlanId());
         authAccessService.assertWorkPlanAccess(plan);
+        triggerZoneSync(plan.getStartDate());
     }
 
     // 일정 연장 등록/수정
@@ -167,6 +181,7 @@ public class WorkPlanService {
         }
 
         extension.update(dto.getExtendedEnd(), addedDays, dto.getReason(), LocalDate.now());
+        triggerZoneSync(plan.getStartDate());
     }
 
     // 주간 계획서 일괄 제출
@@ -213,6 +228,7 @@ public class WorkPlanService {
             savedIds.add(workPlanRepository.save(plan).getIdx());
         }
 
+        triggerZoneSync(dto.getItems().get(0).getDate());
         return savedIds;
     }
 
@@ -229,7 +245,9 @@ public class WorkPlanService {
     public void delete(Long planId) {
         WorkPlan plan = findPlan(planId);
         authAccessService.assertWorkPlanAccess(plan);
+        LocalDate planDate = plan.getStartDate();
         workPlanRepository.delete(plan);
+        triggerZoneSync(planDate);
     }
 
 
@@ -290,6 +308,10 @@ public class WorkPlanService {
 
         authAccessService.assertWorkPlanAccess(parent);
         plan.linkParentWorkPlan(parent);
+    }
+
+    private void triggerZoneSync(LocalDate date) {
+        staffingService.syncZonesFromWorkPlans(date != null ? date : LocalDate.now());
     }
 
     private void validateWeeklyItem(WorkPlanDto.WeeklyItemReq item) {

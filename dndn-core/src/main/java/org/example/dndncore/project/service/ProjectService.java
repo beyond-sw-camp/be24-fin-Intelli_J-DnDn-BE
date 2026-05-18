@@ -47,6 +47,16 @@ public class ProjectService {
     }
 
     @Transactional
+    public void deactivate(Long projectId) {
+        findProject(projectId).deactivate();
+    }
+
+    @Transactional
+    public void activate(Long projectId) {
+        findProject(projectId).activate();
+    }
+
+    @Transactional
     public void delete(Long projectId) {
         authAccessService.assertProjectAccess(projectId);
         projectRepository.delete(findProject(projectId));
