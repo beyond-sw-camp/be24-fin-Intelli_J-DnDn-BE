@@ -101,7 +101,7 @@ cloud:
 worker:
   sync:
     scheduler:
-      enabled: true
+      enabled: false          # dndn-batch CronJob이 대신 실행 — 백엔드 스케줄러 비활성화
       cron: "0 30 0 * * *"   # 매일 오전 00:30
 
 storage:
@@ -111,3 +111,11 @@ storage:
 
 file:
   upload-dir: ./uploads
+
+dndn:
+  seed:
+    load-test:
+      enabled: true
+      site-count: 20
+      daily-reports-per-site: 2500
+      work-orders-per-site: 2500

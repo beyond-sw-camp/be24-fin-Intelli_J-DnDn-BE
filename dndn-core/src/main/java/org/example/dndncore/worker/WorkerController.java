@@ -6,6 +6,7 @@ import org.example.dndncore.common.model.BaseResponse;
 import org.example.dndncore.worker.model.dto.WorkerDetailDto;
 import org.example.dndncore.worker.model.dto.WorkerDto;
 import org.example.dndncore.worker.model.enums.AttendanceStatus;
+import org.example.dndncore.batch.BatchTriggerService;
 import org.example.dndncore.worker.service.WorkerDetailService;
 import org.example.dndncore.worker.service.WorkerService;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -22,6 +23,7 @@ import java.util.List;
 public class WorkerController {
     private final WorkerService workerService;
     private final WorkerDetailService workerDetailService;
+    private final BatchTriggerService batchTriggerService;
 
     // MANAGEMENT_001 인력 데이터 불러오기 (단일 현장)
     @GetMapping("/sync")
@@ -33,14 +35,11 @@ public class WorkerController {
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
-    // MANAGEMENT_001 인력 데이터 불러오기 (전체 현장 수동 트리거 — 스케줄러와 동일 로직)
+    // MANAGEMENT_001 인력 데이터 불러오기 (전체 현장 수동 트리거 — dndn-batch K8s Job 실행)
     @PostMapping("/sync/all")
-    public ResponseEntity<BaseResponse<WorkerDto.BulkSyncRes>> syncAllSites(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
-    ) {
-        LocalDate target = date != null ? date : LocalDate.now();
-        WorkerDto.BulkSyncRes dto = workerService.syncAllSites(target);
-        return ResponseEntity.ok(BaseResponse.success(dto));
+    public ResponseEntity<BaseResponse<String>> syncAllSites() {
+        String jobName = batchTriggerService.triggerWorkerSync();
+        return ResponseEntity.ok(BaseResponse.success("배치 트리거 완료: " + jobName));
     }
 
     // MANAGEMENT_010 게이트 출근 인식 (HTTP). 추후 동일 본문을 WebSocket 으로 수신하도록 전환.
