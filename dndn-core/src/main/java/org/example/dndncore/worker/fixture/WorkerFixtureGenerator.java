@@ -42,7 +42,7 @@ public class WorkerFixtureGenerator {
     private static final List<String> RELATIONS = List.of("배우자", "부", "모", "형제", "자녀");
 
     private static final Set<String> EXCLUDED_TRADES = Set.of("준공", "착공", "마일스톤");
-    private static final int WORKERS_PER_TRADE = 3;
+    private static final int WORKERS_PER_TRADE = 40;
 
     public List<WorkerScenarioFixtureRow> generate(String siteCode) {
         Optional<Project> projectOpt = projectRepository.findFirstByNameContaining("[" + siteCode.trim() + "]");
