@@ -60,7 +60,7 @@ spec:
         container('gradle') {
           sh '''
             chmod +x ./gradlew || true
-            ./gradlew --no-daemon clean bootJar
+            ./gradlew --no-daemon clean :dndn-core:bootJar
           '''
         }
       }
