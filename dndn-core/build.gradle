@@ -26,6 +26,8 @@ dependencies {
 
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 
+    implementation 'io.kubernetes:client-java:18.0.0'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
