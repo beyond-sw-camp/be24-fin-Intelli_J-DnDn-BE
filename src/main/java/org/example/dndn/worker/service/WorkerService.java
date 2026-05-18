@@ -2,6 +2,7 @@ package org.example.dndn.worker.service;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dndn.common.exception.BaseException;
+import org.example.dndn.project.repository.ProjectRepository;
 import org.example.dndn.worker.config.ManagementAttendanceProperties;
 import org.example.dndn.worker.fixture.WorkerFixtureGenerator;
 import org.example.dndn.worker.fixture.WorkerScenarioFixtureRow;
@@ -17,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNullElse;
@@ -32,6 +35,8 @@ import static org.example.dndn.common.model.BaseResponseStatus.WORKER_SYNC_MISSI
 @Transactional(readOnly = true)
 public class WorkerService {
     private static final String SAFETY_EDUCATION_DOCUMENT_KEYWORD = "기초안전보건교육";
+    private static final Pattern SITE_CODE_PATTERN = Pattern.compile("^\\s*\\[([^\\]]+)]");
+
     private final WorkerRepository workerRepository;
     private final AttendanceRecordRepository attendanceRepository;
     private final AttendanceLogRepository attendanceLogRepository;
@@ -40,6 +45,42 @@ public class WorkerService {
     private final WorkerFixtureGenerator workerFixtureGenerator;
     private final ManagementAttendanceProperties attendanceProps;
     private final FatigueCalculationService fatigueCalculationService;
+    private final ProjectRepository projectRepository;
+
+    // MANAGEMENT_001 전체 현장 일괄 동기화 (스케줄러 및 수동 트리거 공용)
+    @Transactional
+    public WorkerDto.BulkSyncRes syncAllSites(LocalDate rosterDate) {
+        List<String> siteCodes = projectRepository.findAll().stream()
+                .map(p -> SITE_CODE_PATTERN.matcher(p.getName()))
+                .filter(Matcher::find)
+                .map(m -> m.group(1))
+                .distinct()
+                .toList();
+
+        List<WorkerDto.SiteSyncResult> results = new ArrayList<>();
+        for (String siteCode : siteCodes) {
+            try {
+                WorkerDto.SyncRes detail = syncWorkforce(siteCode, rosterDate);
+                results.add(WorkerDto.SiteSyncResult.builder()
+                        .siteCode(siteCode)
+                        .success(true)
+                        .detail(detail)
+                        .build());
+            } catch (Exception e) {
+                results.add(WorkerDto.SiteSyncResult.builder()
+                        .siteCode(siteCode)
+                        .success(false)
+                        .errorMessage(e.getMessage())
+                        .build());
+            }
+        }
+
+        return WorkerDto.BulkSyncRes.builder()
+                .syncDate(rosterDate)
+                .siteCount(siteCodes.size())
+                .results(results)
+                .build();
+    }
 
     // MANAGEMENT_001 인력 데이터 불러오기.
     @Transactional
@@ -95,7 +136,8 @@ public class WorkerService {
                 .build();
     }
 
-    // sync 시 해당 근무일 행을 06:00 출근(PRESENT)으로 고정 생성.
+    // sync 시 해당 근무일 행을 PENDING(미출근)으로 생성.
+    // 실제 출근 시각·상태는 게이트 인식(recordGateClockIn) 시점에 갱신된다.
     // `employment_kind` 는 동기화 직전 해당 일 행이 있으면 유지하고, 없으면 {@link Worker#getEmploymentKind()} 마스터 값.
     private void normalizeRosterDayPending(Worker worker, LocalDate rosterDate, SyncDetailAccumulator acc) {
         Long wid = worker.getIdx();
@@ -106,26 +148,19 @@ public class WorkerService {
         prev.ifPresent(attendanceRepository::delete);
         attendanceRepository.flush();
 
-        LocalTime clockIn = LocalTime.of(6, 0);
         attendanceRepository.save(AttendanceRecord.builder()
                 .worker(worker)
                 .workDate(rosterDate)
-                .clockIn(clockIn)
+                .clockIn(null)
                 .clockOut(null)
                 .manDays(null)
-                .attendanceStatus(AttendanceStatus.PRESENT)
+                .attendanceStatus(AttendanceStatus.PENDING)
                 .employmentKind(preservedEk)
                 .siteCode(worker.getSiteCode())
                 .build());
 
+        // 당일 출근 로그 초기화 — 실제 게이트 인식 시 CLOCK_IN 이벤트가 기록된다
         attendanceLogRepository.deleteAllByWorkerIdxAndWorkDate(wid, rosterDate);
-        attendanceLogRepository.save(AttendanceLog.builder()
-                .workerIdx(wid)
-                .workDate(rosterDate)
-                .siteCode(worker.getSiteCode())
-                .eventType(AttendanceEventType.CLOCK_IN)
-                .recognizedAt(clockIn)
-                .build());
 
         if (!hadRow) {
             acc.attendanceRecords++;

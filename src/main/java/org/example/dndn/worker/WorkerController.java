@@ -23,13 +23,23 @@ public class WorkerController {
     private final WorkerService workerService;
     private final WorkerDetailService workerDetailService;
 
-    // MANAGEMENT_001 인력 데이터 불러오기
+    // MANAGEMENT_001 인력 데이터 불러오기 (단일 현장)
     @GetMapping("/sync")
     public ResponseEntity<BaseResponse<WorkerDto.SyncRes>> syncWorkforce(
             @RequestParam String siteCode,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
         WorkerDto.SyncRes dto = workerService.syncWorkforce(siteCode, date);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
+
+    // MANAGEMENT_001 인력 데이터 불러오기 (전체 현장 수동 트리거 — 스케줄러와 동일 로직)
+    @PostMapping("/sync/all")
+    public ResponseEntity<BaseResponse<WorkerDto.BulkSyncRes>> syncAllSites(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+    ) {
+        LocalDate target = date != null ? date : LocalDate.now();
+        WorkerDto.BulkSyncRes dto = workerService.syncAllSites(target);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
