@@ -111,3 +111,11 @@ storage:
 
 file:
   upload-dir: ./uploads
+
+dndn:
+  seed:
+    load-test:
+      enabled: true
+      site-count: 20
+      daily-reports-per-site: 2500
+      work-orders-per-site: 2500
