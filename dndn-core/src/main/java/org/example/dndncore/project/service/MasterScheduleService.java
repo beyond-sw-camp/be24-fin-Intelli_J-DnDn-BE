@@ -3,6 +3,7 @@ package org.example.dndncore.project.service;
 import lombok.RequiredArgsConstructor;
 import org.example.dndncore.ai.extractor.ScheduleDocumentExtractor;
 import org.example.dndncore.analysis.ScheduleChangeRepository;
+import org.example.dndncore.auth.security.AuthAccessService;
 import org.example.dndncore.project.model.dto.MasterScheduleDto;
 import org.example.dndncore.project.model.dto.TradeProcessDto;
 import org.example.dndncore.project.model.entity.MasterSchedule;
@@ -36,9 +37,12 @@ public class MasterScheduleService {
     private final ScheduleAiAnalysisRepository scheduleAiAnalysisRepository;
     private final WorkPlanRepository workPlanRepository;
     private final ScheduleChangeRepository scheduleChangeRepository;
+    private final AuthAccessService authAccessService;
 
     @Transactional
     public Long create(MasterScheduleDto.Req dto) {
+        authAccessService.assertProjectAccess(dto.getProjectId());
+
         Project project = projectRepository.findById(dto.getProjectId())
                 .orElseThrow(() -> new RuntimeException("현장을 찾을 수 없습니다."));
 
@@ -58,10 +62,14 @@ public class MasterScheduleService {
     }
 
     public MasterScheduleDto.Res read(Long scheduleId) {
-        return MasterScheduleDto.Res.from(findSchedule(scheduleId));
+        MasterSchedule schedule = findSchedule(scheduleId);
+        authAccessService.assertProjectAccess(schedule.getProject() != null ? schedule.getProject().getIdx() : null);
+        return MasterScheduleDto.Res.from(schedule);
     }
 
     public List<MasterScheduleDto.Res> listByProject(Long projectId, String docTypeLabel) {
+        authAccessService.assertProjectAccess(projectId);
+
         DocType docType = DocType.fromLabel(docTypeLabel);
 
         List<MasterSchedule> schedules = (docType == null)
@@ -73,7 +81,9 @@ public class MasterScheduleService {
 
     @Transactional
     public void delete(Long scheduleId) {
-        masterScheduleRepository.delete(findSchedule(scheduleId));
+        MasterSchedule schedule = findSchedule(scheduleId);
+        authAccessService.assertProjectAccess(schedule.getProject() != null ? schedule.getProject().getIdx() : null);
+        masterScheduleRepository.delete(schedule);
     }
 
     private MasterSchedule findSchedule(Long scheduleId) {
@@ -88,6 +98,8 @@ public class MasterScheduleService {
             String docTypeLabel,
             MultipartFile file
     ) {
+        authAccessService.assertProjectAccess(projectId);
+
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new RuntimeException("현장을 찾을 수 없습니다."));
 
