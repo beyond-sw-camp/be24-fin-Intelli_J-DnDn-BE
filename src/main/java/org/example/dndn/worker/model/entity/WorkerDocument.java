@@ -20,6 +20,9 @@ public class WorkerDocument extends BaseEntity {
     @JoinColumn(name = "worker_idx", nullable = false)
     private Worker worker;
 
+    @Column(name = "worker_idx", insertable = false, updatable = false)
+    private Long workerIdx;
+
     /** 서류명 (예: 기초안전보건교육 이수증) */
     @Column(nullable = false, length = 100)
     private String title;

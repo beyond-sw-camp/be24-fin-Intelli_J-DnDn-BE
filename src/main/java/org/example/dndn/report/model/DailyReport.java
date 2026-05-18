@@ -8,7 +8,13 @@ import org.example.dndn.workplan.model.entity.WorkPlan;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "daily_report")
+@Table(
+        name = "daily_report",
+        indexes = {
+                @Index(name = "idx_daily_report_monthly_plan_date", columnList = "monthly_work_plan_idx, report_date"),
+                @Index(name = "idx_daily_report_work_plan_date", columnList = "work_plan_idx, report_date")
+        }
+)
 @Getter
 @Builder
 @NoArgsConstructor

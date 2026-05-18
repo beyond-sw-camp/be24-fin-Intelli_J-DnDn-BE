@@ -46,6 +46,12 @@ public class AccountController {
         return ResponseEntity.ok(BaseResponse.success(accountService.update(idx, req)));
     }
 
+    /** 이메일 중복 여부 확인 — true 면 사용 가능, false 면 이미 존재. */
+    @GetMapping("/check-email")
+    public ResponseEntity<BaseResponse<Boolean>> checkEmail(@RequestParam String email) {
+        return ResponseEntity.ok(BaseResponse.success(accountService.isEmailAvailable(email)));
+    }
+
     /** 계정 비활성화 (논리 삭제). */
     @DeleteMapping("/{idx}")
     public ResponseEntity<BaseResponse<Void>> delete(@PathVariable Long idx) {

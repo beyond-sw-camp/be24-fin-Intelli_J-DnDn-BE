@@ -6,6 +6,7 @@ import org.example.dndn.worker.model.enums.AffiliationKind;
 import org.example.dndn.worker.model.enums.EmploymentKind;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -59,6 +60,7 @@ public class StaffingDto {
     @AllArgsConstructor
     @Builder
     public static class PoolSearchReq {
+        private String siteCode;
         /** null 이면 소속 필터 없음 */
         private AffiliationKind affiliationKind;
         private String keyword;
@@ -194,10 +196,7 @@ public class StaffingDto {
         private Long workerIdx;
         private String name;
         private AffiliationKind affiliationKind;
-        /** 중간 전문 건설사명 (예: 구산토건, 삼보이앤씨). 본사는 null. */
-        private String partnerCompany;
-        /** 공종별 협력업체명 (예: 태양목공, 대한철근). PARTNER 일 때만 사용. */
-        private String partnerCompanyDetail;
+        /** 소속 구분 + 공종 표시 (예: "본사 / 철근공", "협력사 / 목공") */
         private String affiliationLine;
         /** 당일 명단 근태 기준 고용구분(REGULAR 상용 · DAILY 일용); STAFFING_006 에서 선택적으로 null */
         private EmploymentKind employmentKind;
@@ -207,17 +206,6 @@ public class StaffingDto {
         private String placement;
         private boolean assigned;
         private boolean safetyEducationCompleted;
-
-        public static AssignedWorkerRes from(Worker worker, StaffingAssignment assignment) {
-            return from(worker, assignment, null, false);
-        }
-
-        public static AssignedWorkerRes from(
-                Worker worker,
-                StaffingAssignment assignment,
-                EmploymentKind rosterEmploymentKind) {
-            return from(worker, assignment, rosterEmploymentKind, false);
-        }
 
         public static AssignedWorkerRes from(
                 Worker worker,
@@ -234,21 +222,14 @@ public class StaffingDto {
                 placementText = "미투입";
             }
 
-            boolean direct = worker.getAffiliationKind() == AffiliationKind.DIRECT;
-            String companyLabel = direct
-                    ? "본사"
-                    : (worker.getPartnerCompany() != null && !worker.getPartnerCompany().isBlank()
-                            ? worker.getPartnerCompany()
-                            : "협력사");
-            String sub = worker.getSubLabel();
-            String line = companyLabel + " / " + (sub == null ? "" : sub.trim());
+            String affiliationLabel = worker.getAffiliationKind() == AffiliationKind.DIRECT ? "본사" : "협력사";
+            String sub = worker.getAffiliationKind() == AffiliationKind.DIRECT ? "직영" : worker.getTrade();
+            String line = affiliationLabel + " / " + (sub == null ? "" : sub.trim());
 
             return AssignedWorkerRes.builder()
                     .workerIdx(worker.getIdx())
                     .name(worker.getName())
                     .affiliationKind(worker.getAffiliationKind())
-                    .partnerCompany(worker.getPartnerCompany())
-                    .partnerCompanyDetail(worker.getPartnerCompanyDetail())
                     .employmentKind(rosterEmploymentKind)
                     .affiliationLine(line)
                     .fatigueScore(worker.getFatigueScoreTotal())
@@ -267,6 +248,26 @@ public class StaffingDto {
     public static class WorkerPoolRes {
         private int totalCount;
         private List<AssignedWorkerRes> rows;
+    }
+
+    /** staffing_log 기준 확정 배치 근무자 1행 */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ConfirmedWorkerRes {
+        private Long workerIdx;
+        private String name;
+        private AffiliationKind affiliationKind;
+        /** "본사 / 직영" or "협력사 / 공종명" */
+        private String affiliationLine;
+        private String zoneMainTitle;
+        private String zoneSubTitle;
+        /** zoneMainTitle + " · " + zoneSubTitle */
+        private String placement;
+        private String tradeName;
+        /** staffing_log.created_at — 가장 최근 확정 시각 */
+        private LocalDateTime confirmedAt;
     }
 
     /** STAFFING_001 자동 추천 배치 결과 요약 */

@@ -50,17 +50,9 @@ public class Worker extends BaseEntity {
     @Column(nullable = false, length = 10)
     private AffiliationKind affiliationKind;
 
-    /** 중간 전문 건설사명. 본사(DIRECT) 인 경우 null. (예: 구산토건, 삼보이앤씨, 삼원) */
-    @Column(length = 50)
-    private String partnerCompany;
-
-    /** 공종별 협력업체명. PARTNER 일 때만 사용. 중간 전문 건설사와 계약된 세부 업체 (예: 태양목공, 대한철근, 성신용접) */
-    @Column(name = "partner_company_detail", length = 50)
-    private String partnerCompanyDetail;
-
-    /** 마스터 <strong>공종</strong> 라벨 (예: 목공·철근). 일별 상용/일용은 {@link #employmentKind}·{@link AttendanceRecord#getEmploymentKind()} 로 반영한다. */
-    @Column(length = 30)
-    private String subLabel;
+    /** 인력 데이터 수신 시 해당 근무자가 지원한 공종 카테고리 (예: 목공, 전기, 토목, 마감). */
+    @Column(name = "trade", length = 30)
+    private String trade;
 
     /** 인사·연동에서 받은 상용(REGULAR)·일용(DAILY) 마스터 구분. sync 시 갱신되며 명단일 {@link AttendanceRecord} 생성 시 기본값으로 쓰인다. */
     @Enumerated(EnumType.STRING)
@@ -145,9 +137,7 @@ public class Worker extends BaseEntity {
         this.emergencyRelation = incoming.emergencyRelation;
         this.jobRank = incoming.jobRank;
         this.affiliationKind = incoming.affiliationKind;
-        this.partnerCompany = incoming.partnerCompany;
-        this.partnerCompanyDetail = incoming.partnerCompanyDetail;
-        this.subLabel = incoming.subLabel;
+        this.trade = incoming.trade;
         this.employmentKind = incoming.employmentKind;
         this.site = incoming.site;
         this.siteCode = incoming.siteCode;

@@ -23,13 +23,23 @@ public class WorkerController {
     private final WorkerService workerService;
     private final WorkerDetailService workerDetailService;
 
-    // MANAGEMENT_001 인력 데이터 불러오기
+    // MANAGEMENT_001 인력 데이터 불러오기 (단일 현장)
     @GetMapping("/sync")
     public ResponseEntity<BaseResponse<WorkerDto.SyncRes>> syncWorkforce(
             @RequestParam String siteCode,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
         WorkerDto.SyncRes dto = workerService.syncWorkforce(siteCode, date);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
+
+    // MANAGEMENT_001 인력 데이터 불러오기 (전체 현장 수동 트리거 — 스케줄러와 동일 로직)
+    @PostMapping("/sync/all")
+    public ResponseEntity<BaseResponse<WorkerDto.BulkSyncRes>> syncAllSites(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+    ) {
+        LocalDate target = date != null ? date : LocalDate.now();
+        WorkerDto.BulkSyncRes dto = workerService.syncAllSites(target);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
@@ -56,15 +66,15 @@ public class WorkerController {
     // MANAGEMENT_002 근무자 검색
     @GetMapping("/search")
     public ResponseEntity<BaseResponse<WorkerDto.ListRes>> search(
+            @RequestParam(required = false) String siteCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) AttendanceStatus attendanceStatus,
-            @RequestParam(required = false) String partnerCompany,
             @RequestParam(required = false) String searchName
     ) {
         WorkerDto.SearchReq req = WorkerDto.SearchReq.builder()
+                .siteCode(siteCode)
                 .date(date)
                 .attendanceStatus(attendanceStatus)
-                .partnerCompany(partnerCompany)
                 .searchName(searchName)
                 .build();
         WorkerDto.ListRes dto = workerService.search(req);
@@ -74,9 +84,10 @@ public class WorkerController {
     // MANAGEMENT_003 작업자 목록 조회
     @GetMapping("/list")
     public ResponseEntity<BaseResponse<WorkerDto.ListRes>> list(
+            @RequestParam(required = false) String siteCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
-        WorkerDto.ListRes dto = workerService.getList(date);
+        WorkerDto.ListRes dto = workerService.getList(siteCode, date);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
@@ -114,15 +125,6 @@ public class WorkerController {
             @PathVariable Long workerIdx
     ) {
         List<WorkerDetailDto.DeploymentRes> dto = workerDetailService.getDeployments(workerIdx);
-        return ResponseEntity.ok(BaseResponse.success(dto));
-    }
-
-    // MANAGEMENT_008 제재 / 주의 이력 조회
-    @GetMapping("/{workerIdx}/penalties")
-    public ResponseEntity<BaseResponse<List<WorkerDetailDto.SanctionRes>>> penalties(
-            @PathVariable Long workerIdx
-    ) {
-        List<WorkerDetailDto.SanctionRes> dto = workerDetailService.getPenalties(workerIdx);
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 

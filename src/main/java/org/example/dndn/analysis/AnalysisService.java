@@ -17,7 +17,12 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,6 +38,9 @@ public class AnalysisService {
     private static final Pattern WORK_TIME_RANGE_PATTERN = Pattern.compile(
             "(\\d{1,2}:\\d{2})\\s*(?:~|\\uFF5E)\\s*(\\d{1,2}:\\d{2})"
     );
+    private static final Comparator<DailyReport> LATEST_REPORT_FIRST = Comparator
+            .comparing(DailyReport::getReportDate, Comparator.nullsLast(Comparator.reverseOrder()))
+            .thenComparing(DailyReport::getIdx, Comparator.nullsLast(Comparator.reverseOrder()));
 
     private final TradeProcessRepository tradeProcessRepository;
     private final WorkPlanRepository workPlanRepository;
@@ -48,13 +56,14 @@ public class AnalysisService {
     public List<AnalysisDto.ProcessProgressRes> getProgressList(Long projectId) {
         authAccessService.assertProjectAccess(projectId);
         LocalDate today = LocalDate.now(ANALYSIS_ZONE);
+        AnalysisContext context = buildAnalysisContext(projectId, today);
 
         return tradeProcessRepository
                 .findAllByMasterSchedule_Project_Idx(projectId)
                 .stream()
                 .filter(authAccessService::canAccessTradeProcess)
                 .filter(tp -> !isMilestoneProcess(tp))
-                .map(tp -> buildProgressRes(tp, today))
+                .map(tp -> buildProgressRes(tp, today, context))
                 .toList();
     }
 
@@ -64,9 +73,9 @@ public class AnalysisService {
         return "마일스톤".equals(String.valueOf(tradeProcess.getTradeName()).trim());
     }
 
-    private AnalysisDto.ProcessProgressRes buildProgressRes(TradeProcess tp, LocalDate today) {
-        ActualProgressSnapshot actualProgress = calcActualProgressByTradeProcess(tp.getIdx(), today);
-        LocalDate referenceDate = resolveReferenceDateForTradeProcess(tp.getIdx(), actualProgress, today);
+    private AnalysisDto.ProcessProgressRes buildProgressRes(TradeProcess tp, LocalDate today, AnalysisContext context) {
+        ActualProgressSnapshot actualProgress = calcActualProgressByTradeProcess(tp.getIdx(), today, context);
+        LocalDate referenceDate = resolveReferenceDateForTradeProcess(tp.getIdx(), actualProgress, today, context);
         double plannedPct = calcPlannedPct(tp.getPlannedStart(), tp.getPlannedEnd(), referenceDate);
         double actualPct = actualProgress.actualPct();
         double diff = roundPct(plannedPct - actualPct);
@@ -104,8 +113,91 @@ public class AnalysisService {
                 .diff(diff)
                 .status(status)
                 .risk(risk)
-                .actualWorkers(calcActualWorkersByTradeProcess(tp.getIdx(), referenceDate))
+                .actualWorkers(calcActualWorkersByTradeProcess(tp.getIdx(), referenceDate, context))
                 .build();
+    }
+
+    private AnalysisContext buildAnalysisContext(Long projectId, LocalDate today) {
+        List<WorkPlan> allPlans = workPlanRepository.findAllForAnalysis(projectId);
+        List<WorkPlan> rootMonthlyPlans = allPlans.stream()
+                .filter(this::isRootMonthlyPlan)
+                .toList();
+
+        Map<Long, List<WorkPlan>> monthlyPlansByTradeProcessId = rootMonthlyPlans.stream()
+                .filter(plan -> tradeProcessId(plan) != null)
+                .collect(Collectors.groupingBy(this::tradeProcessId));
+
+        Map<Long, List<WorkPlan>> childrenByParentId = allPlans.stream()
+                .filter(plan -> plan.getParentWorkPlan() != null)
+                .filter(plan -> plan.getParentWorkPlan().getIdx() != null)
+                .collect(Collectors.groupingBy(plan -> plan.getParentWorkPlan().getIdx()));
+
+        Set<Long> monthlyPlanIds = rootMonthlyPlans.stream()
+                .map(WorkPlan::getIdx)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Set<Long> workPlanIds = allPlans.stream()
+                .map(WorkPlan::getIdx)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        List<DailyReport> monthlyReports = monthlyPlanIds.isEmpty()
+                ? List.of()
+                : dailyReportRepository
+                .findAllByMonthlyPlanIdsUntilDate(
+                        monthlyPlanIds,
+                        today
+                );
+
+        List<DailyReport> workPlanReports = workPlanIds.isEmpty()
+                ? List.of()
+                : dailyReportRepository
+                .findAllByWorkPlanIdsUntilDate(
+                        workPlanIds,
+                        today
+                );
+
+        return new AnalysisContext(
+                rootMonthlyPlans,
+                monthlyPlansByTradeProcessId,
+                childrenByParentId,
+                groupReportsByMonthlyPlanId(monthlyReports),
+                groupReportsByWorkPlanId(workPlanReports)
+        );
+    }
+
+    private Map<Long, List<DailyReport>> groupReportsByMonthlyPlanId(List<DailyReport> reports) {
+        Map<Long, List<DailyReport>> grouped = reports.stream()
+                .filter(report -> report.getMonthlyWorkPlan() != null)
+                .filter(report -> report.getMonthlyWorkPlan().getIdx() != null)
+                .collect(Collectors.groupingBy(report -> report.getMonthlyWorkPlan().getIdx()));
+        grouped.values().forEach(list -> list.sort(LATEST_REPORT_FIRST));
+        return grouped;
+    }
+
+    private Map<Long, List<DailyReport>> groupReportsByWorkPlanId(List<DailyReport> reports) {
+        Map<Long, List<DailyReport>> grouped = reports.stream()
+                .filter(report -> report.getWorkPlan() != null)
+                .filter(report -> report.getWorkPlan().getIdx() != null)
+                .collect(Collectors.groupingBy(report -> report.getWorkPlan().getIdx()));
+        grouped.values().forEach(list -> list.sort(LATEST_REPORT_FIRST));
+        return grouped;
+    }
+
+    private DailyReport findLatestReport(Map<Long, List<DailyReport>> reportsByPlanId, Long planId, LocalDate date) {
+        if (planId == null || date == null) return null;
+        return reportsByPlanId.getOrDefault(planId, List.of())
+                .stream()
+                .filter(report -> report.getReportDate() != null)
+                .filter(report -> !report.getReportDate().isAfter(date))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private Long tradeProcessId(WorkPlan plan) {
+        if (plan == null || plan.getTradeProcess() == null) return null;
+        return plan.getTradeProcess().getIdx();
     }
 
     // ?????????????????????????????????????????????
@@ -120,9 +212,9 @@ public class AnalysisService {
     public List<AnalysisDto.DelayRiskDetailRes> getDelayRiskTasks(Long projectId, Long tradeProcessId) {
         authAccessService.assertProjectAccess(projectId);
         LocalDate today = LocalDate.now(ANALYSIS_ZONE);
+        AnalysisContext context = buildAnalysisContext(projectId, today);
 
-        return workPlanRepository
-                .findAllByTradeProcess_MasterSchedule_Project_Idx(projectId)
+        return context.rootMonthlyPlans()
                 .stream()
                 // 101??湲곗큹 肄섑겕由ы듃 ???媛숈? ?몃? ?묒뾽
                 .filter(authAccessService::canAccessWorkPlan)
@@ -133,7 +225,7 @@ public class AnalysisService {
                         || (wp.getTradeProcess() != null
                         && wp.getTradeProcess().getIdx().equals(tradeProcessId)))
 
-                .map(parentPlan -> buildDelayRiskTaskRes(parentPlan, today))
+                .map(parentPlan -> buildDelayRiskTaskRes(parentPlan, today, context))
                 .filter(task -> isDelayRiskTask(
                         task.getDate(),
                         task.getEffectiveEnd(),
@@ -144,9 +236,9 @@ public class AnalysisService {
                 .toList();
     }
 
-    private AnalysisDto.DelayRiskDetailRes buildDelayRiskTaskRes(WorkPlan parentPlan, LocalDate today) {
-        ActualProgressSnapshot actualProgress = getActualProgressByMonthlyPlan(parentPlan, today);
-        LocalDate referenceDate = resolveReferenceDateForMonthlyPlan(parentPlan, actualProgress, today);
+    private AnalysisDto.DelayRiskDetailRes buildDelayRiskTaskRes(WorkPlan parentPlan, LocalDate today, AnalysisContext context) {
+        ActualProgressSnapshot actualProgress = getActualProgressByMonthlyPlan(parentPlan, today, context);
+        LocalDate referenceDate = resolveReferenceDateForMonthlyPlan(parentPlan, actualProgress, today, context);
         double plannedPct = calcPlannedPct(
                 parentPlan.getStartDate(),
                 parentPlan.effectiveEndDate(),
@@ -172,13 +264,13 @@ public class AnalysisService {
                 actualPct
         );
 
-        List<WorkPlan> childPlans = workPlanRepository.findAllByParentWorkPlan_Idx(parentPlan.getIdx());
+        List<WorkPlan> childPlans = context.childrenByParentId().getOrDefault(parentPlan.getIdx(), List.of());
 
         int actualWorkers = childPlans.stream()
-                .mapToInt(child -> getLatestActualWorkersByWorkPlan(child.getIdx(), referenceDate))
+                .mapToInt(child -> getLatestActualWorkersByWorkPlan(child.getIdx(), referenceDate, context))
                 .sum();
 
-        String latestIssue = getLatestIssueFromChildPlans(parentPlan.getIdx(), referenceDate);
+        String latestIssue = getLatestIssueFromChildPlans(parentPlan.getIdx(), referenceDate, context);
         String cause = actualProgress.hasDailyReport()
                 ? latestIssue
                 : "\uacf5\uc0ac\uc77c\ubcf4 \uae30\uc900 \uc6d4\uac04 \uc138\ubd80\uacc4\ud68d \uc9c4\ucc99\ub960 \ubbf8\uc791\uc131";
@@ -233,13 +325,14 @@ public class AnalysisService {
     private LocalDate resolveReferenceDateForTradeProcess(
             Long tradeProcessId,
             ActualProgressSnapshot actualProgress,
-            LocalDate today
+            LocalDate today,
+            AnalysisContext context
     ) {
         if (actualProgress != null && actualProgress.reportDate() != null) {
             return actualProgress.reportDate();
         }
 
-        LocalTime workEndTime = resolveTradeProcessWorkEndTime(tradeProcessId, today);
+        LocalTime workEndTime = resolveTradeProcessWorkEndTime(tradeProcessId, today, context);
         if (LocalTime.now(ANALYSIS_ZONE).isBefore(workEndTime)) {
             return trustedReferenceDate(actualProgress, today);
         }
@@ -250,13 +343,14 @@ public class AnalysisService {
     private LocalDate resolveReferenceDateForMonthlyPlan(
             WorkPlan monthlyPlan,
             ActualProgressSnapshot actualProgress,
-            LocalDate today
+            LocalDate today,
+            AnalysisContext context
     ) {
         if (actualProgress != null && actualProgress.reportDate() != null) {
             return actualProgress.reportDate();
         }
 
-        LocalTime workEndTime = resolveMonthlyPlanWorkEndTime(monthlyPlan, today);
+        LocalTime workEndTime = resolveMonthlyPlanWorkEndTime(monthlyPlan, today, context);
         if (LocalTime.now(ANALYSIS_ZONE).isBefore(workEndTime)) {
             return trustedReferenceDate(actualProgress, today);
         }
@@ -278,21 +372,22 @@ public class AnalysisService {
         return today.minusDays(1);
     }
 
-    private LocalTime resolveTradeProcessWorkEndTime(Long tradeProcessId, LocalDate date) {
+    private LocalTime resolveTradeProcessWorkEndTime(Long tradeProcessId, LocalDate date, AnalysisContext context) {
         if (tradeProcessId == null) return DEFAULT_WORK_END_TIME;
 
-        return workPlanRepository.findAllByTradeProcess_Idx(tradeProcessId)
+        return context.monthlyPlansByTradeProcessId()
+                .getOrDefault(tradeProcessId, List.of())
                 .stream()
-                .filter(this::isRootMonthlyPlan)
-                .map(monthlyPlan -> resolveMonthlyPlanWorkEndTime(monthlyPlan, date))
+                .map(monthlyPlan -> resolveMonthlyPlanWorkEndTime(monthlyPlan, date, context))
                 .max(LocalTime::compareTo)
                 .orElse(DEFAULT_WORK_END_TIME);
     }
 
-    private LocalTime resolveMonthlyPlanWorkEndTime(WorkPlan monthlyPlan, LocalDate date) {
+    private LocalTime resolveMonthlyPlanWorkEndTime(WorkPlan monthlyPlan, LocalDate date, AnalysisContext context) {
         if (monthlyPlan == null || monthlyPlan.getIdx() == null) return DEFAULT_WORK_END_TIME;
 
-        return workPlanRepository.findAllByParentWorkPlan_Idx(monthlyPlan.getIdx())
+        return context.childrenByParentId()
+                .getOrDefault(monthlyPlan.getIdx(), List.of())
                 .stream()
                 .filter(child -> containsDate(child, date))
                 .map(child -> parseWorkEndTime(child.getNote()))
@@ -332,14 +427,14 @@ public class AnalysisService {
         }
     }
 
-    private ActualProgressSnapshot calcActualProgressByTradeProcess(Long tradeProcessId, LocalDate today) {
-        List<WorkPlan> plans = workPlanRepository.findAllByTradeProcess_Idx(tradeProcessId);
+    private ActualProgressSnapshot calcActualProgressByTradeProcess(Long tradeProcessId, LocalDate today, AnalysisContext context) {
+        List<WorkPlan> monthlyPlans = context.monthlyPlansByTradeProcessId()
+                .getOrDefault(tradeProcessId, List.of());
 
-        if (plans.isEmpty()) return ActualProgressSnapshot.none();
+        if (monthlyPlans.isEmpty()) return ActualProgressSnapshot.none();
 
-        List<ActualProgressSnapshot> snapshots = plans.stream()
-                .filter(this::isRootMonthlyPlan)
-                .map(wp -> getActualProgressByMonthlyPlan(wp, today))
+        List<ActualProgressSnapshot> snapshots = monthlyPlans.stream()
+                .map(wp -> getActualProgressByMonthlyPlan(wp, today, context))
                 .filter(ActualProgressSnapshot::hasDailyReport)
                 .toList();
 
@@ -359,16 +454,15 @@ public class AnalysisService {
         return ActualProgressSnapshot.dailyReport(roundPct(avg), latestReportDate, null);
     }
 
-    private ActualProgressSnapshot getActualProgressByMonthlyPlan(WorkPlan monthlyPlan, LocalDate today) {
+    private ActualProgressSnapshot getActualProgressByMonthlyPlan(WorkPlan monthlyPlan, LocalDate today, AnalysisContext context) {
         if (monthlyPlan == null) return ActualProgressSnapshot.none();
 
-        return dailyReportRepository
-                .findTopByMonthlyWorkPlan_IdxAndReportDateLessThanEqualOrderByReportDateDesc(
-                        monthlyPlan.getIdx(),
-                        today
-                )
-                .map(this::toActualProgressSnapshot)
-                .orElseGet(ActualProgressSnapshot::none);
+        DailyReport report = findLatestReport(
+                context.monthlyReportsByPlanId(),
+                monthlyPlan.getIdx(),
+                today
+        );
+        return report != null ? toActualProgressSnapshot(report) : ActualProgressSnapshot.none();
     }
 
     private ActualProgressSnapshot toActualProgressSnapshot(DailyReport report) {
@@ -398,47 +492,37 @@ public class AnalysisService {
     // 4. ?ㅼ젣 ?ъ엯 ?몄썝 / ?댁뒋
     // ?????????????????????????????????????????????
 
-    private int calcActualWorkersByTradeProcess(Long tradeProcessId, LocalDate today) {
-        return workPlanRepository.findAllByTradeProcess_Idx(tradeProcessId)
+    private int calcActualWorkersByTradeProcess(Long tradeProcessId, LocalDate today, AnalysisContext context) {
+        return context.monthlyPlansByTradeProcessId()
+                .getOrDefault(tradeProcessId, List.of())
                 .stream()
-                .filter(this::isRootMonthlyPlan)
-                .flatMap(parent -> workPlanRepository.findAllByParentWorkPlan_Idx(parent.getIdx()).stream())
-                .mapToInt(child -> getLatestActualWorkersByWorkPlan(child.getIdx(), today))
+                .flatMap(parent -> context.childrenByParentId().getOrDefault(parent.getIdx(), List.of()).stream())
+                .mapToInt(child -> getLatestActualWorkersByWorkPlan(child.getIdx(), today, context))
                 .sum();
     }
 
-    private int getLatestActualWorkersByWorkPlan(Long workPlanId, LocalDate today) {
-        return dailyReportRepository
-                .findTopByWorkPlan_IdxAndReportDateLessThanEqualOrderByReportDateDesc(
-                        workPlanId,
-                        today
-                )
-                .map(r -> r.getActualWorkerCount() != null ? r.getActualWorkerCount() : 0)
-                .orElse(0);
+    private int getLatestActualWorkersByWorkPlan(Long workPlanId, LocalDate today, AnalysisContext context) {
+        DailyReport report = findLatestReport(context.workReportsByPlanId(), workPlanId, today);
+        return report != null && report.getActualWorkerCount() != null ? report.getActualWorkerCount() : 0;
     }
 
-    private String getLatestIssueFromChildPlans(Long parentWorkPlanId, LocalDate today) {
-        List<WorkPlan> childPlans = workPlanRepository.findAllByParentWorkPlan_Idx(parentWorkPlanId);
+    private String getLatestIssueFromChildPlans(Long parentWorkPlanId, LocalDate today, AnalysisContext context) {
+        List<WorkPlan> childPlans = context.childrenByParentId().getOrDefault(parentWorkPlanId, List.of());
 
         if (childPlans.isEmpty()) {
-            return getLatestIssueByWorkPlan(parentWorkPlanId, today);
+            return getLatestIssueByWorkPlan(parentWorkPlanId, today, context);
         }
 
         return childPlans.stream()
-                .map(child -> getLatestIssueByWorkPlan(child.getIdx(), today))
+                .map(child -> getLatestIssueByWorkPlan(child.getIdx(), today, context))
                 .filter(issue -> issue != null && !issue.isBlank())
                 .findFirst()
                 .orElse("");
     }
 
-    private String getLatestIssueByWorkPlan(Long workPlanId, LocalDate today) {
-        return dailyReportRepository
-                .findTopByWorkPlan_IdxAndReportDateLessThanEqualOrderByReportDateDesc(
-                        workPlanId,
-                        today
-                )
-                .map(DailyReport::getIssue)
-                .orElse("");
+    private String getLatestIssueByWorkPlan(Long workPlanId, LocalDate today, AnalysisContext context) {
+        DailyReport report = findLatestReport(context.workReportsByPlanId(), workPlanId, today);
+        return report != null ? report.getIssue() : "";
     }
 
     // ?????????????????????????????????????????????
@@ -586,6 +670,15 @@ public class AnalysisService {
 
     private boolean isOverdueNotDone(LocalDate end, LocalDate today, double actualPct) {
         return end != null && today.isAfter(end) && actualPct < 100;
+    }
+
+    private record AnalysisContext(
+            List<WorkPlan> rootMonthlyPlans,
+            Map<Long, List<WorkPlan>> monthlyPlansByTradeProcessId,
+            Map<Long, List<WorkPlan>> childrenByParentId,
+            Map<Long, List<DailyReport>> monthlyReportsByPlanId,
+            Map<Long, List<DailyReport>> workReportsByPlanId
+    ) {
     }
 
     private static class ActualProgressSnapshot {
