@@ -32,94 +32,92 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "storage.type", havingValue = "s3", matchIfMissing = true)
-public class S3StorageService implements StorageService {
+    @ConditionalOnProperty(name = "storage.type", havingValue = "s3", matchIfMissing = true)
+    public class S3StorageService implements StorageService {
 
-    private final S3Client s3Client;
-    private final S3Presigner s3Presigner;
+        private final S3Client s3Client;
+        private final S3Presigner s3Presigner;
 
-    @Value("${cloud.aws.s3.bucket}")
-    private String bucket;
+        @Value("${cloud.aws.s3.bucket}")
+        private String bucket;
 
-    @Value("${cloud.aws.s3.presigned-url-expiration}")
-    private long presignedUrlExpiration;
+        @Value("${cloud.aws.s3.presigned-url-expiration}")
+        private long presignedUrlExpiration;
 
-    @Override
-    public String store(MultipartFile file, Long projectId, DocType docType) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("업로드 파일이 비어있습니다.");
+        @Override
+        public String store(MultipartFile file, Long projectId, DocType docType) {
+            if (file == null || file.isEmpty()) {
+                throw new IllegalArgumentException("업로드 파일이 비어있습니다.");
+            }
+
+            String originalName = file.getOriginalFilename();
+            String ext = "";
+            if (originalName != null && originalName.contains(".")) {
+                ext = originalName.substring(originalName.lastIndexOf("."));
+            }
+            String storedName = UUID.randomUUID() + ext;
+            String objectKey = String.format("project-%d/%s/%s",
+                    projectId, docType.name(), storedName);
+
+            try {
+                PutObjectRequest putRequest = PutObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(objectKey)
+                        .contentType(file.getContentType())
+                        .contentLength(file.getSize())
+                        .build();
+
+                s3Client.putObject(putRequest,
+                        RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+
+                log.info("S3 업로드 성공: {}", objectKey);
+                return objectKey;
+
+            } catch (IOException | S3Exception e) {
+                log.error("S3 업로드 실패: {}", originalName, e);
+                throw new RuntimeException("파일 저장 실패: " + originalName, e);
+            }
         }
+        @Override
+            public String getDownloadUrl(String fileKey, String fileName, boolean isPreview) {
+                try {
+                    String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
+                            .replaceAll("\\+", "%20");
 
-        String originalName = file.getOriginalFilename();
-        String ext = "";
-        if (originalName != null && originalName.contains(".")) {
-            ext = originalName.substring(originalName.lastIndexOf("."));
-        }
+                    String disposition = isPreview
+                            ? "inline; filename*=UTF-8''" + encodedFileName
+                            : "attachment; filename*=UTF-8''" + encodedFileName;
 
-        String storedName = UUID.randomUUID() + ext;
-        String objectKey = String.format("project-%d/%s/%s",
-                projectId, docType.name(), storedName);
+                    GetObjectRequest getRequest = GetObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(fileKey)
+                            .responseContentDisposition(disposition)
+                            .build();
 
-        try {
-            PutObjectRequest putRequest = PutObjectRequest.builder()
-                    .bucket(bucket)
-                    .key(objectKey)
-                    .contentType(file.getContentType())
-                    .contentLength(file.getSize())
-                    .build();
+                    GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                            .signatureDuration(Duration.ofSeconds(presignedUrlExpiration))
+                            .getObjectRequest(getRequest)
+                            .build();
 
-            s3Client.putObject(putRequest,
-                    RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+                    return s3Presigner.presignGetObject(presignRequest).url().toString();
 
-            log.info("S3 업로드 성공: {}", objectKey);
-            return objectKey;
+                } catch (S3Exception e) {
+                    log.error("Presigned URL 생성 실패: {}", fileKey, e);
+                    throw BaseException.from(BaseResponseStatus.DOCUMENT_FILE_READ_FAIL);
+                }
+            }
 
-        } catch (IOException | S3Exception e) {
-            log.error("S3 업로드 실패: {}", originalName, e);
-            throw new RuntimeException("파일 저장 실패: " + originalName, e);
-        }
-    }
-
-    @Override
-    public String getDownloadUrl(String fileKey, String fileName, boolean isPreview) {
-        try {
-            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
-                    .replaceAll("\\+", "%20");
-
-            String disposition = isPreview
-                    ? "inline; filename*=UTF-8''" + encodedFileName
-                    : "attachment; filename*=UTF-8''" + encodedFileName;
-
-            GetObjectRequest getRequest = GetObjectRequest.builder()
-                    .bucket(bucket)
-                    .key(fileKey)
-                    .responseContentDisposition(disposition)
-                    .build();
-
-            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                    .signatureDuration(Duration.ofSeconds(presignedUrlExpiration))
-                    .getObjectRequest(getRequest)
-                    .build();
-
-            return s3Presigner.presignGetObject(presignRequest).url().toString();
-
-        } catch (S3Exception e) {
-            log.error("Presigned URL 생성 실패: {}", fileKey, e);
-            throw BaseException.from(BaseResponseStatus.DOCUMENT_FILE_READ_FAIL);
-        }
-    }
-
-    @Override
-    public void delete(String fileKey) {
-        try {
-            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
-                    .bucket(bucket)
-                    .key(fileKey)
-                    .build();
-            s3Client.deleteObject(deleteRequest);
-            log.info("S3 파일 삭제 성공: {}", fileKey);
-        } catch (S3Exception e) {
-            log.warn("S3 파일 삭제 실패: {}", fileKey, e);
-        }
-    }
-}
+                @Override
+                public void delete(String fileKey) {
+                    try {
+                        DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                                .bucket(bucket)
+                                .key(fileKey)
+                                .build();
+                        s3Client.deleteObject(deleteRequest);
+                        log.info("S3 파일 삭제 성공: {}", fileKey);
+                    } catch (S3Exception e) {
+                        log.warn("S3 파일 삭제 실패: {}", fileKey, e);
+                    }
+                }
+            }

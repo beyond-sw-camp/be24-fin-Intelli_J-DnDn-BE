@@ -25,7 +25,6 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 public class DocumentManagementController {
-
     private final DocumentManagementService documentManagementService;
 
     // LocalStorageService는 storage.type=local 일 때만 빈으로 등록되므로 Optional 주입

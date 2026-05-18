@@ -25,6 +25,7 @@ public class DocumentManagementService {
     private final StorageService storageService;   // ← 인터페이스 타입으로 변경
     private final ProjectRepository projectRepository;
 
+
     private static final Set<DocType> UNIQUE_DOC_TYPES = EnumSet.of(
             DocType.MASTER, DocType.MILESTONE, DocType.WEIGHT
     );
@@ -69,7 +70,7 @@ public class DocumentManagementService {
         // 저장소(S3 or 로컬)에 파일 업로드 후 key 받기
         String fileKey = storageService.store(dto.getFile(), dto.getProjectId(), dto.getDocType());
 
-        MasterSchedule entity = dto.toEntity(project, fileKey);
+       MasterSchedule entity = dto.toEntity(project, fileKey);
         documentManagementRepository.save(entity);
     }
 
@@ -82,11 +83,11 @@ public class DocumentManagementService {
     }
 
     private BaseResponseStatus getDuplicateStatus(DocType docType) {
-        return switch (docType) {
-            case MASTER -> BaseResponseStatus.DOCUMENT_DUPLICATE_MASTER;
-            case MILESTONE -> BaseResponseStatus.DOCUMENT_DUPLICATE_MILESTONE;
-            case WEIGHT -> BaseResponseStatus.DOCUMENT_DUPLICATE_WEIGHT;
-            default -> BaseResponseStatus.FAIL;
-        };
+            return switch (docType) {
+                case MASTER -> BaseResponseStatus.DOCUMENT_DUPLICATE_MASTER;
+                case MILESTONE -> BaseResponseStatus.DOCUMENT_DUPLICATE_MILESTONE;
+                case WEIGHT -> BaseResponseStatus.DOCUMENT_DUPLICATE_WEIGHT;
+                default -> BaseResponseStatus.FAIL;
+            };
+        }
     }
-}

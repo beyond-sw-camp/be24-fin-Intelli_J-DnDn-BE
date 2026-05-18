@@ -26,3 +26,4 @@ public interface DocumentManagementRepository extends JpaRepository<MasterSchedu
 
     boolean existsByProjectIdxAndDocType(Long projectIdx, DocType docType);
 }
+
