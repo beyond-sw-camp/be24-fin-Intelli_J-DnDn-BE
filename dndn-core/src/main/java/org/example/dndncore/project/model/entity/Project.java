@@ -25,10 +25,22 @@ public class Project extends BaseEntity {
     private LocalDate startDate; // 공사 시작일
     private LocalDate endDate;   // 공사 종료일
 
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean active = true; // false = 운영 종료
+
     public void update(String name, String location, LocalDate startDate, LocalDate endDate) {
         this.name = name;
         this.location = location;
         this.startDate = startDate;
         this.endDate = endDate;
+    }
+
+    public void deactivate() {
+        this.active = false;
+    }
+
+    public void activate() {
+        this.active = true;
     }
 }

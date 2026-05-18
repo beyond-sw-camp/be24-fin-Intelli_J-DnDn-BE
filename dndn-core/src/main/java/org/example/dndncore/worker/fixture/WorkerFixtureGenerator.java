@@ -131,13 +131,13 @@ public class WorkerFixtureGenerator {
     }
 
     private String pickName(int seed) {
-        return LAST_NAMES.get(seed % LAST_NAMES.size())
-                + FIRST_NAMES.get((seed * 7 + 3) % FIRST_NAMES.size());
+        return LAST_NAMES.get(Math.floorMod(seed, LAST_NAMES.size()))
+                + FIRST_NAMES.get(Math.floorMod(seed * 7 + 3, FIRST_NAMES.size()));
     }
 
     private String formatPhone(int seed) {
-        int mid = 1000 + (seed * 37 % 9000);
-        int tail = 1000 + (seed * 53 % 9000);
+        int mid = 1000 + Math.floorMod(seed * 37, 9000);
+        int tail = 1000 + Math.floorMod(seed * 53, 9000);
         return String.format("010-%04d-%04d", mid, tail);
     }
 

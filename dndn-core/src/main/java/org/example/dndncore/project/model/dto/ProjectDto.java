@@ -35,6 +35,7 @@ public class ProjectDto {
         private LocalDate startDate;
         private LocalDate endDate;
         private String period;
+        private boolean active;
 
         public static Res from(Project entity) {
             String period = "";
@@ -50,6 +51,7 @@ public class ProjectDto {
                     .startDate(entity.getStartDate())
                     .endDate(entity.getEndDate())
                     .period(period)
+                    .active(entity.isActive())
                     .build();
         }
     }

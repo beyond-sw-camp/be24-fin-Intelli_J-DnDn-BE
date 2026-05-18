@@ -87,10 +87,10 @@ public class StaffingService {
     private final AuthAccessService authAccessService;
 
     // STAFFING_003 — 인력 배치 보드 좌측 기본 구역 트리(ZoneMain · ZoneSub 요약 및 집계)
-    @Transactional
+    // 읽기 전용 — 동기화는 WorkPlan 변경 시점에만 수행 (syncZonesFromWorkPlans)
     public List<StaffingDto.ZoneMainRes> loadZoneMainTree(LocalDate rosterDate, String siteCode) {
         LocalDate date = normalizeDate(rosterDate);
-        List<ZoneSub> scheduleSubZones = syncScheduleZonesFromWorkPlans(date);
+        List<ZoneSub> scheduleSubZones = zoneSubRepository.findAllScheduleSubZonesByWorkDate(date);
         if (!scheduleSubZones.isEmpty()) {
             if (siteCode != null && !siteCode.isBlank()) {
                 String fragment = "[" + siteCode.trim() + "]";
@@ -614,6 +614,11 @@ public class StaffingService {
 
     private LocalDate normalizeDate(LocalDate rosterDate) {
         return rosterDate != null ? rosterDate : LocalDate.now();
+    }
+
+    @Transactional
+    public List<ZoneSub> syncZonesFromWorkPlans(LocalDate date) {
+        return syncScheduleZonesFromWorkPlans(date);
     }
 
     private List<ZoneSub> syncScheduleZonesFromWorkPlans(LocalDate date) {
