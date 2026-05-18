@@ -8,6 +8,8 @@ pipeline {
 apiVersion: v1
 kind: Pod
 spec:
+  nodeSelector:
+    kubernetes.io/hostname: worker06
   restartPolicy: Never
   containers:
     - name: gradle
