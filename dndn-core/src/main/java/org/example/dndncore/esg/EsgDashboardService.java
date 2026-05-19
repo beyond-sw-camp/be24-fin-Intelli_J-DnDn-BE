@@ -3,12 +3,15 @@ package org.example.dndncore.esg;
 import lombok.RequiredArgsConstructor;
 import org.example.dndncore.auth.model.entity.SystemUser;
 import org.example.dndncore.auth.security.AuthAccessService;
+import org.example.dndncore.common.redis.RedisCacheNames;
 import org.example.dndncore.esg.model.EsgDailySnapshot;
 import org.example.dndncore.esg.model.EsgDashboardDto;
 import org.example.dndncore.esg.model.EsgMetricInput;
 import org.example.dndncore.esg.model.EsgZoneDailySnapshot;
 import org.example.dndncore.project.model.entity.Project;
 import org.example.dndncore.project.repository.ProjectRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +41,7 @@ public class EsgDashboardService {
     private final EsgMetricInputRepository esgMetricInputRepository;
     private final AuthAccessService authAccessService;
 
+    @Cacheable(cacheNames = RedisCacheNames.ESG_DASHBOARD, key = "@redisCacheKeyProvider.esgDashboardKey(#reportDate, #projectId)")
     public EsgDashboardDto.DashboardResponseDto readDashboard(LocalDate reportDate, Long projectId) {
         LocalDate targetDate = resolveReportDate(reportDate);
         List<Project> accessibleProjects = findAccessibleProjects();
@@ -84,6 +88,7 @@ public class EsgDashboardService {
                 .build();
     }
 
+    @CacheEvict(cacheNames = RedisCacheNames.ESG_DASHBOARD, allEntries = true)
     @Transactional
     public EsgDashboardDto.SnapshotResponseDto createOrUpdateSnapshot(
             EsgDashboardDto.SaveSnapshotRequestDto request

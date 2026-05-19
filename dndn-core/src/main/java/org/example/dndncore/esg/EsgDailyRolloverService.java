@@ -2,11 +2,13 @@ package org.example.dndncore.esg;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dndncore.common.redis.RedisCacheNames;
 import org.example.dndncore.esg.model.EsgDailySnapshot;
 import org.example.dndncore.esg.model.EsgMetricInput;
 import org.example.dndncore.esg.model.EsgZoneDailySnapshot;
 import org.example.dndncore.project.model.entity.Project;
 import org.example.dndncore.project.repository.ProjectRepository;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,7 @@ public class EsgDailyRolloverService {
         return rollover(LocalDate.now());
     }
 
+    @CacheEvict(cacheNames = RedisCacheNames.ESG_DASHBOARD, allEntries = true)
     public RolloverResult rollover(LocalDate targetDate) {
         LocalDate today = targetDate != null ? targetDate : LocalDate.now();
         List<Project> activeProjects = projectRepository.findAll().stream()

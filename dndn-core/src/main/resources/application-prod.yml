@@ -6,6 +6,14 @@ spring:
   application:
     name: dndn
 
+  data:
+    redis:
+      password: qwer1234
+      sentinel:
+        master: dndnredis
+        nodes:
+          - dndn-redis.redis-monitoring.svc.cluster.local:26379
+
   servlet:
     multipart:
       max-file-size: 50MB
