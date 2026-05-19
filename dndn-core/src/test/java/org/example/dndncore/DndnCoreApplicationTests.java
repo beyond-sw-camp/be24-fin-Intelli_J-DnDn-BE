@@ -1,13 +1,13 @@
-package org.example.dndn;
+package org.example.dndncore;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class DnDnApplicationTests {
+class DndnCoreApplicationTests {
 
-	@Test
-	void contextLoads() {
-	}
+    @Test
+    void contextLoads() {
+    }
 
 }

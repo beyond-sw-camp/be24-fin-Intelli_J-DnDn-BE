@@ -1,3 +1,4 @@
 rootProject.name = 'DnDn'
 
 include 'dndn-core'
+include 'dndn-document-upload'

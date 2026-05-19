@@ -1,13 +1,10 @@
-package org.example.dndncore.document_management;
+package org.example.dndndocumentupload.document_management;
 
-import java.nio.file.Files;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.dndncore.common.model.BaseResponse;
-import org.example.dndncore.document_management.DocumentManagementService;
-import org.example.dndncore.document_management.LocalStorageService;
-import org.example.dndncore.document_management.model.DocumentManagementDto;
-import org.example.dndncore.project.model.enums.DocType;
+import org.example.dndndocumentupload.common.model.BaseResponse;
+import org.example.dndndocumentupload.document_management.model.enums.DocType;
+import org.example.dndndocumentupload.document_management.model.dto.DocumentManagementDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.List;
 
 @Slf4j

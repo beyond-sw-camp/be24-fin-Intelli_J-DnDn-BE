@@ -1,0 +1,9 @@
+server:
+  port: 21000
+
+spring:
+  application:
+    name: dndn-document-upload
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
