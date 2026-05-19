@@ -1,0 +1,64 @@
+server:
+  port: ${DOCUMENT_MANAGEMENT_PORT:8082}
+
+spring:
+  application:
+    name: dndn-document-management
+
+  datasource:
+    driver-class-name: ${DOCUMENT_DB_DRIVER:org.mariadb.jdbc.Driver}
+    url: ${DOCUMENT_DB_URL}
+    username: ${DOCUMENT_DB_USER}
+    password: ${DOCUMENT_DB_PASS}
+
+  jpa:
+    database-platform: org.hibernate.dialect.MariaDBDialect
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        default_batch_fetch_size: 1000
+        format_sql: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    consumer:
+      group-id: ${DOCUMENT_KAFKA_CONSUMER_GROUP:document-management}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: org.example.dndndocumentmanagement.dto.event,java.util,java.lang
+    listener:
+      ack-mode: record
+
+info:
+  deployment:
+    color: ${DEPLOYMENT_COLOR:unknown}
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  info:
+    env:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.hibernate.orm.jdbc.bind: trace
+    org.example: debug
