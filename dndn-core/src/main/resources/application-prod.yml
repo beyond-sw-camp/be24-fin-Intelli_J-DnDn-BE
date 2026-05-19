@@ -8,11 +8,10 @@ spring:
 
   data:
     redis:
-      password: qwer1234
+      password: ${REDIS_PASSWORD}
       sentinel:
-        master: dndnredis
-        nodes:
-          - dndn-redis.redis-monitoring.svc.cluster.local:26379
+        master: ${REDIS_SENTINEL_MASTER}
+        nodes: ${REDIS_SENTINEL_NODES}
 
   servlet:
     multipart:

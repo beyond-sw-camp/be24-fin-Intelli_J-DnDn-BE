@@ -8,13 +8,10 @@ spring:
 
   data:
     redis:
-      password: qwer1234
+      password: ${REDIS_PASSWORD}
       sentinel:
-        master: dndnredis
-        nodes:
-          - 192.100.20.107:26379
-          - 192.100.20.108:26379
-          - 192.100.20.109:26379
+        master: ${REDIS_SENTINEL_MASTER}
+        nodes: ${REDIS_SENTINEL_NODES}
 
   servlet:
     multipart:
