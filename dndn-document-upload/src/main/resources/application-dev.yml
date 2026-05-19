@@ -9,6 +9,13 @@ spring:
   application:
     name: dndn
 
+
+  kafka:
+    bootstrap-servers: localhost:30806 # 위에서 확인한 외부 노출 포트
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
   servlet:
     multipart:
       max-file-size: 50MB

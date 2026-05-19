@@ -6,6 +6,13 @@ spring:
   application:
     name: dndn
 
+  kafka:
+    bootstrap-servers: localhost:30806 # 쿠버네티스 카프카의 외부 노출 포트
+    producer:
+      # 제로 페이로드로 보낼 때 key/value는 보통 String이나 JSON을 씁니다.
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
   servlet:
     multipart:
       max-file-size: 50MB

@@ -29,6 +29,12 @@ subprojects {
 		mavenCentral()
 	}
 
+	dependencyManagement {
+		imports {
+			mavenBom "org.springframework.boot:spring-boot-dependencies:3.5.11"
+		}
+	}
+
 	java {
 		toolchain {
 			languageVersion = JavaLanguageVersion.of(17)
