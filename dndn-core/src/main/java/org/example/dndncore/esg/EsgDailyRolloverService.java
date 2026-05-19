@@ -2,7 +2,7 @@ package org.example.dndncore.esg;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.dndncore.common.redis.RedisCacheNames;
+import org.example.dndncore.redis.cache.RedisCacheNames;
 import org.example.dndncore.esg.model.EsgDailySnapshot;
 import org.example.dndncore.esg.model.EsgMetricInput;
 import org.example.dndncore.esg.model.EsgZoneDailySnapshot;

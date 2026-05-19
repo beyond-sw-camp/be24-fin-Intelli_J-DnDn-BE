@@ -101,21 +101,12 @@ public class WeatherInfoService {
             WeatherInfo cached = weatherInfoRepository.findByReportDate(targetDate).orElse(null);
             WeatherInfoDto.DashboardRes cachedDashboard = cached != null ? fromSnapshot(cached) : null;
 
-            // 지난 날짜는 "확정 기상 데이터"만 고정값으로 사용한다.
-            // DERIVED는 DB에 남아 있어도 확정값으로 인정하지 않고, ASOS/실제 데이터 갱신을 한 번 시도한다.
-            if (targetDate.isBefore(today) && cachedDashboard != null) {
-                if (isConfirmedWeather(cachedDashboard)) {
-                    return cachedDashboard;
-                }
-
-                WeatherInfoDto.DashboardRes refreshed = tryBuildDashboard(targetDate);
-                refreshed = mergeMissingAirQuality(refreshed, cachedDashboard);
-                if (refreshed != null && !isEmptyDashboard(refreshed)) {
-                    saveSnapshotWithPolicy(targetDate, refreshed, cachedDashboard);
-                    return selectDashboardForResponse(refreshed, cachedDashboard);
-                }
-
-                return cachedDashboard;
+            // 지난 날짜는 당일 동안 마지막으로 저장된 snapshot을 최종값으로 고정한다.
+            // 사용자의 과거 날짜 조회가 외부 기상 API 재호출이나 과거 데이터 재저장을 유발하지 않도록 한다.
+            if (targetDate.isBefore(today)) {
+                return cachedDashboard != null
+                        ? cachedDashboard
+                        : loadSnapshotOrFallback(targetDate);
             }
 
             // 오늘/미래 날짜는 빠른 화면 표시를 위해 fresh snapshot을 우선 사용한다.
@@ -143,6 +134,12 @@ public class WeatherInfoService {
         try {
             WeatherInfo cached = weatherInfoRepository.findByReportDate(targetDate).orElse(null);
             WeatherInfoDto.DashboardRes cachedDashboard = cached != null ? fromSnapshot(cached) : null;
+
+            // 이미 지나간 날짜의 snapshot이 존재하면 서버 기동 워밍업 등으로 다시 덮어쓰지 않는다.
+            // 그 날짜의 마지막 성공 갱신값을 최종 저장값으로 유지한다.
+            if (targetDate.isBefore(LocalDate.now()) && cachedDashboard != null) {
+                return;
+            }
 
             WeatherInfoDto.DashboardRes response = buildDashboard(targetDate);
             response = mergeMissingAirQuality(response, cachedDashboard);

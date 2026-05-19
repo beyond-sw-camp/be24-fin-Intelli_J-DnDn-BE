@@ -1,7 +1,7 @@
-package org.example.dndncore.config;
+package org.example.dndncore.redis.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.example.dndncore.common.redis.RedisCacheNames;
+import org.example.dndncore.redis.cache.RedisCacheNames;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -43,7 +43,9 @@ public class WeatherAnalysisExtractor {
         List<WorkOrderDto.GateEquipmentRes> gateEquipments = workOrderService.getGateEquipments(targetDate);
         if (gateEquipments == null || gateEquipments.isEmpty()) {
             log.info("[기상분석] 작업지시서 없음 - AI 호출 생략 - 날짜: {}", targetDate);
-            return createNoWorkOrderResult();
+            WeatherAiDto.AnalysisResult noWorkOrderResult = createNoWorkOrderResult();
+            saveResult(targetDate, noWorkOrderResult);
+            return noWorkOrderResult;
         }
 
         try {

@@ -2,8 +2,8 @@ package org.example.dndncore.weather.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.dndncore.common.redis.RedisDistributedLockExecutor;
-import org.example.dndncore.common.redis.RedisLockKeys;
+import org.example.dndncore.redis.lock.RedisDistributedLockExecutor;
+import org.example.dndncore.redis.lock.RedisLockKeys;
 import org.example.dndncore.weather.WeatherInfoService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;

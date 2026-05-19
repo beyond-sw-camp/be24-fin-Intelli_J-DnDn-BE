@@ -3,13 +3,15 @@ package org.example.dndncore.esg;
 import lombok.RequiredArgsConstructor;
 import org.example.dndncore.auth.model.entity.SystemUser;
 import org.example.dndncore.auth.security.AuthAccessService;
-import org.example.dndncore.common.redis.RedisCacheNames;
+import org.example.dndncore.redis.cache.RedisCacheNames;
 import org.example.dndncore.esg.model.EsgDailySnapshot;
 import org.example.dndncore.esg.model.EsgDashboardDto;
 import org.example.dndncore.esg.model.EsgMetricInput;
 import org.example.dndncore.esg.model.EsgZoneDailySnapshot;
 import org.example.dndncore.project.model.entity.Project;
 import org.example.dndncore.project.repository.ProjectRepository;
+import org.example.dndncore.weather.WeatherInfoRepository;
+import org.example.dndncore.weather.model.WeatherInfo;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
@@ -39,15 +41,18 @@ public class EsgDashboardService {
     private final EsgDailySnapshotRepository esgDailySnapshotRepository;
     private final EsgZoneDailySnapshotRepository esgZoneDailySnapshotRepository;
     private final EsgMetricInputRepository esgMetricInputRepository;
+    private final WeatherInfoRepository weatherInfoRepository;
     private final AuthAccessService authAccessService;
 
     @Cacheable(cacheNames = RedisCacheNames.ESG_DASHBOARD, key = "@redisCacheKeyProvider.esgDashboardKey(#reportDate, #projectId)")
     public EsgDashboardDto.DashboardResponseDto readDashboard(LocalDate reportDate, Long projectId) {
         LocalDate targetDate = resolveReportDate(reportDate);
-        List<Project> accessibleProjects = findAccessibleProjects();
-        List<Project> rankingProjects = findRankingProjects(targetDate);
+        List<Project> projects = projectRepository.findAll();
+        List<Project> accessibleProjects = findAccessibleProjects(projects);
+        List<Project> rankingProjects = findRankingProjects(projects, targetDate);
         Project currentProject = resolveCurrentProject(accessibleProjects, projectId);
         Map<Long, EsgDailySnapshot> snapshotMap = buildRankingSnapshotMap(rankingProjects, targetDate);
+        Double storedFineDustValue = resolveStoredFineDustValue(targetDate);
         EsgDailySnapshot currentDateSnapshot = esgDailySnapshotRepository
                 .findByProject_IdxAndReportDate(currentProject.getIdx(), targetDate)
                 .orElse(null);
@@ -79,7 +84,7 @@ public class EsgDashboardService {
                         .map(EsgDashboardDto.ZoneSnapshotResponseDto::from)
                         .toList())
                 .currentMetricInputs(currentMetricInputs.stream()
-                        .map(EsgDashboardDto.MetricInputResponseDto::from)
+                        .map(input -> EsgDashboardDto.MetricInputResponseDto.from(input, storedFineDustValue))
                         .toList())
                 .projects(accessibleProjects.stream()
                         .map(project -> EsgDashboardDto.ProjectResponseDto.from(project, targetDate))
@@ -215,13 +220,22 @@ public class EsgDashboardService {
 
 
     private Map<Long, EsgDailySnapshot> buildRankingSnapshotMap(List<Project> rankingProjects, LocalDate targetDate) {
-        return rankingProjects.stream()
-                .map(project -> esgDailySnapshotRepository
-                        .findTopByProject_IdxAndReportDateLessThanEqualOrderByReportDateDesc(project.getIdx(), targetDate)
-                        .map(snapshot -> Map.entry(project.getIdx(), snapshot))
-                        .orElse(null))
-                .filter(entry -> entry != null)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        if (rankingProjects == null || rankingProjects.isEmpty()) {
+            return Map.of();
+        }
+
+        List<Long> projectIds = rankingProjects.stream()
+                .map(Project::getIdx)
+                .toList();
+
+        return esgDailySnapshotRepository
+                .findLatestByProjectIdsAndReportDateLessThanEqual(projectIds, targetDate)
+                .stream()
+                .collect(Collectors.toMap(
+                        snapshot -> snapshot.getProject().getIdx(),
+                        Function.identity(),
+                        (left, right) -> right
+                ));
     }
 
     private Map<String, EsgZoneDailySnapshot> buildPreviousZoneSnapshotMap(
@@ -242,18 +256,37 @@ public class EsgDashboardService {
                 ));
     }
 
-    private List<Project> findAccessibleProjects() {
-        return projectRepository.findAll().stream()
+    private List<Project> findAccessibleProjects(List<Project> projects) {
+        return projects.stream()
                 .filter(project -> authAccessService.canAccessProjectId(project.getIdx()))
                 .sorted(Comparator.comparing(Project::getIdx))
                 .toList();
     }
 
-    private List<Project> findRankingProjects(LocalDate reportDate) {
-        return projectRepository.findAll().stream()
+    private List<Project> findRankingProjects(List<Project> projects, LocalDate reportDate) {
+        return projects.stream()
                 .filter(project -> project.getEndDate() == null || !project.getEndDate().isBefore(reportDate))
                 .sorted(Comparator.comparing(Project::getIdx))
                 .toList();
+    }
+
+    private Double resolveStoredFineDustValue(LocalDate targetDate) {
+        return weatherInfoRepository.findByReportDate(targetDate)
+                .map(WeatherInfo::getFineDustValue)
+                .map(this::parseFineDustValue)
+                .orElse(null);
+    }
+
+    private Double parseFineDustValue(String fineDustValue) {
+        if (fineDustValue == null || fineDustValue.isBlank()) {
+            return null;
+        }
+
+        try {
+            return Double.parseDouble(fineDustValue.trim());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private Project resolveCurrentProject(List<Project> projects, Long requestedProjectId) {

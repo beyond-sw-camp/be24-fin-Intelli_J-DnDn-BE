@@ -1,4 +1,4 @@
-package org.example.dndncore.common.redis;
+package org.example.dndncore.redis.cache;
 
 public final class RedisCacheNames {
 

@@ -1,4 +1,4 @@
-package org.example.dndncore.common.redis;
+package org.example.dndncore.redis.cache;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;

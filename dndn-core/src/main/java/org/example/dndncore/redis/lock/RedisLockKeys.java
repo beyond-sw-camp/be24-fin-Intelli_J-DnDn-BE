@@ -1,4 +1,4 @@
-package org.example.dndncore.common.redis;
+package org.example.dndncore.redis.lock;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

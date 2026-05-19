@@ -1,4 +1,4 @@
-package org.example.dndncore.config;
+package org.example.dndncore.redis.config;
 
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;

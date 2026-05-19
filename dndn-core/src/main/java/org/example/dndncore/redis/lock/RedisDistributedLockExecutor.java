@@ -1,4 +1,4 @@
-package org.example.dndncore.common.redis;
+package org.example.dndncore.redis.lock;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
