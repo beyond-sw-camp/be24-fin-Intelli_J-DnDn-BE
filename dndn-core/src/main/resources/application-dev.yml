@@ -1,3 +1,6 @@
+server:
+  port: 10000
+
 openai:
   api-key: ${OPENAI_API_KEY}
   model: gpt-5.5
@@ -7,11 +10,7 @@ spring:
     name: dndn
 
   kafka:
-    bootstrap-servers: localhost:30806 # 쿠버네티스 카프카의 외부 노출 포트
-    producer:
-      # 제로 페이로드로 보낼 때 key/value는 보통 String이나 JSON을 씁니다.
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    bootstrap-servers: 192.100.20.104:9092,192.100.20.105:9092,192.100.20.106:9092
 
   servlet:
     multipart:
