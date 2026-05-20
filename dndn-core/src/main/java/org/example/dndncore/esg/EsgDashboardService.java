@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.dndncore.auth.model.entity.SystemUser;
 import org.example.dndncore.auth.security.AuthAccessService;
 import org.example.dndncore.redis.cache.RedisCacheNames;
+import org.example.dndncore.esg.event.EsgDashboardDataChangedEventPublisher;
 import org.example.dndncore.esg.model.EsgDailySnapshot;
 import org.example.dndncore.esg.model.EsgDashboardDto;
 import org.example.dndncore.esg.model.EsgMetricInput;
@@ -12,7 +13,6 @@ import org.example.dndncore.project.model.entity.Project;
 import org.example.dndncore.project.repository.ProjectRepository;
 import org.example.dndncore.weather.WeatherInfoRepository;
 import org.example.dndncore.weather.model.WeatherInfo;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -43,6 +43,7 @@ public class EsgDashboardService {
     private final EsgMetricInputRepository esgMetricInputRepository;
     private final WeatherInfoRepository weatherInfoRepository;
     private final AuthAccessService authAccessService;
+    private final EsgDashboardDataChangedEventPublisher esgDashboardDataChangedEventPublisher;
 
     @Cacheable(cacheNames = RedisCacheNames.ESG_DASHBOARD, key = "@redisCacheKeyProvider.esgDashboardKey(#reportDate, #projectId)")
     public EsgDashboardDto.DashboardResponseDto readDashboard(LocalDate reportDate, Long projectId) {
@@ -93,7 +94,6 @@ public class EsgDashboardService {
                 .build();
     }
 
-    @CacheEvict(cacheNames = RedisCacheNames.ESG_DASHBOARD, allEntries = true)
     @Transactional
     public EsgDashboardDto.SnapshotResponseDto createOrUpdateSnapshot(
             EsgDashboardDto.SaveSnapshotRequestDto request
@@ -148,6 +148,7 @@ public class EsgDashboardService {
                 previousSnapshot
         );
 
+        esgDashboardDataChangedEventPublisher.publishProjectDate(project.getIdx(), targetDate);
         return EsgDashboardDto.SnapshotResponseDto.from(savedSnapshot, savedZoneSnapshots);
     }
 

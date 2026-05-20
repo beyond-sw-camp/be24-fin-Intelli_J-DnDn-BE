@@ -2,13 +2,12 @@ package org.example.dndncore.esg;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.dndncore.redis.cache.RedisCacheNames;
+import org.example.dndncore.esg.event.EsgDashboardDataChangedEventPublisher;
 import org.example.dndncore.esg.model.EsgDailySnapshot;
 import org.example.dndncore.esg.model.EsgMetricInput;
 import org.example.dndncore.esg.model.EsgZoneDailySnapshot;
 import org.example.dndncore.project.model.entity.Project;
 import org.example.dndncore.project.repository.ProjectRepository;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,12 +31,12 @@ public class EsgDailyRolloverService {
     private final EsgDailySnapshotRepository esgDailySnapshotRepository;
     private final EsgZoneDailySnapshotRepository esgZoneDailySnapshotRepository;
     private final EsgMetricInputRepository esgMetricInputRepository;
+    private final EsgDashboardDataChangedEventPublisher esgDashboardDataChangedEventPublisher;
 
     public RolloverResult rolloverToday() {
         return rollover(LocalDate.now());
     }
 
-    @CacheEvict(cacheNames = RedisCacheNames.ESG_DASHBOARD, allEntries = true)
     public RolloverResult rollover(LocalDate targetDate) {
         LocalDate today = targetDate != null ? targetDate : LocalDate.now();
         List<Project> activeProjects = projectRepository.findAll().stream()
@@ -86,6 +85,10 @@ public class EsgDailyRolloverService {
                     previousZoneSnapshots,
                     currentDateMetricInputs
             );
+        }
+
+        if (createdSiteSnapshotCount > 0 || createdZoneSnapshotCount > 0 || createdMetricInputCount > 0) {
+            esgDashboardDataChangedEventPublisher.publishDate(today);
         }
 
         return new RolloverResult(
