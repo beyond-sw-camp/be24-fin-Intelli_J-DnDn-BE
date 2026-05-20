@@ -2,6 +2,7 @@ package org.example.dndncore.esg;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dndncore.esg.event.EsgDashboardDataChangedEventPublisher;
 import org.example.dndncore.esg.model.EsgDailySnapshot;
 import org.example.dndncore.esg.model.EsgMetricInput;
 import org.example.dndncore.esg.model.EsgZoneDailySnapshot;
@@ -30,6 +31,7 @@ public class EsgDailyRolloverService {
     private final EsgDailySnapshotRepository esgDailySnapshotRepository;
     private final EsgZoneDailySnapshotRepository esgZoneDailySnapshotRepository;
     private final EsgMetricInputRepository esgMetricInputRepository;
+    private final EsgDashboardDataChangedEventPublisher esgDashboardDataChangedEventPublisher;
 
     public RolloverResult rolloverToday() {
         return rollover(LocalDate.now());
@@ -83,6 +85,10 @@ public class EsgDailyRolloverService {
                     previousZoneSnapshots,
                     currentDateMetricInputs
             );
+        }
+
+        if (createdSiteSnapshotCount > 0 || createdZoneSnapshotCount > 0 || createdMetricInputCount > 0) {
+            esgDashboardDataChangedEventPublisher.publishDate(today);
         }
 
         return new RolloverResult(

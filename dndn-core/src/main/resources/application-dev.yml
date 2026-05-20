@@ -6,6 +6,13 @@ spring:
   application:
     name: dndn
 
+  data:
+    redis:
+      password: ${REDIS_PASSWORD}
+      sentinel:
+        master: ${REDIS_SENTINEL_MASTER}
+        nodes: ${REDIS_SENTINEL_NODES}
+
   servlet:
     multipart:
       max-file-size: 50MB

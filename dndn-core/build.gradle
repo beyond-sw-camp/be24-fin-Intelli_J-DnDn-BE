@@ -28,6 +28,12 @@ dependencies {
 
     implementation 'io.kubernetes:client-java:18.0.0'
 
+    // Redis Cache / Sentinel 연결용
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // Redis 분산락용
+    implementation 'org.redisson:redisson:4.3.1'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
