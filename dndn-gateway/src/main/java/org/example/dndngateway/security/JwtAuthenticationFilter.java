@@ -21,15 +21,7 @@ import reactor.core.publisher.Mono;
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private static final List<String> PROTECTED_PREFIXES = List.of(
-            "/api/document-management/",
-            "/api/admin/",
-            "/api/master-schedule/",
-            "/api/trade-process/",
-            "/api/work-plan/",
-            "/api/work-order/",
-            "/api/report/",
-            "/api/analysis/",
-            "/api/schedule-change-request/"
+            "/api/msa/"
     );
 
     private final JwtProvider jwtProvider;
@@ -56,9 +48,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             Claims claims = jwtProvider.parse(token);
             String userIdx = String.valueOf(claims.get("idx", Long.class));
             String role = claims.get("role", String.class);
-            if (path.startsWith("/api/admin/") && !"ADMIN".equals(role)) {
-                return forbidden(exchange.getResponse(), "Admin permission is required.");
-            }
 
             ServerHttpRequest mutatedRequest = request.mutate()
                     .header("X-User-Idx", userIdx)
@@ -83,20 +72,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return true;
         }
         return path.startsWith("/actuator/")
-                || path.equals("/api/auth/login")
-                || (path.startsWith("/api/auth/") && !isPasswordChange(request, path))
-                || path.startsWith("/api/project/")
-                || path.equals("/api/document-management/health")
-                || path.startsWith("/api/document-management/local-files/");
+                || path.equals("/api/msa/document-management/health");
     }
 
     private boolean requiresAuthentication(ServerHttpRequest request, String path) {
-        if (isPasswordChange(request, path)) {
-            return true;
-        }
-        if (path.equals("/api/account-requests") || path.startsWith("/api/account-requests/")) {
-            return true;
-        }
         return PROTECTED_PREFIXES.stream().anyMatch(path::startsWith);
     }
 

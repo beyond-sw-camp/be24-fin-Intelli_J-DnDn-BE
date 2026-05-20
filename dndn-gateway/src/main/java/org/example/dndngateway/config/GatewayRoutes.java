@@ -11,18 +11,10 @@ public class GatewayRoutes {
     @Bean
     public RouteLocator routeLocator(RouteLocatorBuilder routes, GatewayRouteProperties properties) {
         return routes.routes()
-                .route("document-management-health", route -> route
-                        .path("/api/document-management/health")
-                        .filters(filter -> filter.rewritePath("/api/(?<path>.*)", "/${path}"))
+                .route("document-management-api", route -> route
+                        .path("/api/msa/document-management/**")
+                        .filters(filter -> filter.rewritePath("/api/msa/(?<path>.*)", "/${path}"))
                         .uri(properties.documentManagementUri()))
-                .route("document-management-uploaded", route -> route
-                        .path("/api/document-management/*/uploaded")
-                        .filters(filter -> filter.rewritePath("/api/(?<path>.*)", "/${path}"))
-                        .uri(properties.documentManagementUri()))
-                .route("core-api", route -> route
-                        .path("/api/**")
-                        .filters(filter -> filter.rewritePath("/api/(?<path>.*)", "/${path}"))
-                        .uri(properties.coreUri()))
                 .build();
     }
 }

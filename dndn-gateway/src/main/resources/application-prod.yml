@@ -7,8 +7,14 @@ spring:
 
 gateway:
   routes:
-    core-uri: ${CORE_SERVICE_URI:http://backend-service:8080}
-    document-management-uri: ${DOCUMENT_MANAGEMENT_SERVICE_URI:http://document-management-service:8082}
+    document-management-uri: ${DOCUMENT_MANAGEMENT_SERVICE_URI:lb://DNDN-DOCUMENT-MANAGEMENT}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://discovery-service:8761/eureka/}
+  instance:
+    prefer-ip-address: true
 
 jwt:
   secret: ${JWT_SECRET}

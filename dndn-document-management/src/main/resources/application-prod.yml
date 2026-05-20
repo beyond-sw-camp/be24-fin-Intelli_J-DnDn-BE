@@ -37,6 +37,13 @@ spring:
       ack-mode: batch
       concurrency: ${DOCUMENT_KAFKA_CONCURRENCY:3}
 
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://discovery-service:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
 info:
   deployment:
     color: ${DEPLOYMENT_COLOR:unknown}
