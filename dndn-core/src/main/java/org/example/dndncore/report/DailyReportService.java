@@ -2,6 +2,7 @@ package org.example.dndncore.report;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dndncore.auth.security.AuthAccessService;
+import org.example.dndncore.esg.event.EsgDashboardDataChangedEventPublisher;
 import org.example.dndncore.report.model.DailyReport;
 import org.example.dndncore.report.model.ReportDto;
 import org.example.dndncore.workplan.WorkPlanRepository;
@@ -28,6 +29,7 @@ public class DailyReportService {
     private final DailyReportRepository dailyReportRepository;
     private final WorkPlanRepository workPlanRepository;
     private final AuthAccessService authAccessService;
+    private final EsgDashboardDataChangedEventPublisher esgDashboardDataChangedEventPublisher;
 
     // feat : 공사일보 제출 및 명일 작업계획 자동 연동
     public Long submitReport(ReportDto.Req dto) {
@@ -158,7 +160,24 @@ public class DailyReportService {
             workPlanRepository.save(tomorrowPlan);
         }
 
+        Long projectId = resolveProjectId(workPlan);
+        esgDashboardDataChangedEventPublisher.publishProjectDate(projectId, savedReport.getReportDate());
         return savedReport.getIdx();
+    }
+
+
+    private Long resolveProjectId(WorkPlan workPlan) {
+        if (workPlan == null
+                || workPlan.getTradeProcess() == null
+                || workPlan.getTradeProcess().getMasterSchedule() == null
+                || workPlan.getTradeProcess().getMasterSchedule().getProject() == null) {
+            return null;
+        }
+
+        return workPlan.getTradeProcess()
+                .getMasterSchedule()
+                .getProject()
+                .getIdx();
     }
 
     private Double clampPercent(Double value) {
