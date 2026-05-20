@@ -1,11 +1,11 @@
-package org.example.dndndocumentupload.document_upload;
+package org.example.dndndocumentupload.document.management;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dndndocumentupload.common.exception.BaseException;
 import org.example.dndndocumentupload.common.model.BaseResponseStatus;
-import org.example.dndndocumentupload.document_upload.model.dto.DocumentManagementDto;
-import org.example.dndndocumentupload.document_upload.model.entity.MasterSchedule;
-import org.example.dndndocumentupload.document_upload.model.enums.DocType;
+import org.example.dndndocumentupload.document.model.dto.DocumentManagementDto;
+import org.example.dndndocumentupload.document.model.entity.MasterSchedule;
+import org.example.dndndocumentupload.document.model.DocType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -72,7 +72,7 @@ public class DocumentManagementService {
         String fileKey = storageService.store(dto.getFile(), dto.getProjectIdx(), dto.getDocType());
 
        MasterSchedule entity = dto.toEntity(fileKey);
-        documentManagementRepository.save(entity);
+       documentManagementRepository.save(entity);
     }
 
     public String download(Long idx, boolean isPreview) {

@@ -1,10 +1,10 @@
-package org.example.dndndocumentupload.document_upload;
+package org.example.dndndocumentupload.document.management;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dndndocumentupload.common.model.BaseResponse;
-import org.example.dndndocumentupload.document_upload.model.enums.DocType;
-import org.example.dndndocumentupload.document_upload.model.dto.DocumentManagementDto;
+import org.example.dndndocumentupload.document.model.DocType;
+import org.example.dndndocumentupload.document.model.dto.DocumentManagementDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;

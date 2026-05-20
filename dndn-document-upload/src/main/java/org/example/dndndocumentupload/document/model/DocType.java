@@ -1,4 +1,4 @@
-package org.example.dndndocumentupload.document_upload.model.enums;
+package org.example.dndndocumentupload.document.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

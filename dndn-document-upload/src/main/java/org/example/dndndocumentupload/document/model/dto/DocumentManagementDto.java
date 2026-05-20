@@ -1,10 +1,10 @@
-package org.example.dndndocumentupload.document_upload.model.dto;
+package org.example.dndndocumentupload.document.model.dto;
 
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-import org.example.dndndocumentupload.document_upload.model.entity.MasterSchedule;
-import org.example.dndndocumentupload.document_upload.model.enums.DocType;
+import org.example.dndndocumentupload.document.model.entity.MasterSchedule;
+import org.example.dndndocumentupload.document.model.DocType;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.web.multipart.MultipartFile;
