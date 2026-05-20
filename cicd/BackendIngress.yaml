@@ -3,7 +3,7 @@ kind: Ingress
 metadata:
   name: backend-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: 50m
 spec:
   ingressClassName: nginx
   tls:
@@ -14,10 +14,17 @@ spec:
     - host: www.dndn24.kro.kr
       http:
         paths:
-          - path: /api(/|$)(.*)
+          - path: /api/msa
             pathType: Prefix
             backend:
               service:
-                name: backend-service-blue   # Jenkins가 이 값을 교체
+                name: gateway-service
+                port:
+                  number: 8088
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-service
                 port:
                   number: 8080

@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dndn-backend-green
+  name: dndn-discovery
   labels:
-    type: backend
-    version: green
+    app: dndn-discovery
+    type: discovery
 spec:
-  replicas: 0 # Idle status
+  replicas: 1
   selector:
     matchLabels:
-      type: backend
-      version: green
+      app: dndn-discovery
+      type: discovery
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -19,33 +19,33 @@ spec:
   template:
     metadata:
       labels:
-        type: backend
-        version: green
+        app: dndn-discovery
+        type: discovery
     spec:
       containers:
-        - name: backend
-          image: seungwoo0128/dndn-backend:1.1
+        - name: discovery
+          image: seungwoo0128/dndn-discovery:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 8080
+            - containerPort: 8761
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8080
+              port: 8761
             periodSeconds: 10
             failureThreshold: 30
             timeoutSeconds: 3
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: 8080
+              port: 8761
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8080
+              port: 8761
             initialDelaySeconds: 0
             periodSeconds: 10
             timeoutSeconds: 3
@@ -56,10 +56,7 @@ spec:
               memory: "128Mi"
             limits:
               cpu: "1000m"
-              memory: "2048Mi"
+              memory: "1024Mi"
           env:
-            - name: DEPLOYMENT_COLOR
-              value: "green"
-          envFrom:
-            - configMapRef:
-                name: backend-config
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"

@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dndn-backend-green
+  name: dndn-document-management
   labels:
-    type: backend
-    version: green
+    app: dndn-document-management
+    type: document-management
 spec:
-  replicas: 0 # Idle status
+  replicas: 1
   selector:
     matchLabels:
-      type: backend
-      version: green
+      app: dndn-document-management
+      type: document-management
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -19,33 +19,33 @@ spec:
   template:
     metadata:
       labels:
-        type: backend
-        version: green
+        app: dndn-document-management
+        type: document-management
     spec:
       containers:
-        - name: backend
-          image: seungwoo0128/dndn-backend:1.1
+        - name: document-management
+          image: seungwoo0128/dndn-document-management:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 8080
+            - containerPort: 8082
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8080
+              port: 8082
             periodSeconds: 10
             failureThreshold: 30
             timeoutSeconds: 3
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: 8080
+              port: 8082
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8080
+              port: 8082
             initialDelaySeconds: 0
             periodSeconds: 10
             timeoutSeconds: 3
@@ -58,8 +58,10 @@ spec:
               cpu: "1000m"
               memory: "2048Mi"
           env:
-            - name: DEPLOYMENT_COLOR
-              value: "green"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: EUREKA_DEFAULT_ZONE
+              value: "http://discovery-service:8761/eureka/"
           envFrom:
             - configMapRef:
-                name: backend-config
+                name: document-management-config
