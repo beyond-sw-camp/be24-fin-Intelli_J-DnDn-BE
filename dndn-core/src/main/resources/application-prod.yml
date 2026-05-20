@@ -23,6 +23,13 @@ spring:
     url: ${DB_URL}
     username: ${DB_USER}
     password: ${DB_PASS}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      max-lifetime: 600000
+      keepalive-time: 60000
+      connection-timeout: 30000
+      idle-timeout: 300000
 
   jpa:
     database-platform: org.hibernate.dialect.MariaDBDialect
@@ -30,7 +37,12 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
+        default_batch_fetch_size: 1000
         format_sql: true
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
 
 # K8s Deployment env DEPLOYMENT_COLOR → /api/actuator/info 의 deployment.color JSON
 info:
@@ -67,7 +79,6 @@ logging:
     org.hibernate.orm.jdbc.bind: trace
     org.example: debug
     net.ttddyy.observation: DEBUG
-    org.example.dndncore.worker.scheduler: debug
 
 weather:
   kma:

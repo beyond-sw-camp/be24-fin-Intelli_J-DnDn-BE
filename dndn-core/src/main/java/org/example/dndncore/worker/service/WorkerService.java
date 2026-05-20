@@ -2,7 +2,6 @@ package org.example.dndncore.worker.service;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dndncore.common.exception.BaseException;
-import org.example.dndncore.project.repository.ProjectRepository;
 import org.example.dndncore.worker.config.ManagementAttendanceProperties;
 import org.example.dndncore.worker.fixture.WorkerFixtureGenerator;
 import org.example.dndncore.worker.fixture.WorkerScenarioFixtureRow;
@@ -18,8 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNullElse;
@@ -35,7 +32,6 @@ import static org.example.dndncore.common.model.BaseResponseStatus.WORKER_SYNC_M
 @Transactional(readOnly = true)
 public class WorkerService {
     private static final String SAFETY_EDUCATION_DOCUMENT_KEYWORD = "기초안전보건교육";
-    private static final Pattern SITE_CODE_PATTERN = Pattern.compile("^\\s*\\[([^\\]]+)]");
 
     private final WorkerRepository workerRepository;
     private final AttendanceRecordRepository attendanceRepository;
@@ -45,42 +41,6 @@ public class WorkerService {
     private final WorkerFixtureGenerator workerFixtureGenerator;
     private final ManagementAttendanceProperties attendanceProps;
     private final FatigueCalculationService fatigueCalculationService;
-    private final ProjectRepository projectRepository;
-
-    // MANAGEMENT_001 전체 현장 일괄 동기화 (스케줄러 및 수동 트리거 공용)
-    @Transactional
-    public WorkerDto.BulkSyncRes syncAllSites(LocalDate rosterDate) {
-        List<String> siteCodes = projectRepository.findAll().stream()
-                .map(p -> SITE_CODE_PATTERN.matcher(p.getName()))
-                .filter(Matcher::find)
-                .map(m -> m.group(1))
-                .distinct()
-                .toList();
-
-        List<WorkerDto.SiteSyncResult> results = new ArrayList<>();
-        for (String siteCode : siteCodes) {
-            try {
-                WorkerDto.SyncRes detail = syncWorkforce(siteCode, rosterDate);
-                results.add(WorkerDto.SiteSyncResult.builder()
-                        .siteCode(siteCode)
-                        .success(true)
-                        .detail(detail)
-                        .build());
-            } catch (Exception e) {
-                results.add(WorkerDto.SiteSyncResult.builder()
-                        .siteCode(siteCode)
-                        .success(false)
-                        .errorMessage(e.getMessage())
-                        .build());
-            }
-        }
-
-        return WorkerDto.BulkSyncRes.builder()
-                .syncDate(rosterDate)
-                .siteCount(siteCodes.size())
-                .results(results)
-                .build();
-    }
 
     // MANAGEMENT_001 인력 데이터 불러오기.
     @Transactional
@@ -98,9 +58,11 @@ public class WorkerService {
                     .documentsSynced(0).accidentsSynced(0).attendanceRecordsSynced(0)
                     .build();
         }
+
         int created = 0, updated = 0;
         SyncDetailAccumulator detail = new SyncDetailAccumulator();
 
+        // Step 1: 기존 근로자 일괄 조회 (IN 쿼리 1번)
         Set<String> externalCodes = payload.stream()
                 .map(WorkerScenarioFixtureRow::getExternalCode)
                 .filter(Objects::nonNull)
@@ -108,6 +70,10 @@ public class WorkerService {
         Map<String, Worker> existingByCode = workerRepository.findAllByExternalCodeIn(externalCodes)
                 .stream()
                 .collect(Collectors.toMap(Worker::getExternalCode, w -> w, (a, b) -> a));
+
+        // Step 2: 근로자 upsert — 병렬 리스트로 (worker, row) 쌍 유지
+        List<Worker> workers = new ArrayList<>(payload.size());
+        List<WorkerScenarioFixtureRow> rows = new ArrayList<>(payload.size());
 
         for (WorkerScenarioFixtureRow item : payload) {
             Worker worker;
@@ -120,11 +86,30 @@ public class WorkerService {
                 worker = workerRepository.save(item.toWorkerEntity());
                 created++;
             }
-
-            mergeScenarioDetailsFromFixture(worker, item, detail);
-            normalizeRosterDayPending(worker, rosterDate, detail);
-            fatigueCalculationService.recalculateAndPersist(worker.getIdx(), rosterDate);
+            workers.add(worker);
+            rows.add(item);
         }
+        // @Modifying 벌크 쿼리 실행 전 worker 변경분을 DB에 반영
+        workerRepository.flush();
+
+        List<Long> workerIdxes = workers.stream().map(Worker::getIdx).toList();
+
+        // Step 3: 벌크 근태 행 정규화 (per-worker 루프 5N 회 → 4회)
+        bulkNormalizeRosterDayPending(workers, workerIdxes, rosterDate, detail);
+
+        // Step 4: 벌크 서류 동기화 (per-doc DELETE/flush/INSERT → 2회)
+        bulkMergeDocuments(workers, rows, workerIdxes, detail);
+
+        // Step 5: 사고 이력 (skip-if-exists 로직상 개별 처리 유지)
+        for (int i = 0; i < workers.size(); i++) {
+            mergeAccidents(workers.get(i), rows.get(i), detail);
+        }
+
+        // Step 6: 벌크 근태 이력 로그 동기화 (날짜별 그룹화 → 고유 날짜 수만큼 쿼리)
+        bulkMergeAttendanceHistory(workers, rows, detail);
+
+        // Step 7: 벌크 피로도 재계산 (3 쿼리 고정)
+        fatigueCalculationService.bulkRecalculateAndPersist(workers, rosterDate);
 
         return WorkerDto.SyncRes.builder()
                 .created(created)
@@ -136,34 +121,175 @@ public class WorkerService {
                 .build();
     }
 
-    // sync 시 해당 근무일 행을 PENDING(미출근)으로 생성.
-    // 실제 출근 시각·상태는 게이트 인식(recordGateClockIn) 시점에 갱신된다.
-    // `employment_kind` 는 동기화 직전 해당 일 행이 있으면 유지하고, 없으면 {@link Worker#getEmploymentKind()} 마스터 값.
-    private void normalizeRosterDayPending(Worker worker, LocalDate rosterDate, SyncDetailAccumulator acc) {
+    /**
+     * 벌크 근태 행 정규화.
+     *
+     * <p>기존: 1명당 SELECT + DELETE + flush() + INSERT + DELETE = 5회 × N<br>
+     * 개선: SELECT 1 + DELETE 2 + saveAll 1 = 4회 (N 무관) — flush() O(n²) 완전 제거</p>
+     *
+     * <p>{@code employment_kind}는 기존 행이 있으면 보존하고, 없으면 Worker 마스터 값 사용.</p>
+     */
+    private void bulkNormalizeRosterDayPending(
+            List<Worker> workers, List<Long> workerIdxes, LocalDate rosterDate, SyncDetailAccumulator acc) {
+
+        // 기존 행 일괄 조회 → employment_kind 보존용 맵 (IN 쿼리 1회)
+        Map<Long, EmploymentKind> ekByWorkerIdx = attendanceRepository
+                .findAllByWorkerIdxInAndWorkDate(workerIdxes, rosterDate)
+                .stream()
+                .collect(Collectors.toMap(
+                        ar -> ar.getWorker().getIdx(),
+                        AttendanceRecord::getEmploymentKind,
+                        (a, b) -> a));
+
+        // 기존 attendance_record 일괄 삭제 (벌크 DELETE, flush 불필요)
+        attendanceRepository.deleteAllByWorkerIdxInAndWorkDate(workerIdxes, rosterDate);
+
+        // 당일 attendance_log 일괄 삭제 (벌크 DELETE)
+        attendanceLogRepository.deleteAllByWorkerIdxInAndWorkDate(workerIdxes, rosterDate);
+
+        // 새 PENDING 행 일괄 저장
+        List<AttendanceRecord> toSave = new ArrayList<>(workers.size());
+        for (Worker worker : workers) {
+            Long wid = worker.getIdx();
+            boolean hadRow = ekByWorkerIdx.containsKey(wid);
+            EmploymentKind preservedEk = ekByWorkerIdx.getOrDefault(
+                    wid, requireNonNullElse(worker.getEmploymentKind(), EmploymentKind.REGULAR));
+
+            toSave.add(AttendanceRecord.builder()
+                    .worker(worker)
+                    .workDate(rosterDate)
+                    .clockIn(null).clockOut(null).manDays(null)
+                    .attendanceStatus(AttendanceStatus.PENDING)
+                    .employmentKind(preservedEk)
+                    .siteCode(worker.getSiteCode())
+                    .build());
+
+            if (!hadRow) acc.attendanceRecords++;
+        }
+        attendanceRepository.saveAll(toSave);
+    }
+
+    /**
+     * 벌크 서류 동기화.
+     *
+     * <p>기존: 1명당 N_doc × (SELECT + DELETE + flush() + INSERT)<br>
+     * 개선: 전체 DELETE 1회 + saveAll 1회 — 픽스처에 없는 수동 등록 서류는 보존</p>
+     */
+    private void bulkMergeDocuments(
+            List<Worker> workers, List<WorkerScenarioFixtureRow> rows,
+            List<Long> workerIdxes, SyncDetailAccumulator acc) {
+
+        List<String> allTitles = rows.stream()
+                .filter(r -> r.getDocuments() != null)
+                .flatMap(r -> r.getDocuments().stream())
+                .map(WorkerScenarioFixtureRow.DocumentFixtureRow::getTitle)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (allTitles.isEmpty()) return;
+
+        // 픽스처 대상 서류만 선택 삭제 (수동 등록 서류 보존)
+        documentRepository.deleteAllByWorkerIdxInAndTitleIn(workerIdxes, allTitles);
+
+        List<WorkerDocument> toSave = new ArrayList<>();
+        for (int i = 0; i < workers.size(); i++) {
+            Worker worker = workers.get(i);
+            WorkerScenarioFixtureRow row = rows.get(i);
+            if (row.getDocuments() == null) continue;
+            for (WorkerScenarioFixtureRow.DocumentFixtureRow r : row.getDocuments()) {
+                toSave.add(WorkerDocument.builder()
+                        .worker(worker)
+                        .title(r.getTitle())
+                        .fileUrl(r.getFileUrl())
+                        .storedFileName(r.getStoredFileName())
+                        .build());
+                acc.documents++;
+            }
+        }
+        if (!toSave.isEmpty()) {
+            documentRepository.saveAll(toSave);
+        }
+    }
+
+    /** 사고 이력 — 동일 키 존재 시 스킵하는 누적 방식이므로 개별 처리 유지. */
+    private void mergeAccidents(Worker worker, WorkerScenarioFixtureRow row, SyncDetailAccumulator acc) {
+        if (row.getAccidents() == null) return;
         Long wid = worker.getIdx();
-        Optional<AttendanceRecord> prev = attendanceRepository.findByWorkerIdxAndWorkDate(wid, rosterDate);
-        boolean hadRow = prev.isPresent();
-        EmploymentKind preservedEk = prev.map(AttendanceRecord::getEmploymentKind)
-                .orElseGet(() -> requireNonNullElse(worker.getEmploymentKind(), EmploymentKind.REGULAR));
-        prev.ifPresent(attendanceRepository::delete);
-        attendanceRepository.flush();
+        for (WorkerScenarioFixtureRow.AccidentFixtureRow r : row.getAccidents()) {
+            String zm = requireNonNullElse(r.getZoneMain(), "").trim();
+            String zs = requireNonNullElse(r.getZoneSub(), "").trim();
+            if (accidentRepository.existsByWorkerIdxAndOccurredAtAndAccidentTypeAndZoneMainAndZoneSub(
+                    wid,
+                    r.getOccurredAt(),
+                    requireNonNullElse(r.getAccidentType(), ""),
+                    zm.isEmpty() ? null : zm,
+                    zs.isEmpty() ? null : zs)) {
+                continue;
+            }
+            accidentRepository.save(SafetyAccident.builder()
+                    .worker(worker)
+                    .occurredAt(r.getOccurredAt())
+                    .accidentType(r.getAccidentType())
+                    .zoneMain(zm.isEmpty() ? null : zm)
+                    .zoneSub(zs.isEmpty() ? null : zs)
+                    .resolution(r.getResolution())
+                    .build());
+            acc.accidents++;
+        }
+    }
 
-        attendanceRepository.save(AttendanceRecord.builder()
-                .worker(worker)
-                .workDate(rosterDate)
-                .clockIn(null)
-                .clockOut(null)
-                .manDays(null)
-                .attendanceStatus(AttendanceStatus.PENDING)
-                .employmentKind(preservedEk)
-                .siteCode(worker.getSiteCode())
-                .build());
+    /**
+     * 벌크 근태 이력 로그 동기화.
+     *
+     * <p>기존: 1명당 N_date × (DELETE + INSERT×2) = 3N_date × N_workers<br>
+     * 개선: 고유 날짜별 벌크 DELETE + saveAll 1회</p>
+     *
+     * <p>과거 근태 이력은 attendance_log 에만 기록 — attendance_record 는 당일 로스터 전용.</p>
+     */
+    private void bulkMergeAttendanceHistory(
+            List<Worker> workers, List<WorkerScenarioFixtureRow> rows, SyncDetailAccumulator acc) {
 
-        // 당일 출근 로그 초기화 — 실제 게이트 인식 시 CLOCK_IN 이벤트가 기록된다
-        attendanceLogRepository.deleteAllByWorkerIdxAndWorkDate(wid, rosterDate);
+        // (날짜 → 해당 날짜에 이력이 있는 workerIdx 목록) 맵 구성
+        Map<LocalDate, List<Long>> workerIdxesByDate = new HashMap<>();
+        List<AttendanceLog> logsToSave = new ArrayList<>();
 
-        if (!hadRow) {
-            acc.attendanceRecords++;
+        for (int i = 0; i < workers.size(); i++) {
+            Worker worker = workers.get(i);
+            WorkerScenarioFixtureRow row = rows.get(i);
+            if (row.getAttendanceRecords() == null) continue;
+
+            Long wid = worker.getIdx();
+            for (WorkerScenarioFixtureRow.AttendanceFixtureRow r : row.getAttendanceRecords()) {
+                workerIdxesByDate.computeIfAbsent(r.getWorkDate(), d -> new ArrayList<>()).add(wid);
+
+                if (r.getClockIn() != null) {
+                    logsToSave.add(AttendanceLog.builder()
+                            .workerIdx(wid)
+                            .workDate(r.getWorkDate())
+                            .eventType(AttendanceEventType.CLOCK_IN)
+                            .recognizedAt(r.getClockIn())
+                            .build());
+                    acc.attendanceRecords++;
+                }
+                if (r.getClockOut() != null) {
+                    logsToSave.add(AttendanceLog.builder()
+                            .workerIdx(wid)
+                            .workDate(r.getWorkDate())
+                            .eventType(AttendanceEventType.CLOCK_OUT)
+                            .recognizedAt(r.getClockOut())
+                            .build());
+                }
+            }
+        }
+
+        // 날짜별 벌크 DELETE (고유 날짜 수 = 통상 10~30회)
+        for (Map.Entry<LocalDate, List<Long>> entry : workerIdxesByDate.entrySet()) {
+            attendanceLogRepository.deleteAllByWorkerIdxInAndWorkDate(entry.getValue(), entry.getKey());
+        }
+
+        if (!logsToSave.isEmpty()) {
+            attendanceLogRepository.saveAll(logsToSave);
         }
     }
 
@@ -257,74 +383,6 @@ public class WorkerService {
                 .build();
     }
 
-    /**
-     * 픽스처에 나온 행만 반영하고 카운터를 올린다.
-     * 근태·서류는 자연 키 단위로 삭제 후 재삽입(불변 빌더 엔티티 가정), 이력류는 동일 키면 스킵.
-     */
-    private void mergeScenarioDetailsFromFixture(Worker worker, WorkerScenarioFixtureRow row, SyncDetailAccumulator acc) {
-        Long wid = worker.getIdx();
-
-        if (row.getDocuments() != null) {
-            for (WorkerScenarioFixtureRow.DocumentFixtureRow r : row.getDocuments()) {
-                documentRepository.findByWorkerIdxAndTitle(wid, r.getTitle()).ifPresent(documentRepository::delete);
-                documentRepository.flush();
-                documentRepository.save(WorkerDocument.builder()
-                        .worker(worker)
-                        .title(r.getTitle())
-                        .fileUrl(r.getFileUrl())
-                        .storedFileName(r.getStoredFileName())
-                        .build());
-                acc.documents++;
-            }
-        }
-        if (row.getAccidents() != null) {
-            for (WorkerScenarioFixtureRow.AccidentFixtureRow r : row.getAccidents()) {
-                String zm = requireNonNullElse(r.getZoneMain(), "").trim();
-                String zs = requireNonNullElse(r.getZoneSub(), "").trim();
-                if (accidentRepository.existsByWorkerIdxAndOccurredAtAndAccidentTypeAndZoneMainAndZoneSub(
-                        wid,
-                        r.getOccurredAt(),
-                        requireNonNullElse(r.getAccidentType(), ""),
-                        zm.isEmpty() ? null : zm,
-                        zs.isEmpty() ? null : zs)) {
-                    continue;
-                }
-                accidentRepository.save(SafetyAccident.builder()
-                        .worker(worker)
-                        .occurredAt(r.getOccurredAt())
-                        .accidentType(r.getAccidentType())
-                        .zoneMain(zm.isEmpty() ? null : zm)
-                        .zoneSub(zs.isEmpty() ? null : zs)
-                        .resolution(r.getResolution())
-                        .build());
-                acc.accidents++;
-            }
-        }
-        // 과거 근태 이력은 attendance_log 에만 기록 — attendance_record 는 당일 로스터 전용
-        if (row.getAttendanceRecords() != null) {
-            for (WorkerScenarioFixtureRow.AttendanceFixtureRow r : row.getAttendanceRecords()) {
-                attendanceLogRepository.deleteAllByWorkerIdxAndWorkDate(wid, r.getWorkDate());
-                if (r.getClockIn() != null) {
-                    attendanceLogRepository.save(AttendanceLog.builder()
-                            .workerIdx(wid)
-                            .workDate(r.getWorkDate())
-                            .eventType(AttendanceEventType.CLOCK_IN)
-                            .recognizedAt(r.getClockIn())
-                            .build());
-                    acc.attendanceRecords++;
-                }
-                if (r.getClockOut() != null) {
-                    attendanceLogRepository.save(AttendanceLog.builder()
-                            .workerIdx(wid)
-                            .workDate(r.getWorkDate())
-                            .eventType(AttendanceEventType.CLOCK_OUT)
-                            .recognizedAt(r.getClockOut())
-                            .build());
-                }
-            }
-        }
-    }
-
     private static final class SyncDetailAccumulator {
         int documents;
         int accidents;
@@ -343,9 +401,22 @@ public class WorkerService {
                 .build();
     }
 
-    /** MANAGEMENT_003 작업자 목록 조회 — 조회일 AttendanceRecord 기준, 현장 분리 */
-    public WorkerDto.ListRes getList(String siteCode, LocalDate date) {
+    /**
+     * MANAGEMENT_003 작업자 목록 조회 — 페이징 + 서버사이드 공종·이름 필터.
+     *
+     * <ul>
+     *   <li>{@code globalKpi} — 현장+날짜 전체 근무자 집계 (필터 무관)</li>
+     *   <li>{@code listKpi}  — 공종·이름 필터 적용 후 전체 집계 (페이징 전)</li>
+     *   <li>{@code rows}     — 현재 페이지 ({@code size}개)</li>
+     *   <li>{@code availableTrades} — 드롭다운용 공종 전체 목록</li>
+     * </ul>
+     */
+    public WorkerDto.ListRes getList(String siteCode, LocalDate date,
+                                     String tradeName, String searchName,
+                                     int page, int size) {
         LocalDate target = date == null ? LocalDate.now() : date;
+        int safeSize = size < 1 ? 20 : Math.min(size, 200);
+        int safePage = Math.max(0, page);
 
         List<AttendanceRecord> records = (siteCode != null && !siteCode.isBlank())
                 ? attendanceRepository.findAllByWorkDateAndSiteCode(target, siteCode.trim())
@@ -356,9 +427,10 @@ public class WorkerService {
         if (attendanceByWorkerIdx.isEmpty()) {
             WorkerDto.StateCountRes zero = emptyAttendanceKpi();
             return WorkerDto.ListRes.builder()
-                    .globalKpi(zero)
-                    .listKpi(zero)
+                    .globalKpi(zero).listKpi(zero)
                     .rows(List.of())
+                    .totalElements(0).totalPages(0).page(0).size(safeSize)
+                    .availableTrades(List.of())
                     .build();
         }
 
@@ -369,19 +441,52 @@ public class WorkerService {
                 .sorted(Comparator.comparing(Worker::getName, Comparator.nullsLast(String::compareTo)))
                 .toList();
 
-        Set<Long> safetyEducationCompletedWorkerIds = findSafetyEducationCompletedWorkerIds(attendanceByWorkerIdx.keySet());
-        List<WorkerDto.WorkerRes> rows = workers.stream()
-                .map(w -> WorkerDto.WorkerRes.from(
-                        w,
-                        attendanceByWorkerIdx.get(w.getIdx()),
-                        safetyEducationCompletedWorkerIds.contains(w.getIdx())))
+        Set<Long> safetyIds = findSafetyEducationCompletedWorkerIds(attendanceByWorkerIdx.keySet());
+
+        // 전체 WorkerRes 빌드 — globalKpi 및 availableTrades 산출 기준
+        List<WorkerDto.WorkerRes> allRows = workers.stream()
+                .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx()),
+                        safetyIds.contains(w.getIdx())))
                 .collect(Collectors.toList());
 
-        WorkerDto.StateCountRes kpi = aggregateAttendance(rows);
+        WorkerDto.StateCountRes globalKpi = aggregateAttendance(allRows);
+
+        // 드롭다운 공종 목록 (null·공백 제외, 정렬)
+        List<String> availableTrades = allRows.stream()
+                .map(WorkerDto.WorkerRes::getTrade)
+                .filter(t -> t != null && !t.isBlank())
+                .distinct()
+                .sorted(Comparator.naturalOrder())
+                .collect(Collectors.toList());
+
+        // 공종·이름 필터 적용 (페이징 전 전체 집계용)
+        String tradeFilter = (tradeName != null && !tradeName.isBlank()) ? tradeName.trim() : null;
+        String nameFilter  = (searchName != null && !searchName.isBlank()) ? searchName.trim().toLowerCase() : null;
+
+        List<WorkerDto.WorkerRes> filteredRows = allRows.stream()
+                .filter(r -> tradeFilter == null || tradeFilter.equals(r.getTrade()))
+                .filter(r -> nameFilter == null || (r.getName() != null && r.getName().toLowerCase().contains(nameFilter)))
+                .collect(Collectors.toList());
+
+        WorkerDto.StateCountRes listKpi = aggregateAttendance(filteredRows);
+        long totalElements = filteredRows.size();
+        int totalPages = totalElements == 0 ? 0 : (int) Math.ceil((double) totalElements / safeSize);
+        int clampedPage = Math.min(safePage, Math.max(0, totalPages - 1));
+
+        List<WorkerDto.WorkerRes> pageRows = filteredRows.stream()
+                .skip((long) clampedPage * safeSize)
+                .limit(safeSize)
+                .collect(Collectors.toList());
+
         return WorkerDto.ListRes.builder()
-                .globalKpi(kpi)
-                .listKpi(kpi)
-                .rows(rows)
+                .globalKpi(globalKpi)
+                .listKpi(listKpi)
+                .rows(pageRows)
+                .totalElements(totalElements)
+                .totalPages(totalPages)
+                .page(clampedPage)
+                .size(safeSize)
+                .availableTrades(availableTrades)
                 .build();
     }
 
@@ -456,17 +561,27 @@ public class WorkerService {
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * 프론트엔드 {@code deriveAttendanceTag} 로직과 동일하게 집계.
+     * PRESENT/LATE + clockOut → leave(퇴근), LEAVE 상태도 leave로 집계.
+     * PRESENT + clockIn > 07:00 → late(지각).
+     */
     private WorkerDto.StateCountRes aggregateAttendance(List<WorkerDto.WorkerRes> rows) {
         int pending = 0, present = 0, late = 0, leave = 0, early = 0, absent = 0;
+        final java.time.LocalTime LATE_CUTOFF = java.time.LocalTime.of(7, 0);
         for (WorkerDto.WorkerRes r : rows) {
-            switch (r.getAttendanceStatus()) {
-                case PENDING -> pending++;
-                case PRESENT -> present++;
-                case LATE -> late++;
-                case LEAVE -> leave++;
-                case EARLY_LEAVE -> early++;
-                case ABSENT -> absent++;
-            }
+            AttendanceStatus s = r.getAttendanceStatus();
+            boolean hasOut = r.getClockOut() != null;
+            if (s == AttendanceStatus.PENDING)     { pending++; continue; }
+            if (s == AttendanceStatus.ABSENT)      { absent++;  continue; }
+            if (s == AttendanceStatus.EARLY_LEAVE) { early++;   continue; }
+            if (hasOut) { leave++; continue; }     // PRESENT/LATE/LEAVE + clockOut → 퇴근
+            if (s == AttendanceStatus.LEAVE)       { leave++;   continue; }
+            if (s == AttendanceStatus.LATE)        { late++;    continue; }
+            // PRESENT 이면서 clockOut 없음
+            if (r.getClockIn() == null)            { absent++;  continue; }
+            if (r.getClockIn().isAfter(LATE_CUTOFF)) { late++; continue; }
+            present++;
         }
         return WorkerDto.StateCountRes.builder()
                 .pending(pending)

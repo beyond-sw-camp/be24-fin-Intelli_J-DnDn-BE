@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.example.dndncore.common.model.BaseResponseStatus.FAIL;
 
@@ -159,6 +160,57 @@ public class FatigueCalculationService {
                 .scoreCap(SCORE_CAP)
                 .highRiskThreshold(HIGH_RISK_THRESHOLD)
                 .build();
+    }
+
+    // 전체 workers를 3 쿼리로 처리: IN(사고) + IN(로그) + saveAll
+    @Transactional
+    public void bulkRecalculateAndPersist(List<Worker> workers, LocalDate referenceDate) {
+        LocalDate ref = referenceDate != null ? referenceDate : LocalDate.now();
+        List<Long> workerIdxes = workers.stream().map(Worker::getIdx).toList();
+
+        LocalDate accidentFrom = ref.minusDays(ACCIDENT_LAST_DAYS_WINDOW);
+        Set<Long> idxesWithAccident = new HashSet<>(
+                accidentRepository.findWorkerIdxesWithAccidentBetween(workerIdxes, accidentFrom, ref));
+
+        LocalDate attendanceFrom = ref.minusDays(LOOKBACK_SCAN_DAYS);
+        Map<Long, List<AttendanceLog>> logsByWorker = attendanceLogRepository
+                .findAllByWorkerIdxInAndWorkDateBetween(workerIdxes, attendanceFrom, ref)
+                .stream()
+                .collect(Collectors.groupingBy(AttendanceLog::getWorkerIdx));
+
+        LocalDateTime now = LocalDateTime.now();
+        for (Worker worker : workers) {
+            Long wid = worker.getIdx();
+            int ptAccident = idxesWithAccident.contains(wid) ? PT_ACCIDENT : 0;
+
+            List<AttendanceLog> logRows = logsByWorker.getOrDefault(wid, List.of());
+            Set<LocalDate> workedDates = new HashSet<>();
+            Map<LocalDate, LocalTime> clockInByDate  = new HashMap<>();
+            Map<LocalDate, LocalTime> clockOutByDate = new HashMap<>();
+            for (AttendanceLog log : logRows) {
+                if (log.getEventType() == AttendanceEventType.CLOCK_IN) {
+                    workedDates.add(log.getWorkDate());
+                    clockInByDate.merge(log.getWorkDate(), log.getRecognizedAt(),
+                            (a, b) -> a.isBefore(b) ? a : b);
+                } else if (log.getEventType() == AttendanceEventType.CLOCK_OUT) {
+                    clockOutByDate.merge(log.getWorkDate(), log.getRecognizedAt(),
+                            (a, b) -> a.isAfter(b) ? a : b);
+                }
+            }
+
+            int streakDays  = consecutiveOnsiteDaysEnding(workedDates, ref);
+            int ptStreak    = streakScore(streakDays);
+            OvernightEval overnight = overnightRestEval(clockInByDate, clockOutByDate, ref);
+            int ptOvernight = overnight.points();
+            int ptTradeRisk = resolveTradeRiskPoints(worker);
+
+            int rawSum = ptAccident + ptStreak + ptOvernight + ptTradeRisk;
+            int capped  = Math.min(SCORE_CAP, rawSum);
+            worker.replaceFatigueSnapshot(capped, capped >= HIGH_RISK_THRESHOLD,
+                    ptAccident, ptStreak, ptOvernight, ptTradeRisk, now);
+        }
+
+        workerRepository.saveAll(workers);
     }
 
     private static int resolveTradeRiskPoints(Worker worker) {
