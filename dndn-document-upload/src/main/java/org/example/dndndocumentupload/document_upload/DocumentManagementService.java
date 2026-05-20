@@ -1,11 +1,11 @@
-package org.example.dndndocumentupload.document_management;
+package org.example.dndndocumentupload.document_upload;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dndndocumentupload.common.exception.BaseException;
 import org.example.dndndocumentupload.common.model.BaseResponseStatus;
-import org.example.dndndocumentupload.document_management.model.dto.DocumentManagementDto;
-import org.example.dndndocumentupload.document_management.model.entity.MasterSchedule;
-import org.example.dndndocumentupload.document_management.model.enums.DocType;
+import org.example.dndndocumentupload.document_upload.model.dto.DocumentManagementDto;
+import org.example.dndndocumentupload.document_upload.model.entity.MasterSchedule;
+import org.example.dndndocumentupload.document_upload.model.enums.DocType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;

@@ -1,7 +1,7 @@
-package org.example.dndndocumentupload.document_management;
+package org.example.dndndocumentupload.document_upload;
 
-import org.example.dndndocumentupload.document_management.model.entity.MasterSchedule;
-import org.example.dndndocumentupload.document_management.model.enums.DocType;
+import org.example.dndndocumentupload.document_upload.model.entity.MasterSchedule;
+import org.example.dndndocumentupload.document_upload.model.enums.DocType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

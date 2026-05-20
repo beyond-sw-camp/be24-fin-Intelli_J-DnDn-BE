@@ -1,9 +1,9 @@
-package org.example.dndndocumentupload.document_management.model.entity;
+package org.example.dndndocumentupload.document_upload.model.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndndocumentupload.common.model.BaseEntity;
-import org.example.dndndocumentupload.document_management.model.enums.DocType;
+import org.example.dndndocumentupload.document_upload.model.enums.DocType;
 
 @AllArgsConstructor
 @NoArgsConstructor

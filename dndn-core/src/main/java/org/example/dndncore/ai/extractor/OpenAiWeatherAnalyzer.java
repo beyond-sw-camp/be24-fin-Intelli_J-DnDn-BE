@@ -32,6 +32,7 @@ public class OpenAiWeatherAnalyzer {
             .baseUrl("https://api.openai.com/v1")
             .build();
 
+    // ⭐⭐⭐⭐⭐⭐⭐⭐⭐여기가 매우 중요한 ai로 요청하는 부분⭐⭐⭐⭐⭐⭐⭐⭐⭐
     public WeatherAiDto.AnalysisResult analyze(WeatherAiDto.AnalysisRequest request) {
         try {
             log.info("[OpenAI분석] 시작 - 날짜: {}, 작업: {}건",

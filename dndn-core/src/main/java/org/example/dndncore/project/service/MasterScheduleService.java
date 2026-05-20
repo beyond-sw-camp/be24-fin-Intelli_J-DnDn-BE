@@ -101,17 +101,21 @@ public class MasterScheduleService {
         }
 
         try {
+            // 일단 파일 로컬 저장
             String uploadDir = System.getProperty("user.dir") + "/uploads/master-schedule/";
             Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
 
             Files.createDirectories(uploadPath);
 
+            // 파일 이름 UUID로 변경 후 저장 (동일한 파일명이 겹쳐서 덮어씌워지는 것을 방지하기 위함)
             String originalFileName = file.getOriginalFilename();
             String storedFileName = UUID.randomUUID() + "_" + originalFileName;
 
             Path filePath = uploadPath.resolve(storedFileName).normalize();
 
             file.transferTo(filePath.toFile());
+
+            /// /////////////////////////////////////////////////////////////////////////////////
 
             replacePreviousExtraction(projectId, docType);
 

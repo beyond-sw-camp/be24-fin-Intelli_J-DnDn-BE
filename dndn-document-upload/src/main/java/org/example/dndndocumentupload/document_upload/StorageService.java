@@ -1,6 +1,6 @@
-package org.example.dndndocumentupload.document_management;
+package org.example.dndndocumentupload.document_upload;
 
-import org.example.dndndocumentupload.document_management.model.enums.DocType;
+import org.example.dndndocumentupload.document_upload.model.enums.DocType;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
