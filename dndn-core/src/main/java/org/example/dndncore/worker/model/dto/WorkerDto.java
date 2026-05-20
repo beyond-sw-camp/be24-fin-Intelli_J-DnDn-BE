@@ -146,15 +146,25 @@ public class WorkerDto {
         }
     }
 
-    // MANAGEMENT_002/003 목록 응답 (KPI + rows)
+    // MANAGEMENT_002/003 목록 응답 (KPI + 페이지 rows)
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
     public static class ListRes {
+        /** 현장+날짜 전체 근무자 집계 (필터 무관) */
         private StateCountRes globalKpi;
+        /** 공종·이름 필터 적용 후 전체 집계 (페이징 전) */
         private StateCountRes listKpi;
+        /** 현재 페이지 데이터 (size 개) */
         private List<WorkerRes> rows;
+        /** listKpi 기준 총 인원 */
+        private long totalElements;
+        private int totalPages;
+        private int page;
+        private int size;
+        /** 현장+날짜 기준 전체 공종명 목록 (드롭다운 옵션용) */
+        private List<String> availableTrades;
     }
 
 }

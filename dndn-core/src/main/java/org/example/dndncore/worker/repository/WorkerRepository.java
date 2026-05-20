@@ -25,4 +25,6 @@ public interface WorkerRepository extends JpaRepository<Worker, Long> {
         order by w.name asc
     """)
     List<Worker> search(@Param("name") String name, @Param("siteCode") String siteCode);
+
+    List<Worker> findAllBySiteCode(String siteCode);
 }

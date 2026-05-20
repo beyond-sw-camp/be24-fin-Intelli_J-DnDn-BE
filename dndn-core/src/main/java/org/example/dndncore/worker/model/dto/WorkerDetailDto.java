@@ -138,6 +138,10 @@ public class WorkerDetailDto {
         private EmploymentKind employmentKind;
         private AttendanceStatus attendanceStatus;
         private BigDecimal manDays;
+        /** 해당 날짜 구역 배치 스냅샷 (staffing_log 조인) — 없으면 null */
+        private String zoneMain;
+        private String zoneSub;
+        private String zoneDisplay;
 
         public static AttendanceRes from(AttendanceRecord a) {
             return AttendanceRes.builder()
@@ -147,6 +151,20 @@ public class WorkerDetailDto {
                     .employmentKind(a.getEmploymentKind())
                     .attendanceStatus(a.getAttendanceStatus())
                     .manDays(a.getManDays())
+                    .build();
+        }
+
+        public static AttendanceRes from(AttendanceRecord a, String zoneMainTitle, String zoneSubTitle) {
+            return AttendanceRes.builder()
+                    .date(a.getWorkDate())
+                    .clockIn(a.getClockIn())
+                    .clockOut(a.getClockOut())
+                    .employmentKind(a.getEmploymentKind())
+                    .attendanceStatus(a.getAttendanceStatus())
+                    .manDays(a.getManDays())
+                    .zoneMain(zoneMainTitle)
+                    .zoneSub(zoneSubTitle)
+                    .zoneDisplay(formatZoneLine(zoneMainTitle, zoneSubTitle))
                     .build();
         }
     }

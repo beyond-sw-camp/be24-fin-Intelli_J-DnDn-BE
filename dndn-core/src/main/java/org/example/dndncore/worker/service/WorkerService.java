@@ -401,9 +401,22 @@ public class WorkerService {
                 .build();
     }
 
-    /** MANAGEMENT_003 작업자 목록 조회 — 조회일 AttendanceRecord 기준, 현장 분리 */
-    public WorkerDto.ListRes getList(String siteCode, LocalDate date) {
+    /**
+     * MANAGEMENT_003 작업자 목록 조회 — 페이징 + 서버사이드 공종·이름 필터.
+     *
+     * <ul>
+     *   <li>{@code globalKpi} — 현장+날짜 전체 근무자 집계 (필터 무관)</li>
+     *   <li>{@code listKpi}  — 공종·이름 필터 적용 후 전체 집계 (페이징 전)</li>
+     *   <li>{@code rows}     — 현재 페이지 ({@code size}개)</li>
+     *   <li>{@code availableTrades} — 드롭다운용 공종 전체 목록</li>
+     * </ul>
+     */
+    public WorkerDto.ListRes getList(String siteCode, LocalDate date,
+                                     String tradeName, String searchName,
+                                     int page, int size) {
         LocalDate target = date == null ? LocalDate.now() : date;
+        int safeSize = size < 1 ? 20 : Math.min(size, 200);
+        int safePage = Math.max(0, page);
 
         List<AttendanceRecord> records = (siteCode != null && !siteCode.isBlank())
                 ? attendanceRepository.findAllByWorkDateAndSiteCode(target, siteCode.trim())
@@ -414,9 +427,10 @@ public class WorkerService {
         if (attendanceByWorkerIdx.isEmpty()) {
             WorkerDto.StateCountRes zero = emptyAttendanceKpi();
             return WorkerDto.ListRes.builder()
-                    .globalKpi(zero)
-                    .listKpi(zero)
+                    .globalKpi(zero).listKpi(zero)
                     .rows(List.of())
+                    .totalElements(0).totalPages(0).page(0).size(safeSize)
+                    .availableTrades(List.of())
                     .build();
         }
 
@@ -427,19 +441,52 @@ public class WorkerService {
                 .sorted(Comparator.comparing(Worker::getName, Comparator.nullsLast(String::compareTo)))
                 .toList();
 
-        Set<Long> safetyEducationCompletedWorkerIds = findSafetyEducationCompletedWorkerIds(attendanceByWorkerIdx.keySet());
-        List<WorkerDto.WorkerRes> rows = workers.stream()
-                .map(w -> WorkerDto.WorkerRes.from(
-                        w,
-                        attendanceByWorkerIdx.get(w.getIdx()),
-                        safetyEducationCompletedWorkerIds.contains(w.getIdx())))
+        Set<Long> safetyIds = findSafetyEducationCompletedWorkerIds(attendanceByWorkerIdx.keySet());
+
+        // 전체 WorkerRes 빌드 — globalKpi 및 availableTrades 산출 기준
+        List<WorkerDto.WorkerRes> allRows = workers.stream()
+                .map(w -> WorkerDto.WorkerRes.from(w, attendanceByWorkerIdx.get(w.getIdx()),
+                        safetyIds.contains(w.getIdx())))
                 .collect(Collectors.toList());
 
-        WorkerDto.StateCountRes kpi = aggregateAttendance(rows);
+        WorkerDto.StateCountRes globalKpi = aggregateAttendance(allRows);
+
+        // 드롭다운 공종 목록 (null·공백 제외, 정렬)
+        List<String> availableTrades = allRows.stream()
+                .map(WorkerDto.WorkerRes::getTrade)
+                .filter(t -> t != null && !t.isBlank())
+                .distinct()
+                .sorted(Comparator.naturalOrder())
+                .collect(Collectors.toList());
+
+        // 공종·이름 필터 적용 (페이징 전 전체 집계용)
+        String tradeFilter = (tradeName != null && !tradeName.isBlank()) ? tradeName.trim() : null;
+        String nameFilter  = (searchName != null && !searchName.isBlank()) ? searchName.trim().toLowerCase() : null;
+
+        List<WorkerDto.WorkerRes> filteredRows = allRows.stream()
+                .filter(r -> tradeFilter == null || tradeFilter.equals(r.getTrade()))
+                .filter(r -> nameFilter == null || (r.getName() != null && r.getName().toLowerCase().contains(nameFilter)))
+                .collect(Collectors.toList());
+
+        WorkerDto.StateCountRes listKpi = aggregateAttendance(filteredRows);
+        long totalElements = filteredRows.size();
+        int totalPages = totalElements == 0 ? 0 : (int) Math.ceil((double) totalElements / safeSize);
+        int clampedPage = Math.min(safePage, Math.max(0, totalPages - 1));
+
+        List<WorkerDto.WorkerRes> pageRows = filteredRows.stream()
+                .skip((long) clampedPage * safeSize)
+                .limit(safeSize)
+                .collect(Collectors.toList());
+
         return WorkerDto.ListRes.builder()
-                .globalKpi(kpi)
-                .listKpi(kpi)
-                .rows(rows)
+                .globalKpi(globalKpi)
+                .listKpi(listKpi)
+                .rows(pageRows)
+                .totalElements(totalElements)
+                .totalPages(totalPages)
+                .page(clampedPage)
+                .size(safeSize)
+                .availableTrades(availableTrades)
                 .build();
     }
 
@@ -514,17 +561,27 @@ public class WorkerService {
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * 프론트엔드 {@code deriveAttendanceTag} 로직과 동일하게 집계.
+     * PRESENT/LATE + clockOut → leave(퇴근), LEAVE 상태도 leave로 집계.
+     * PRESENT + clockIn > 07:00 → late(지각).
+     */
     private WorkerDto.StateCountRes aggregateAttendance(List<WorkerDto.WorkerRes> rows) {
         int pending = 0, present = 0, late = 0, leave = 0, early = 0, absent = 0;
+        final java.time.LocalTime LATE_CUTOFF = java.time.LocalTime.of(7, 0);
         for (WorkerDto.WorkerRes r : rows) {
-            switch (r.getAttendanceStatus()) {
-                case PENDING -> pending++;
-                case PRESENT -> present++;
-                case LATE -> late++;
-                case LEAVE -> leave++;
-                case EARLY_LEAVE -> early++;
-                case ABSENT -> absent++;
-            }
+            AttendanceStatus s = r.getAttendanceStatus();
+            boolean hasOut = r.getClockOut() != null;
+            if (s == AttendanceStatus.PENDING)     { pending++; continue; }
+            if (s == AttendanceStatus.ABSENT)      { absent++;  continue; }
+            if (s == AttendanceStatus.EARLY_LEAVE) { early++;   continue; }
+            if (hasOut) { leave++; continue; }     // PRESENT/LATE/LEAVE + clockOut → 퇴근
+            if (s == AttendanceStatus.LEAVE)       { leave++;   continue; }
+            if (s == AttendanceStatus.LATE)        { late++;    continue; }
+            // PRESENT 이면서 clockOut 없음
+            if (r.getClockIn() == null)            { absent++;  continue; }
+            if (r.getClockIn().isAfter(LATE_CUTOFF)) { late++; continue; }
+            present++;
         }
         return WorkerDto.StateCountRes.builder()
                 .pending(pending)

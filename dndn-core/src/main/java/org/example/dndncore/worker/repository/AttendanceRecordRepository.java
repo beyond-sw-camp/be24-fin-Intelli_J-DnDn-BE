@@ -91,4 +91,12 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
     int deleteAllByWorkerIdxInAndWorkDate(
             @Param("workerIdxes") List<Long> workerIdxes,
             @Param("workDate") LocalDate workDate);
+
+    // 더미 시딩: 특정 날짜 범위 행 일괄 삭제
+    @Modifying
+    @Query("DELETE FROM AttendanceRecord ar WHERE ar.worker.idx IN :workerIdxes AND ar.workDate BETWEEN :from AND :to")
+    int deleteAllByWorkerIdxInAndWorkDateBetween(
+            @Param("workerIdxes") List<Long> workerIdxes,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
 }
