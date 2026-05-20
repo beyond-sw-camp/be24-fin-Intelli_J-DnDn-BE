@@ -2,6 +2,7 @@ package org.example.dndncore.report;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dndncore.auth.security.AuthAccessService;
+import org.example.dndncore.document_event.DocumentEventProducer;
 import org.example.dndncore.report.model.DailyReport;
 import org.example.dndncore.report.model.ReportDto;
 import org.example.dndncore.workplan.WorkPlanRepository;
@@ -28,6 +29,7 @@ public class DailyReportService {
     private final DailyReportRepository dailyReportRepository;
     private final WorkPlanRepository workPlanRepository;
     private final AuthAccessService authAccessService;
+    private final DocumentEventProducer documentEventProducer;
 
     // feat : 공사일보 제출 및 명일 작업계획 자동 연동
     public Long submitReport(ReportDto.Req dto) {
@@ -74,6 +76,7 @@ public class DailyReportService {
                 dto.getTomorrowPlan()
         );
         DailyReport savedReport = dailyReportRepository.save(dailyReport);
+        documentEventProducer.publishDailyReportChanged("DAILY_REPORT_CHANGED", savedReport);
 
         // feat : 월간 세부계획 누적 진척률 갱신
         if (monthlyPlan != null) {
