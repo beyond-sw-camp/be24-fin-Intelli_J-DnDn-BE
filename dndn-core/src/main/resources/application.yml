@@ -1,0 +1,11 @@
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+dndn:
+  seed:
+    load-test:
+      enabled: ${DNDN_SEED_LOAD_TEST_ENABLED:false}
+      site-count: ${DNDN_SEED_LOAD_TEST_SITE_COUNT:20}
+      daily-reports-per-site: ${DNDN_SEED_LOAD_TEST_DAILY_REPORTS_PER_SITE:2500}
+      work-orders-per-site: ${DNDN_SEED_LOAD_TEST_WORK_ORDERS_PER_SITE:2500}

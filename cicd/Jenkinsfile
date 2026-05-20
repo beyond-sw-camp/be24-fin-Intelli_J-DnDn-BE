@@ -8,6 +8,8 @@ pipeline {
 apiVersion: v1
 kind: Pod
 spec:
+  nodeSelector:
+    kubernetes.io/hostname: worker06
   restartPolicy: Never
   containers:
     - name: gradle
@@ -58,7 +60,7 @@ spec:
         container('gradle') {
           sh '''
             chmod +x ./gradlew || true
-            ./gradlew --no-daemon clean bootJar
+            ./gradlew --no-daemon clean :dndn-core:bootJar
           '''
         }
       }
