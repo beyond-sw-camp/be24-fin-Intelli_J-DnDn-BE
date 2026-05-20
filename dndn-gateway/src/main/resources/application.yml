@@ -1,0 +1,14 @@
+server:
+  port: ${GATEWAY_PORT:8088}
+
+spring:
+  application:
+    name: dndn-gateway
+
+gateway:
+  routes:
+    core-uri: ${CORE_SERVICE_URI:http://localhost:8080}
+    document-management-uri: ${DOCUMENT_MANAGEMENT_SERVICE_URI:http://localhost:8082}
+
+jwt:
+  secret: ${JWT_SECRET}
