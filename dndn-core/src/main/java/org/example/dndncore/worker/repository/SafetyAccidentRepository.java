@@ -25,4 +25,12 @@ public interface SafetyAccidentRepository extends JpaRepository<SafetyAccident, 
             @Param("workerIdxes") List<Long> workerIdxes,
             @Param("from") LocalDate from,
             @Param("to") LocalDate to);
+
+    // 더미 시딩 중복 방지 — 특정 날짜+타입의 사고가 이미 있는 workerIdx 집합을 1회 쿼리로 반환
+    @Query("SELECT DISTINCT a.worker.idx FROM SafetyAccident a " +
+           "WHERE a.worker.idx IN :workerIdxes AND a.occurredAt = :occurredAt AND a.accidentType = :accidentType")
+    List<Long> findWorkerIdxesWithAccidentOnDate(
+            @Param("workerIdxes") List<Long> workerIdxes,
+            @Param("occurredAt") LocalDate occurredAt,
+            @Param("accidentType") String accidentType);
 }

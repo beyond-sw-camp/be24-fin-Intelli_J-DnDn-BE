@@ -25,7 +25,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 더미 출결 시딩 서비스.
@@ -37,8 +39,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AttendanceSeedService {
 
-    // 최대 탐색 범위 — 오늘 제외 8일 (8일 연속 근무 패턴 수용)
-    private static final int SEED_DAYS_BACK = 8;
+    // 최대 탐색 범위 — 오늘 제외 9일 (9일 연속 근무 패턴 수용)
+    private static final int SEED_DAYS_BACK = 9;
 
     // 근무자별 출근 패턴 (daysAgo 배열, 0=오늘 포함 안 함)
     // idx % 6으로 배분 — 연속 근무 일수에 따른 피로도 차별화
@@ -47,14 +49,14 @@ public class AttendanceSeedService {
     //   group 2: 6일 연속         → streak=6, 10pt
     //   group 3: 7일 연속         → streak=7, 20pt
     //   group 4: 8일 연속         → streak=8, 30pt
-    //   group 5: 4일 혼합         → streak=2, 0pt
+    //   group 5: 9일 연속         → streak=9, 40pt  ← 고위험 시나리오 핵심
     private static final int[][] DAY_PATTERNS = {
-            {1, 5},                            // 0: 2일 분산
-            {1, 2, 3},                         // 1: 3일 연속
-            {1, 2, 3, 4, 5, 6},               // 2: 6일 연속 → 10pt
-            {1, 2, 3, 4, 5, 6, 7},            // 3: 7일 연속 → 20pt
-            {1, 2, 3, 4, 5, 6, 7, 8},         // 4: 8일 연속 → 30pt
-            {1, 2, 4, 7},                      // 5: 4일 혼합
+            {1, 5},                                    // 0: 2일 분산
+            {1, 2, 3},                                 // 1: 3일 연속
+            {1, 2, 3, 4, 5, 6},                       // 2: 6일 연속 → 10pt
+            {1, 2, 3, 4, 5, 6, 7},                   // 3: 7일 연속 → 20pt
+            {1, 2, 3, 4, 5, 6, 7, 8},               // 4: 8일 연속 → 30pt
+            {1, 2, 3, 4, 5, 6, 7, 8, 9},           // 5: 9일 연속 → 40pt
     };
 
     // 정상 출퇴근 시각 그룹 (idx % 4) — 근무자마다 다른 루틴
@@ -126,20 +128,33 @@ public class AttendanceSeedService {
         attendanceLogRepository.deleteAllByWorkerIdxInAndWorkDateBetween(workerIdxes, seedFrom, yesterday);
         staffingLogRepository.deleteAllByWorkerIdxInAndWorkDateBetween(workerIdxes, seedFrom, yesterday);
 
+        // 사고 중복 방지를 위한 bulk pre-query (루프 N+1 제거)
+        LocalDate accidentDate15 = today.minusDays(15);
+        LocalDate accidentDate22 = today.minusDays(22);
+        List<Long> acc15Candidates = workers.stream()
+                .map(Worker::getIdx).filter(wid -> wid % 4 == 0).toList();
+        List<Long> acc22Candidates = workers.stream()
+                .map(Worker::getIdx).filter(wid -> wid % 7 == 1).toList();
+        Set<Long> existingAcc15 = acc15Candidates.isEmpty() ? Set.of()
+                : new HashSet<>(accidentRepository.findWorkerIdxesWithAccidentOnDate(
+                        acc15Candidates, accidentDate15, "낙하물"));
+        Set<Long> existingAcc22 = acc22Candidates.isEmpty() ? Set.of()
+                : new HashSet<>(accidentRepository.findWorkerIdxesWithAccidentOnDate(
+                        acc22Candidates, accidentDate22, "끼임"));
+
         List<AttendanceRecord> recordsToSave = new ArrayList<>();
         List<AttendanceLog> logsToSave = new ArrayList<>();
         List<StaffingLog> staffingLogsToSave = new ArrayList<>();
-        int accidentCount = 0;
+        List<SafetyAccident> accidentsToSave = new ArrayList<>();
 
         for (Worker worker : workers) {
             long wid = worker.getIdx();
-            int[] pattern  = DAY_PATTERNS[(int)(wid % 6)];  // 6개 패턴
-            int clockGroup = (int)(wid % 4);                 // 출퇴근 시각 그룹
-            boolean shortOvernight = wid % 5 == 0;           // 야간 휴게 부족 트리거
+            int[] pattern  = DAY_PATTERNS[(int)(wid % 6)];
+            int clockGroup = (int)(wid % 4);
+            boolean shortOvernight = wid % 3 == 0;
 
-            // 사고 이력 — 두 개 조건으로 분산 (30일 이내, 피로도 +20pt)
-            boolean accident15 = wid % 4 == 0;   // 15일 전 낙하물 사고
-            boolean accident22 = wid % 7 == 1;   // 22일 전 끼임 사고
+            boolean accident15 = wid % 4 == 0;
+            boolean accident22 = wid % 7 == 1;
 
             EmploymentKind ek = worker.getEmploymentKind() != null
                     ? worker.getEmploymentKind() : EmploymentKind.REGULAR;
@@ -151,15 +166,12 @@ public class AttendanceSeedService {
                 LocalDate workDate = today.minusDays(daysAgo);
                 if (workDate.isBefore(seedFrom)) continue;
 
-                // 출퇴근 시각 결정
                 LocalTime clockIn;
                 LocalTime clockOut;
                 if (shortOvernight && daysAgo == 1) {
-                    // 어제: 야간 휴게 부족 — 전날(23:00퇴근) 대비 7h 간격
                     clockIn  = LocalTime.of(6, 0);
                     clockOut = LocalTime.of(15, 30);
                 } else if (shortOvernight && daysAgo == 2) {
-                    // 그제: 늦은 퇴근으로 야간 휴게 부족 조건 유발
                     clockIn  = normalIn;
                     clockOut = LocalTime.of(23, 0);
                 } else {
@@ -206,48 +218,36 @@ public class AttendanceSeedService {
                         .build());
             }
 
-            // 사고 이력 (skip-if-exists) — 구역명은 DB 구역에서 결정
-            if (accident15) {
-                LocalDate accidentDate = today.minusDays(15);
+            // 사고 이력 — bulk pre-query 결과로 중복 건너뜀
+            if (accident15 && !existingAcc15.contains(wid)) {
                 ZoneEntry az15 = zoneEntries.get((int)(wid % zoneEntries.size()));
-                boolean exists = accidentRepository
-                        .existsByWorkerIdxAndOccurredAtAndAccidentTypeAndZoneMainAndZoneSub(
-                                wid, accidentDate, "낙하물", az15.mainTitle(), null);
-                if (!exists) {
-                    accidentRepository.save(SafetyAccident.builder()
-                            .worker(worker)
-                            .occurredAt(accidentDate)
-                            .accidentType("낙하물")
-                            .zoneMain(az15.mainTitle())
-                            .zoneSub(null)
-                            .resolution("안전모 착용 지도 완료")
-                            .build());
-                    accidentCount++;
-                }
+                accidentsToSave.add(SafetyAccident.builder()
+                        .worker(worker)
+                        .occurredAt(accidentDate15)
+                        .accidentType("낙하물")
+                        .zoneMain(az15.mainTitle())
+                        .zoneSub(null)
+                        .resolution("안전모 착용 지도 완료")
+                        .build());
             }
-            if (accident22) {
-                LocalDate accidentDate = today.minusDays(22);
+            if (accident22 && !existingAcc22.contains(wid)) {
                 ZoneEntry az22 = zoneEntries.get((int)((wid + 1) % zoneEntries.size()));
-                boolean exists = accidentRepository
-                        .existsByWorkerIdxAndOccurredAtAndAccidentTypeAndZoneMainAndZoneSub(
-                                wid, accidentDate, "끼임", az22.mainTitle(), null);
-                if (!exists) {
-                    accidentRepository.save(SafetyAccident.builder()
-                            .worker(worker)
-                            .occurredAt(accidentDate)
-                            .accidentType("끼임")
-                            .zoneMain(az22.mainTitle())
-                            .zoneSub(null)
-                            .resolution("안전 교육 이수 완료")
-                            .build());
-                    accidentCount++;
-                }
+                accidentsToSave.add(SafetyAccident.builder()
+                        .worker(worker)
+                        .occurredAt(accidentDate22)
+                        .accidentType("끼임")
+                        .zoneMain(az22.mainTitle())
+                        .zoneSub(null)
+                        .resolution("안전 교육 이수 완료")
+                        .build());
             }
         }
 
         attendanceRecordRepository.saveAll(recordsToSave);
         if (!logsToSave.isEmpty()) attendanceLogRepository.saveAll(logsToSave);
         if (!staffingLogsToSave.isEmpty()) staffingLogRepository.saveAll(staffingLogsToSave);
+        int accidentCount = accidentsToSave.size();
+        if (!accidentsToSave.isEmpty()) accidentRepository.saveAll(accidentsToSave);
 
         // 피로도 재산정 — 어제 기준 (오늘 데이터 없으므로 ref=yesterday)
         fatigueCalculationService.bulkRecalculateAndPersist(workers, yesterday);
