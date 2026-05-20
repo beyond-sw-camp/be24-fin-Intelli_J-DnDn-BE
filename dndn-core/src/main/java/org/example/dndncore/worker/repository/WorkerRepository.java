@@ -17,9 +17,6 @@ public interface WorkerRepository extends JpaRepository<Worker, Long> {
     @Query("select w from Worker w where w.externalCode in :codes")
     List<Worker> findAllByExternalCodeIn(@Param("codes") Collection<String> codes);
 
-    // MANAGEMENT_003 작업자 목록 — 필터 없이 전체, 표시 순서 고정
-    List<Worker> findAllByOrderByNameAsc();
-
     // MANAGEMENT_002 작업자 검색 — 이름·현장코드 기준 (siteCode null/빈값이면 현장 무관)
     @Query("""
         select w from Worker w

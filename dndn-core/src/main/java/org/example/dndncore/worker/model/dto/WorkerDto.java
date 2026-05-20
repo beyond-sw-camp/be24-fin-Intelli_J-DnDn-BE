@@ -157,25 +157,4 @@ public class WorkerDto {
         private List<WorkerRes> rows;
     }
 
-    // MANAGEMENT_001 전체 현장 일괄 동기화 응답
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class BulkSyncRes {
-        private LocalDate syncDate;
-        private int siteCount;
-        private List<SiteSyncResult> results;
-    }
-
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class SiteSyncResult {
-        private String siteCode;
-        private boolean success;
-        private SyncRes detail;
-        private String errorMessage;
-    }
 }

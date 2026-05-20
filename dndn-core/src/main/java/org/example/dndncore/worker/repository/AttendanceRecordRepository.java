@@ -4,6 +4,7 @@ import org.example.dndncore.worker.model.entity.AttendanceRecord;
 import org.example.dndncore.worker.model.enums.AttendanceStatus;
 import org.example.dndncore.worker.model.enums.JobRank;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -77,4 +78,17 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
 
     // 일자별 근태 upsert
     Optional<AttendanceRecord> findByWorkerIdxAndWorkDate(Long workerIdx, LocalDate workDate);
+
+    // 배치 벌크 동기화: 여러 근로자의 특정 날짜 기존 행 조회 (employment_kind 보존용)
+    @Query("SELECT ar FROM AttendanceRecord ar WHERE ar.worker.idx IN :workerIdxes AND ar.workDate = :workDate")
+    List<AttendanceRecord> findAllByWorkerIdxInAndWorkDate(
+            @Param("workerIdxes") List<Long> workerIdxes,
+            @Param("workDate") LocalDate workDate);
+
+    // 배치 벌크 동기화: 여러 근로자의 특정 날짜 기존 행 일괄 삭제 (영속성 컨텍스트 우회)
+    @Modifying
+    @Query("DELETE FROM AttendanceRecord ar WHERE ar.worker.idx IN :workerIdxes AND ar.workDate = :workDate")
+    int deleteAllByWorkerIdxInAndWorkDate(
+            @Param("workerIdxes") List<Long> workerIdxes,
+            @Param("workDate") LocalDate workDate);
 }
