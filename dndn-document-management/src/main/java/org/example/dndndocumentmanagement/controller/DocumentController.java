@@ -2,6 +2,7 @@ package org.example.dndndocumentmanagement.controller;
 
 import java.time.LocalDate;
 import java.util.Map;
+import org.example.dndndocumentmanagement.dto.ApiResponse;
 import org.example.dndndocumentmanagement.dto.DocumentPage;
 import org.example.dndndocumentmanagement.dto.DocumentSearchCondition;
 import org.example.dndndocumentmanagement.model.DocumentType;
@@ -29,7 +30,7 @@ public class DocumentController {
     }
 
     @GetMapping("/{projectId}/uploaded")
-    public DocumentPage uploadedDocuments(
+    public ApiResponse<DocumentPage> uploadedDocuments(
             @PathVariable Long projectId,
             @RequestParam(value = "docType", required = false, defaultValue = "ALL") String docType,
             @RequestParam(value = "q", required = false) String keyword,
@@ -55,6 +56,6 @@ public class DocumentController {
                 page,
                 size
         );
-        return documentQueryService.search(condition);
+        return ApiResponse.success(documentQueryService.search(condition));
     }
 }
