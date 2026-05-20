@@ -2,6 +2,8 @@ package org.example.dndncore.worker.repository;
 
 import org.example.dndncore.worker.model.entity.SafetyAccident;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -15,4 +17,12 @@ public interface SafetyAccidentRepository extends JpaRepository<SafetyAccident, 
 
     boolean existsByWorkerIdxAndOccurredAtAndAccidentTypeAndZoneMainAndZoneSub(
             Long workerIdx, LocalDate occurredAt, String accidentType, String zoneMain, String zoneSub);
+
+    // 벌크 피로도 계산용 — 사고 이력이 있는 workerIdx만 1회 IN 쿼리로 반환
+    @Query("SELECT DISTINCT a.worker.idx FROM SafetyAccident a " +
+           "WHERE a.worker.idx IN :workerIdxes AND a.occurredAt BETWEEN :from AND :to")
+    List<Long> findWorkerIdxesWithAccidentBetween(
+            @Param("workerIdxes") List<Long> workerIdxes,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
 }
