@@ -44,7 +44,7 @@ public class FatigueCalculationService {
     private static final int LOOKBACK_SCAN_DAYS = 120;
 
     private static final int PT_ACCIDENT = 20;
-    private static final int TRADE_UNKNOWN_POINTS = 10;
+    private static final int TRADE_UNKNOWN_POINTS = 5;
     private static final String TRADE_UNKNOWN_KEY = "UNKNOWN";
 
     private final WorkerRepository workerRepository;
@@ -133,7 +133,7 @@ public class FatigueCalculationService {
                             + "점 적용";
         } else {
             tradeExplanation =
-                    "목공·철근·용접·타일 문자열 미매칭 — 기본("
+                    "공종 키워드 미매칭(목공/목수/형틀/철근/용접/장비/굴착/토목/토공/배수/타일/마감/인부/보통공/정리) — 기본("
                             + TRADE_UNKNOWN_POINTS
                             + "점)·trade="
                             + nullable(worker.getTrade());
