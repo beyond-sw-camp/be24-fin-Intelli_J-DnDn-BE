@@ -1,9 +1,9 @@
-package org.example.dndndocumentupload.document.ai;
+package org.example.dndndocumentupload.document.ai_upload;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.example.dndndocumentupload.document.management.MasterScheduleRepository;
+import org.example.dndndocumentupload.document.upload.MasterScheduleRepository;
 import org.example.dndndocumentupload.document.model.dto.TradeProcessDto;
 import org.example.dndndocumentupload.document.model.entity.MasterSchedule;
 import org.example.dndndocumentupload.document.model.entity.ScheduleAiAnalysis;

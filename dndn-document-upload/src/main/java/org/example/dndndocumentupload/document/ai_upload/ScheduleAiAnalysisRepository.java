@@ -1,4 +1,4 @@
-package org.example.dndndocumentupload.document.ai;
+package org.example.dndndocumentupload.document.ai_upload;
 
 import org.example.dndndocumentupload.document.model.entity.ScheduleAiAnalysis;
 import org.springframework.data.jpa.repository.JpaRepository;

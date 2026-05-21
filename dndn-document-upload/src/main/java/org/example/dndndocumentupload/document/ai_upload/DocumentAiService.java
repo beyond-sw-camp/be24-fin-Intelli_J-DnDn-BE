@@ -1,22 +1,26 @@
-package org.example.dndndocumentupload.document.ai;
+package org.example.dndndocumentupload.document.ai_upload;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dndndocumentupload.document.model.dto.DocumentAiDto;
-import org.example.dndndocumentupload.document.management.MasterScheduleRepository;
-import org.example.dndndocumentupload.document.management.StorageService;
+import org.example.dndndocumentupload.document.upload.MasterScheduleRepository;
+import org.example.dndndocumentupload.document.upload.StorageService;
 import org.example.dndndocumentupload.document.model.dto.TradeProcessDto;
 import org.example.dndndocumentupload.document.model.entity.MasterSchedule;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class DocumentAiService {
     private final StorageService storageService;
     private final MasterScheduleRepository masterScheduleRepository;
     private final OpenAiScheduleExtractor openAiScheduleExtractor;
+    private final KafkaTemplate<Long, DocumentAiDto.KafkaMessage<?>> kafkaTemplate;
 
 
     public List<TradeProcessDto.Req> uploadAndExtract(DocumentAiDto.UploadReq dto) {
@@ -48,7 +52,28 @@ public class DocumentAiService {
         masterScheduleRepository.save(entity);
         validateFile(dto.getFile());
 
-        return openAiScheduleExtractor.extractSchedule(dto.getFile(), entity.getIdx());
+        List<TradeProcessDto.Req> result = openAiScheduleExtractor.extractSchedule(dto.getFile(), entity.getIdx());
+        sendMessage(dto.getUploaderIdx(), result);
+
+        return result;
+    }
+
+    public void sendMessage(Long uploaderIdx, List<TradeProcessDto.Req> message) {
+        final DocumentAiDto.KafkaMessage<String> testMessage = new DocumentAiDto.KafkaMessage<>(uploaderIdx, message);
+        kafkaTemplate.send("document.uploaded.v3", uploaderIdx, testMessage)
+                .whenComplete((result, ex) -> {
+                    if(ex == null) handleSuccess(testMessage);
+                    else handleFailure(testMessage, ex);
+                });
+    }
+
+    private void handleSuccess(DocumentAiDto.KafkaMessage<?> testMessage) {
+        log.debug("Message was successfully sent / TestMessage id : {}", testMessage.id());
+    }
+
+    private void handleFailure(DocumentAiDto.KafkaMessage<?> testMessage, Throwable throwable) {
+        log.debug("Failed to send message / TestMessage id : {}", testMessage.id());
+        log.debug("Fail log : {}", throwable.getMessage());
     }
 
     private void validateFile(MultipartFile file) {

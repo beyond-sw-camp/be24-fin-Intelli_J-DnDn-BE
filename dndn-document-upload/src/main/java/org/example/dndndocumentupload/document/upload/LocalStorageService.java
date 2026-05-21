@@ -1,4 +1,4 @@
-package org.example.dndndocumentupload.document.management;
+package org.example.dndndocumentupload.document.upload;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;

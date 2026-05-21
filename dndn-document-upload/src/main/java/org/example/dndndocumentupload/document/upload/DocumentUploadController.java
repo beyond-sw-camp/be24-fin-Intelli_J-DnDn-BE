@@ -1,4 +1,4 @@
-package org.example.dndndocumentupload.document.management;
+package org.example.dndndocumentupload.document.upload;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,8 +24,8 @@ import java.util.List;
 @RequestMapping("/document-management")
 @RequiredArgsConstructor
 @RestController
-public class DocumentManagementController {
-    private final DocumentManagementService documentManagementService;
+public class DocumentUploadController {
+    private final DocumentUploadService documentUploadService;
 
     // LocalStorageService는 storage.type=local 일 때만 빈으로 등록되므로 Optional 주입
     // S3 모드일 때는 null이며, /local-files 엔드포인트는 사용되지 않는다.
@@ -38,31 +38,31 @@ public class DocumentManagementController {
             @RequestParam(value = "docType", required = false) DocType docType,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        DocumentManagementDto.PageRes res = documentManagementService.read(project_id, docType, pageable);
+        DocumentManagementDto.PageRes res = documentUploadService.read(project_id, docType, pageable);
         return BaseResponse.success(res);
     }
 
     @GetMapping("/{project_id}/pinned")
     public BaseResponse readPinned(@PathVariable(value = "project_id") Long project_id) {
-        List<DocumentManagementDto.ReadRes> res = documentManagementService.readPinnedSchedules(project_id);
+        List<DocumentManagementDto.ReadRes> res = documentUploadService.readPinnedSchedules(project_id);
         return BaseResponse.success(res);
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public BaseResponse upload(@ModelAttribute DocumentManagementDto.UploadReq dto) {
-        documentManagementService.upload(dto);
+        documentUploadService.upload(dto);
         return BaseResponse.success("성공");
     }
 
     @GetMapping("/download/{idx}")
     public BaseResponse download(@PathVariable Long idx) {
-        String url = documentManagementService.download(idx, false);
+        String url = documentUploadService.download(idx, false);
         return BaseResponse.success(url);
     }
 
     @GetMapping("/preview/{idx}")
     public BaseResponse preview(@PathVariable Long idx) {
-        String url = documentManagementService.download(idx, true);
+        String url = documentUploadService.download(idx, true);
         return BaseResponse.success(url);
     }
 

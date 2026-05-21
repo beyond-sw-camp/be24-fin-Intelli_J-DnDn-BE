@@ -1,4 +1,4 @@
-package org.example.dndndocumentupload.document.management;
+package org.example.dndndocumentupload.document.upload;
 
 import org.example.dndndocumentupload.document.model.DocType;
 import org.springframework.web.multipart.MultipartFile;

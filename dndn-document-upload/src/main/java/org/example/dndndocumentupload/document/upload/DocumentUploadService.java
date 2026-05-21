@@ -1,4 +1,4 @@
-package org.example.dndndocumentupload.document.management;
+package org.example.dndndocumentupload.document.upload;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dndndocumentupload.common.exception.BaseException;
@@ -18,7 +18,7 @@ import java.util.Set;
 
 @RequiredArgsConstructor
 @Service
-public class DocumentManagementService {
+public class DocumentUploadService {
     private final MasterScheduleRepository masterScheduleRepository;
     private final StorageService storageService;
 
