@@ -50,6 +50,9 @@ spec:
   // main, test 분기처리
   environment {
     IMAGE_NAME = 'seungwoo0128/dndn-backend'
+    DOCUMENT_IMAGE_NAME = 'seungwoo0128/dndn-document-management'
+    GATEWAY_IMAGE_NAME = 'seungwoo0128/dndn-gateway'
+    DISCOVERY_IMAGE_NAME = 'seungwoo0128/dndn-discovery'
     IMAGE_TAG  = "${env.JOB_NAME.contains('test') ? 'test-' : ''}1.${env.BUILD_NUMBER}"
     NAMESPACE  = "${env.JOB_NAME.contains('test') ? 'test' : 'default'}"
   }
@@ -60,13 +63,13 @@ spec:
         container('gradle') {
           sh '''
             chmod +x ./gradlew || true
-            ./gradlew --no-daemon clean :dndn-core:bootJar
+            ./gradlew --no-daemon clean :dndn-core:bootJar :dndn-document-management:bootJar :dndn-gateway:bootJar :dndn-discovery:bootJar
           '''
         }
       }
     }
 
-    stage('Kaniko Build & Push') {
+    stage('Kaniko Build & Push Core') {
       steps {
         container('kaniko') {
           sh """
@@ -84,9 +87,66 @@ spec:
       }
     }
 
+    stage('Kaniko Build & Push Document Management') {
+      steps {
+        container('kaniko') {
+          sh """
+            /kaniko/executor \
+              --context=${WORKSPACE} \
+              --dockerfile=${WORKSPACE}/Dockerfile.document-management \
+              --destination=${DOCUMENT_IMAGE_NAME}:${IMAGE_TAG} \
+              --destination=${DOCUMENT_IMAGE_NAME}:latest \
+              --single-snapshot \
+              --use-new-run \
+              --cache=true \
+              --snapshotMode=redo
+          """
+        }
+      }
+    }
+
+    stage('Kaniko Build & Push Gateway') {
+      steps {
+        container('kaniko') {
+          sh """
+            /kaniko/executor \
+              --context=${WORKSPACE} \
+              --dockerfile=${WORKSPACE}/Dockerfile.gateway \
+              --destination=${GATEWAY_IMAGE_NAME}:${IMAGE_TAG} \
+              --destination=${GATEWAY_IMAGE_NAME}:latest \
+              --single-snapshot \
+              --use-new-run \
+              --cache=true \
+              --snapshotMode=redo
+          """
+        }
+      }
+    }
+
+    stage('Kaniko Build & Push Discovery') {
+      steps {
+        container('kaniko') {
+          sh """
+            /kaniko/executor \
+              --context=${WORKSPACE} \
+              --dockerfile=${WORKSPACE}/Dockerfile.discovery \
+              --destination=${DISCOVERY_IMAGE_NAME}:${IMAGE_TAG} \
+              --destination=${DISCOVERY_IMAGE_NAME}:latest \
+              --single-snapshot \
+              --use-new-run \
+              --cache=true \
+              --snapshotMode=redo
+          """
+        }
+      }
+    }
+
     stage('Result') {
       steps {
         echo "Pushed: ${IMAGE_NAME}:${IMAGE_TAG}"
+        echo "Pushed: ${DOCUMENT_IMAGE_NAME}:${IMAGE_TAG}"
+        echo "Pushed: ${GATEWAY_IMAGE_NAME}:${IMAGE_TAG}"
+        echo "Pushed: ${DISCOVERY_IMAGE_NAME}:${IMAGE_TAG}"
       }
     }
 
@@ -95,10 +155,10 @@ spec:
         container('kubectl') {
           script {
             def activeService = sh(
-              script: "kubectl get ingress backend-ingress -n ${NAMESPACE} -o jsonpath='{.spec.rules[0].http.paths[0].backend.service.name}'",
+              script: "kubectl get svc backend-service -n ${NAMESPACE} -o jsonpath='{.spec.selector.version}'",
               returnStdout: true
             ).trim()
-            def activeVersion   = activeService.contains('blue') ? 'blue' : 'green'
+            def activeVersion   = activeService == 'blue' ? 'blue' : 'green'
             def inactiveVersion = activeVersion == 'blue' ? 'green' : 'blue'
             echo "Namespace: ${NAMESPACE} | Active: ${activeVersion} → Deploying to: ${inactiveVersion}"
 
@@ -107,13 +167,24 @@ spec:
             sh "kubectl rollout status deployment/dndn-backend-${inactiveVersion} -n ${NAMESPACE} --timeout=180s"
 
             // Ingress 전환 (외부 트래픽)
-            sh """
-              kubectl patch ingress backend-ingress -n ${NAMESPACE} --type=json \
-                -p='[{"op":"replace","path":"/spec/rules/0/http/paths/0/backend/service/name","value":"backend-service-${inactiveVersion}"}]'
-            """
-
             // stable backend-service selector 전환
             sh "kubectl patch svc backend-service -n ${NAMESPACE} -p '{\"spec\":{\"selector\":{\"type\":\"backend\",\"version\":\"${inactiveVersion}\"}}}'"
+
+            sh "kubectl apply -f cicd/DiscoveryService.yaml -n ${NAMESPACE}"
+            sh "kubectl apply -f cicd/DiscoveryDeployment.yaml -n ${NAMESPACE}"
+            sh "kubectl set image deployment/dndn-discovery discovery=${DISCOVERY_IMAGE_NAME}:${IMAGE_TAG} -n ${NAMESPACE}"
+            sh "kubectl rollout status deployment/dndn-discovery -n ${NAMESPACE} --timeout=180s"
+
+            sh "kubectl apply -f cicd/DocumentManagementService.yaml -n ${NAMESPACE}"
+            sh "kubectl apply -f cicd/DocumentManagementDeployment.yaml -n ${NAMESPACE}"
+            sh "kubectl set image deployment/dndn-document-management document-management=${DOCUMENT_IMAGE_NAME}:${IMAGE_TAG} -n ${NAMESPACE}"
+            sh "kubectl rollout status deployment/dndn-document-management -n ${NAMESPACE} --timeout=180s"
+
+            sh "kubectl apply -f cicd/GatewayService.yaml -n ${NAMESPACE}"
+            sh "kubectl apply -f cicd/GatewayDeployment.yaml -n ${NAMESPACE}"
+            sh "kubectl set image deployment/dndn-gateway gateway=${GATEWAY_IMAGE_NAME}:${IMAGE_TAG} -n ${NAMESPACE}"
+            sh "kubectl rollout status deployment/dndn-gateway -n ${NAMESPACE} --timeout=180s"
+            sh "kubectl apply -f cicd/BackendIngress.yaml -n ${NAMESPACE}"
 
             sh "kubectl scale deployment/dndn-backend-${activeVersion} --replicas=0 -n ${NAMESPACE}"
             echo "Switched to: ${inactiveVersion}"
