@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface DocumentManagementRepository extends JpaRepository<MasterSchedule, Long> {
+public interface MasterScheduleRepository extends JpaRepository<MasterSchedule, Long> {
     // 페이징 + 정렬 지원
     Page<MasterSchedule> findAllByProjectIdx(Long projectIdx, Pageable pageable);
 

@@ -19,7 +19,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 @Service
 public class DocumentManagementService {
-    private final DocumentManagementRepository documentManagementRepository;
+    private final MasterScheduleRepository masterScheduleRepository;
     private final StorageService storageService;
 
 
@@ -31,9 +31,9 @@ public class DocumentManagementService {
         Page<MasterSchedule> page;
 
         if (docType != null) {
-            page = documentManagementRepository.findAllByProjectIdxAndDocType(projectId, docType, pageable);
+            page = masterScheduleRepository.findAllByProjectIdxAndDocType(projectId, docType, pageable);
         } else {
-            page = documentManagementRepository.findAllByProjectIdx(projectId, pageable);
+            page = masterScheduleRepository.findAllByProjectIdx(projectId, pageable);
         }
 
         return DocumentManagementDto.PageRes.from(page);
@@ -44,7 +44,7 @@ public class DocumentManagementService {
 
         List<DocumentManagementDto.ReadRes> result = new ArrayList<>();
         for (DocType type : pinnedTypes) {
-            documentManagementRepository
+            masterScheduleRepository
                     .findFirstByProjectIdxAndDocTypeOrderByCreatedAtDesc(projectId, type)
                     .ifPresent(entity -> result.add(DocumentManagementDto.ReadRes.from(entity)));
         }
@@ -61,7 +61,7 @@ public class DocumentManagementService {
 
         // 2. 고유 문서 타입 중복 체크 (기존 로직 유지)
         if (UNIQUE_DOC_TYPES.contains(dto.getDocType())) {
-            boolean exists = documentManagementRepository
+            boolean exists = masterScheduleRepository
                     .existsByProjectIdxAndDocType(dto.getProjectIdx(), dto.getDocType());
             if (exists) {
                 throw BaseException.from(getDuplicateStatus(dto.getDocType()));
@@ -72,11 +72,11 @@ public class DocumentManagementService {
         String fileKey = storageService.store(dto.getFile(), dto.getProjectIdx(), dto.getDocType());
 
        MasterSchedule entity = dto.toEntity(fileKey);
-       documentManagementRepository.save(entity);
+       masterScheduleRepository.save(entity);
     }
 
     public String download(Long idx, boolean isPreview) {
-        MasterSchedule entity = documentManagementRepository.findById(idx)
+        MasterSchedule entity = masterScheduleRepository.findById(idx)
                 .orElseThrow(() -> BaseException.from(BaseResponseStatus.DOCUMENT_NOT_FOUND));
 
         // 저장소(S3 or 로컬)에서 다운로드 URL 받기

@@ -5,8 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.example.dndncore.common.model.BaseEntity;
-import org.example.dndncore.project.model.entity.MasterSchedule;
+import org.example.dndndocumentupload.common.model.BaseEntity;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -20,9 +19,7 @@ public class ScheduleAiAnalysis extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long idx;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "master_schedule_id", nullable = false)
-    private MasterSchedule masterSchedule;
+    private Long masterScheduleIdx;
 
     @Lob
     @Column(nullable = false, columnDefinition = "LONGTEXT")

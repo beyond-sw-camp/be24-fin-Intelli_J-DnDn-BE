@@ -3,18 +3,16 @@ package org.example.dndndocumentupload.document.ai;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.example.dndncore.project.model.dto.TradeProcessDto;
-import org.example.dndncore.project.model.entity.MasterSchedule;
-import org.example.dndncore.project.model.entity.ScheduleAiAnalysis;
-import org.example.dndncore.project.repository.MasterScheduleRepository;
-import org.example.dndncore.project.repository.ScheduleAiAnalysisRepository;
+import org.example.dndndocumentupload.document.management.MasterScheduleRepository;
+import org.example.dndndocumentupload.document.model.dto.TradeProcessDto;
+import org.example.dndndocumentupload.document.model.entity.MasterSchedule;
+import org.example.dndndocumentupload.document.model.entity.ScheduleAiAnalysis;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.io.File;
-import java.nio.file.Files;
 import java.time.LocalDate;
 import java.util.Base64;
 import java.util.List;
@@ -38,12 +36,29 @@ public class OpenAiScheduleExtractor {
             .baseUrl("https://api.openai.com/v1")
             .build();
 
-    public List<TradeProcessDto.Req> extractSchedule(File file, Long masterScheduleId) {
+    public List<TradeProcessDto.Req> extractSchedule(MultipartFile file, Long masterScheduleId) {
         MasterSchedule masterSchedule = masterScheduleRepository.findById(masterScheduleId)
                 .orElseThrow(() -> new RuntimeException("공정표 파일 정보를 찾을 수 없습니다."));
 
+        System.out.println("=== 키 길이: " + apiKey.length());
+        System.out.println("=== 첫 10자 ASCII: ");
+        for (int i = 0; i < Math.min(10, apiKey.length()); i++) {
+            System.out.print((int)apiKey.charAt(i) + " ");
+        }
+        System.out.println();
+        System.out.println("=== 마지막 10자 ASCII: ");
+        for (int i = Math.max(0, apiKey.length() - 10); i < apiKey.length(); i++) {
+            System.out.print((int)apiKey.charAt(i) + " ");
+        }
+        System.out.println();
+
+
+        String originalFileName = file.getOriginalFilename();
+        String fileNameToUse = (originalFileName != null) ? originalFileName : "unknown_file";
+
         try {
-            String base64File = Base64.getEncoder().encodeToString(Files.readAllBytes(file.toPath()));
+            byte[] fileBytes = file.getBytes();
+            String base64File = Base64.getEncoder().encodeToString(fileBytes);
             String mimeType = detectMimeType(file);
 
             Map<String, Object> requestBody = Map.of(
@@ -58,7 +73,7 @@ public class OpenAiScheduleExtractor {
                                             ),
                                             Map.of(
                                                     "type", "input_file",
-                                                    "filename", file.getName(),
+                                                    "filename", fileNameToUse,
                                                     "file_data", "data:" + mimeType + ";base64," + base64File
                                             )
                                     )
@@ -86,7 +101,7 @@ public class OpenAiScheduleExtractor {
             );
 
             ScheduleAiAnalysis analysis = ScheduleAiAnalysis.builder()
-                    .masterSchedule(masterSchedule)
+                    .masterScheduleIdx(masterSchedule.getIdx())
                     .rawJson(jsonText)
                     .status("SUCCESS")
                     .errorMessage(null)
@@ -109,9 +124,10 @@ public class OpenAiScheduleExtractor {
                             .build())
                     .toList();
 
+
         } catch (Exception e) {
             ScheduleAiAnalysis failedAnalysis = ScheduleAiAnalysis.builder()
-                    .masterSchedule(masterSchedule)
+                    .masterScheduleIdx(masterSchedule.getIdx())
                     .rawJson("{}")
                     .status("FAILED")
                     .errorMessage(e.getMessage())
@@ -263,8 +279,13 @@ public class OpenAiScheduleExtractor {
         return LocalDate.parse(value);
     }
 
-    private String detectMimeType(File file) {
-        String fileName = file.getName().toLowerCase();
+    private String detectMimeType(MultipartFile file) {
+        String fileName = file.getOriginalFilename();
+
+        // 🎯 파일명이 null이거나 비어있으면 안전하게 미리 예외를 던져버립니다.
+        if (fileName == null || fileName.isBlank()) {
+            throw new RuntimeException("올바르지 않은 파일명입니다.");
+        }
 
         if (fileName.endsWith(".pdf")) {
             return "application/pdf";

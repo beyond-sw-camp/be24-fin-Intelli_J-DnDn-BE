@@ -15,7 +15,7 @@ public class DocumentAIController {
     // 공정표 파일 업로드
     @PostMapping("/upload")
     public ResponseEntity<?> uploadAndExtract(
-            @RequestBody DocumentAiDto.UploadReq dto
+            @ModelAttribute DocumentAiDto.UploadReq dto
     ) {
         return ResponseEntity.ok(BaseResponse.success(
                 documentAiService.uploadAndExtract(dto)

@@ -2,23 +2,24 @@ package org.example.dndndocumentupload.document.ai;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dndndocumentupload.document.model.dto.DocumentAiDto;
-import org.example.dndndocumentupload.document.management.DocumentManagementRepository;
+import org.example.dndndocumentupload.document.management.MasterScheduleRepository;
 import org.example.dndndocumentupload.document.management.StorageService;
+import org.example.dndndocumentupload.document.model.dto.TradeProcessDto;
 import org.example.dndndocumentupload.document.model.entity.MasterSchedule;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
+import java.util.List;
 
 @RequiredArgsConstructor
 @Service
 public class DocumentAiService {
     private final StorageService storageService;
-    private final DocumentManagementRepository documentManagementRepository;
-    private final ScheduleDocumentExtractor scheduleDocumentExtractor;
+    private final MasterScheduleRepository masterScheduleRepository;
     private final OpenAiScheduleExtractor openAiScheduleExtractor;
 
 
-    public Object uploadAndExtract(DocumentAiDto.UploadReq dto) {
+    public List<TradeProcessDto.Req> uploadAndExtract(DocumentAiDto.UploadReq dto) {
         if (dto.getFile() == null || dto.getFile().isEmpty()) {
             throw new RuntimeException("업로드된 파일이 없습니다.");
         }
@@ -44,20 +45,23 @@ public class DocumentAiService {
 
         // DB에 문서 정보 저장
         MasterSchedule entity = dto.toEntity(fileKey);
-        documentManagementRepository.save(entity);
+        masterScheduleRepository.save(entity);
         validateFile(dto.getFile());
 
-        openAiScheduleExtractor.extractSchedule(dto.getFile(), entity.getIdx());
-
-
-
+        return openAiScheduleExtractor.extractSchedule(dto.getFile(), entity.getIdx());
     }
-    private void validateFile(File file) {
-        if (file == null || !file.exists()) {
+
+    private void validateFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
             throw new RuntimeException("분석할 파일이 존재하지 않습니다.");
         }
 
-        String fileName = file.getName().toLowerCase();
+        String originalFileName = file.getOriginalFilename();
+        if (originalFileName == null) {
+            throw new RuntimeException("파일 이름이 유효하지 않습니다.");
+        }
+
+        String fileName = originalFileName.toLowerCase();
 
         boolean supported =
                 fileName.endsWith(".xlsx") ||
