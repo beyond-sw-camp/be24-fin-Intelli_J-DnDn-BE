@@ -109,7 +109,8 @@ public class WorkerService {
         bulkMergeAttendanceHistory(workers, rows, detail);
 
         // Step 7: 벌크 피로도 재계산 (3 쿼리 고정)
-        fatigueCalculationService.bulkRecalculateAndPersist(workers, rosterDate);
+        // rosterDate 당일 CLOCK_IN은 Step 3에서 삭제되므로 ref=전일 기준으로 계산
+        fatigueCalculationService.bulkRecalculateAndPersist(workers, rosterDate.minusDays(1));
 
         return WorkerDto.SyncRes.builder()
                 .created(created)
@@ -324,6 +325,8 @@ public class WorkerService {
                 .eventType(AttendanceEventType.CLOCK_IN)
                 .recognizedAt(req.getRecognizedAt())
                 .build());
+        // 출근 시점에 피로도 재계산: 오늘 CLOCK_IN 로그가 반영되어 streak·overnight 즉시 갱신
+        fatigueCalculationService.recalculateAndPersist(worker.getIdx(), date);
         return toGateRes(saved);
     }
 

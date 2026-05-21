@@ -39,26 +39,24 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AttendanceSeedService {
 
-    // 최대 탐색 범위 — 오늘 포함 9일
-    // 배치는 '어제(ref=오늘-1)'를 기준으로 streak을 계산하므로, 시드가 오늘(daysAgo=0) 로그를
-    // 생성해야 내일 배치의 ref(=오늘)가 attendance_log에 존재해 streak=0 버그를 방지한다.
-    private static final int SEED_DAYS_BACK = 9;
+    // 최대 탐색 범위 — 9일 전까지 (오늘은 배치/게이트가 관리, 시딩 대상 아님)
+    private static final int SEED_DAYS_BACK = 10;
 
-    // 근무자별 출근 패턴 (daysAgo 기준, 0=오늘 ~ 8=8일전)
-    // idx % 6으로 배분 — 배치 ref = 오늘(D) 기준 연속 일수 → streak 점수
-    //   group 0: 오늘+어제+4일전    → streak=2, 0pt
-    //   group 1: 오늘~2일전         → streak=3, 0pt
-    //   group 2: 오늘~5일전         → streak=6, 10pt
-    //   group 3: 오늘~6일전         → streak=7, 20pt
-    //   group 4: 오늘~7일전         → streak=8, 30pt
-    //   group 5: 오늘~8일전         → streak=9, 40pt  ← 고위험 시나리오 핵심
+    // 근무자별 출근 패턴 (daysAgo 기준, 1=어제 ~ 9=9일전)
+    // idx % 6으로 배분 — ref = 어제(D-1) 기준 연속 일수 → streak 점수
+    //   group 0: 어제+2일전+5일전       → streak=2, 0pt
+    //   group 1: 어제~3일전             → streak=3, 0pt
+    //   group 2: 어제~6일전             → streak=6, 10pt
+    //   group 3: 어제~7일전             → streak=7, 20pt
+    //   group 4: 어제~8일전             → streak=8, 30pt
+    //   group 5: 어제~9일전             → streak=9, 40pt  ← 고위험 시나리오 핵심
     private static final int[][] DAY_PATTERNS = {
-            {0, 1, 4},                                 // 0: 분산
-            {0, 1, 2},                                 // 1: 3일 연속
-            {0, 1, 2, 3, 4, 5},                       // 2: 6일 연속 → 10pt
-            {0, 1, 2, 3, 4, 5, 6},                   // 3: 7일 연속 → 20pt
-            {0, 1, 2, 3, 4, 5, 6, 7},               // 4: 8일 연속 → 30pt
-            {0, 1, 2, 3, 4, 5, 6, 7, 8},           // 5: 9일 연속 → 40pt
+            {1, 2, 5},                                 // 0: 분산
+            {1, 2, 3},                                 // 1: 3일 연속
+            {1, 2, 3, 4, 5, 6},                       // 2: 6일 연속 → 10pt
+            {1, 2, 3, 4, 5, 6, 7},                   // 3: 7일 연속 → 20pt
+            {1, 2, 3, 4, 5, 6, 7, 8},               // 4: 8일 연속 → 30pt
+            {1, 2, 3, 4, 5, 6, 7, 8, 9},           // 5: 9일 연속 → 40pt
     };
 
     // 정상 출퇴근 시각 그룹 (idx % 4) — 근무자마다 다른 루틴
@@ -68,6 +66,11 @@ public class AttendanceSeedService {
     private static final LocalTime[] NORMAL_OUTS = {
             LocalTime.of(17, 0), LocalTime.of(17, 30), LocalTime.of(18, 0), LocalTime.of(18, 30)
     };
+
+    // 야간 휴게 부족 시나리오: daysAgo=1(어제) 이른 출근 + daysAgo=2(2일전) 늦은 퇴근
+    // ref=어제 기준 overnight 점검: clockIn[어제]=6:00, clockOut[2일전]=23:00 → gap=7h < 10h → +30pt
+    private static final LocalTime OVERNIGHT_EARLY_IN  = LocalTime.of(6, 0);
+    private static final LocalTime OVERNIGHT_LATE_OUT  = LocalTime.of(23, 0);
 
     // 구역 정보를 DB에서 찾지 못할 때 사용하는 폴백
     private static final String[][] ZONE_TABLE_FALLBACK = {
@@ -125,10 +128,10 @@ public class AttendanceSeedService {
 
         List<Long> workerIdxes = workers.stream().map(Worker::getIdx).toList();
 
-        // 기존 시딩 데이터 삭제 (오늘 포함) — 배치가 생성한 오늘 PENDING 레코드도 제거 후 PRESENT로 재생성
-        attendanceRecordRepository.deleteAllByWorkerIdxInAndWorkDateBetween(workerIdxes, seedFrom, today);
-        attendanceLogRepository.deleteAllByWorkerIdxInAndWorkDateBetween(workerIdxes, seedFrom, today);
-        staffingLogRepository.deleteAllByWorkerIdxInAndWorkDateBetween(workerIdxes, seedFrom, today);
+        // 기존 시딩 데이터 삭제 (어제까지) — 오늘 레코드는 배치/게이트가 관리하므로 건드리지 않음
+        attendanceRecordRepository.deleteAllByWorkerIdxInAndWorkDateBetween(workerIdxes, seedFrom, yesterday);
+        attendanceLogRepository.deleteAllByWorkerIdxInAndWorkDateBetween(workerIdxes, seedFrom, yesterday);
+        staffingLogRepository.deleteAllByWorkerIdxInAndWorkDateBetween(workerIdxes, seedFrom, yesterday);
 
         // 사고 중복 방지를 위한 bulk pre-query (루프 N+1 제거)
         LocalDate accidentDate15 = today.minusDays(15);
@@ -170,14 +173,14 @@ public class AttendanceSeedService {
 
                 LocalTime clockIn;
                 LocalTime clockOut;
-                if (shortOvernight && daysAgo == 0) {
-                    // 오늘: 이른 출근 — 배치 ref=오늘 기준으로 야간 근접 교대 포인트 트리거
-                    clockIn  = LocalTime.of(6, 0);
-                    clockOut = LocalTime.of(15, 30);
-                } else if (shortOvernight && daysAgo == 1) {
-                    // 어제: 늦은 퇴근 — 오늘 이른 출근과 쌍으로 10시간 미만 휴게 성립
+                if (shortOvernight && daysAgo == 1) {
+                    // 어제: 이른 출근 — ref=어제 overnight 점검의 clockIn 기준점
+                    clockIn  = OVERNIGHT_EARLY_IN;
+                    clockOut = normalOut;
+                } else if (shortOvernight && daysAgo == 2) {
+                    // 2일전: 늦은 퇴근 — 어제 이른 출근과 쌍으로 10시간 미만 휴게 성립
                     clockIn  = normalIn;
-                    clockOut = LocalTime.of(23, 0);
+                    clockOut = OVERNIGHT_LATE_OUT;
                 } else {
                     clockIn  = normalIn;
                     clockOut = normalOut;
