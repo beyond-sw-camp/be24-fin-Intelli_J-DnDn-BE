@@ -6,7 +6,11 @@ import org.example.dndndocumentupload.document.model.entity.MasterSchedule;
 import org.example.dndndocumentupload.document.model.DocType;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 public class DocumentAiDto {
+    public record KafkaMessage<T>(Long id, List<TradeProcessDto.Req> body) {}
+
     @Setter
     @Getter
     public static class UploadReq {

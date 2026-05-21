@@ -11,6 +11,8 @@ spring:
 
   kafka:
     bootstrap-servers: 192.100.20.37:9094,192.100.20.38:9094,192.100.20.39:9094,192.100.20.40:9094
+    key-deserializer: org.apache.kafka.common.serialization.LongDeserializer
+    value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
 
   servlet:
     multipart:

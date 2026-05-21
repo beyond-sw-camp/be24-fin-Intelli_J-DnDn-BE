@@ -47,6 +47,8 @@ public class DocumentManagementService {
             masterScheduleRepository
                     .findFirstByProjectIdxAndDocTypeOrderByCreatedAtDesc(projectId, type)
                     .ifPresent(entity -> result.add(DocumentManagementDto.ReadRes.from(entity)));
+
+
         }
         return result;
     }
