@@ -5,9 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dndncore.weather.model.WeatherInfoDto;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -22,8 +27,15 @@ public class AirKoreaClient {
     @Value("${weather.air-korea.sido-name:서울}")
     private String sidoName;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = createRestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private RestTemplate createRestTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(10_000);
+        factory.setReadTimeout(20_000);
+        return new RestTemplate(factory);
+    }
 
     public WeatherInfoDto.AirQualityCard fetchSidoPm10() {
         if (serviceKey == null || serviceKey.isBlank()
@@ -48,40 +60,44 @@ public class AirKoreaClient {
             log.debug("[AirKorea] 호출 URL: {}", url);
 
             String rawResponse = restTemplate.getForObject(url, String.class);
+            if (rawResponse == null || rawResponse.isBlank()) {
+                log.warn("[AirKorea] 응답 본문 비어있음");
+                return WeatherInfoDto.AirQualityCard.empty();
+            }
+
             log.debug("[AirKorea] 원시 응답 (앞 500자): {}",
-                    rawResponse == null ? "null" : rawResponse.substring(0, Math.min(500, rawResponse.length())));
+                    rawResponse.substring(0, Math.min(500, rawResponse.length())));
 
             JsonNode root = objectMapper.readTree(rawResponse);
             String resultCode = root.path("response").path("header").path("resultCode").asText("");
             String resultMsg = root.path("response").path("header").path("resultMsg").asText("");
 
-            if (!"00".equals(resultCode)) {
+            if (!("00".equals(resultCode) || "0".equals(resultCode))) {
                 log.warn("[AirKorea] API 응답 비정상 — resultCode: {}, resultMsg: {}", resultCode, resultMsg);
                 return WeatherInfoDto.AirQualityCard.empty();
             }
 
-            JsonNode itemsNode = root.path("response").path("body").path("items");
-
-            if (itemsNode.isMissingNode() || !itemsNode.isArray() || itemsNode.size() == 0) {
+            List<JsonNode> items = extractItems(root.path("response").path("body").path("items"));
+            if (items.isEmpty()) {
                 log.warn("[AirKorea] items 비어있음");
                 return WeatherInfoDto.AirQualityCard.empty();
             }
 
             int sum = 0;
             int count = 0;
-            for (JsonNode item : itemsNode) {
-                String stationName = item.path("stationName").asText("");
-                String pm10Text = item.path("pm10Value").asText("");
 
-                if (stationName.contains("평균") && !pm10Text.isBlank() && !"-".equals(pm10Text)) {
-                    Integer pm10 = parsePm10(pm10Text);
-                    if (pm10 != null) {
-                        log.info("[AirKorea] 평균 행 사용 — pm10: {}", pm10);
-                        return buildCard(pm10);
-                    }
+            for (JsonNode item : items) {
+                String stationName = item.path("stationName").asText("");
+                Integer pm10 = parsePm10(firstNonBlank(
+                        item.path("pm10Value").asText(""),
+                        item.path("pm10Value24").asText("")
+                ));
+
+                if (stationName.contains("평균") && pm10 != null) {
+                    log.info("[AirKorea] 평균 행 사용 — pm10: {}", pm10);
+                    return buildCard(pm10);
                 }
 
-                Integer pm10 = parsePm10(pm10Text);
                 if (pm10 != null) {
                     sum += pm10;
                     count++;
@@ -89,17 +105,51 @@ public class AirKoreaClient {
             }
 
             if (count == 0) {
-                log.warn("[AirKorea] 유효한 pm10 값 0건 — itemsNode.size: {}", itemsNode.size());
+                log.warn("[AirKorea] 유효한 pm10 값 0건 — items.size: {}", items.size());
                 return WeatherInfoDto.AirQualityCard.empty();
             }
 
             int avg = Math.round((float) sum / count);
             log.info("[AirKorea] 측정소 평균 산정 완료 — pm10 평균: {} (측정소 {}개)", avg, count);
             return buildCard(avg);
+        } catch (HttpClientErrorException.TooManyRequests e) {
+            log.warn("[AirKorea] 일일 호출량 초과로 미세먼지 조회를 건너뜁니다. - status={}, body={}",
+                    e.getStatusCode(), e.getResponseBodyAsString());
+            return WeatherInfoDto.AirQualityCard.empty();
         } catch (Exception e) {
             log.error("[AirKorea] API 호출 실패", e);
             return WeatherInfoDto.AirQualityCard.empty();
         }
+    }
+
+    private List<JsonNode> extractItems(JsonNode itemsNode) {
+        List<JsonNode> result = new ArrayList<>();
+
+        if (itemsNode == null || itemsNode.isMissingNode() || itemsNode.isNull()) {
+            return result;
+        }
+
+        if (itemsNode.isArray()) {
+            itemsNode.forEach(result::add);
+            return result;
+        }
+
+        JsonNode itemNode = itemsNode.path("item");
+        if (itemNode.isArray()) {
+            itemNode.forEach(result::add);
+            return result;
+        }
+
+        if (itemNode.isObject()) {
+            result.add(itemNode);
+            return result;
+        }
+
+        if (itemsNode.isObject()) {
+            result.add(itemsNode);
+        }
+
+        return result;
     }
 
     private WeatherInfoDto.AirQualityCard buildCard(int pm10) {
@@ -136,5 +186,18 @@ public class AirKoreaClient {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+
+        for (String value : values) {
+            if (value != null && !value.isBlank() && !"-".equals(value)) {
+                return value;
+            }
+        }
+        return "";
     }
 }

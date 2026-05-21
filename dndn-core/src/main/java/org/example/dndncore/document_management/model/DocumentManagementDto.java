@@ -12,8 +12,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public class DocumentManagementDto {
 
@@ -85,6 +87,42 @@ public class DocumentManagementDto {
                     .name(entity.getName())
                     .build();
         }
+    }
+
+    @Getter
+    @Builder
+    public static class UploadedDocumentPageRes {
+        private List<UploadedDocumentRes> content;
+        private int currentPage;
+        private int totalPages;
+        private long totalElements;
+        private int size;
+        private boolean isFirst;
+        private boolean isLast;
+    }
+
+    @Getter
+    @Builder
+    public static class UploadedDocumentRes {
+        private String id;
+        private String sourceType;
+        private Long sourceId;
+        private String docCode;
+        private String docTypeCode;
+        private String fileName;
+        private String fileExt;
+        private String fileUrl;
+        private String origin;
+        private String partnerName;
+        private LocalDate uploadDate;
+        private LocalDate docDate;
+        private String uploader;
+        private String version;
+        private String fileSize;
+        private String statusCode;
+        private String tradeName;
+        private boolean downloadable;
+        private Map<String, Object> raw;
     }
 
     @Setter

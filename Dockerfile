@@ -1,23 +1,21 @@
-#빌드 단계
+# 빌드 단계
 FROM gradle:8.14.4-jdk17 AS builder
 
 WORKDIR /app
 
-COPY build.gradle   ./
-COPY settings.gradle    ./
+COPY build.gradle ./
+COPY settings.gradle ./
+COPY dndn-core/build.gradle ./dndn-core/build.gradle
 
-RUN gradle dependencies --no-daemon
+RUN gradle :dndn-core:dependencies --no-daemon
 
-COPY ./src  ./src
-RUN gradle bootjar --no-daemon
+COPY ./dndn-core/src ./dndn-core/src
 
-
+RUN gradle :dndn-core:bootJar --no-daemon
 
 # 실행 단계
 FROM openjdk:17-ea-17-slim
-# COPY ./build/libs/*.jar    /app.jar
-COPY --from=builder /app/build/libs/*SNAPSHOT.jar  /app.jar
-# --from=builder : builder라는 이름으로 지정된 이전 도커 빌드 단계(Stage)에서 파일을 가져오겠다
+COPY --from=builder /app/dndn-core/build/libs/*SNAPSHOT.jar /app.jar
 EXPOSE 8080
 
 CMD ["java", "-jar", "/app.jar"]

@@ -59,6 +59,8 @@ public class OpenAiWeatherAnalyzer {
         prompt.append("너는 DnDn 건설현장 기상관제 AI다.\n");
         prompt.append("오늘 날씨와 작업지시서의 작업상세내역, 중장비명을 비교해서 위험 작업과 위험 장비를 찾는다.\n");
         prompt.append("작업지시서에 있는 내용은 risks에 반영하고, 현장에서 바로 확인해야 하는 조치는 actions에 작성한다.\n");
+        prompt.append("작업지시서가 없어도 actions에는 오늘 기상만으로 선제 확인이 필요한 대표 작업 유형, 장비, 현장 조치를 작성한다.\n");
+        prompt.append("작업지시서가 없으면 risks는 빈 배열로 유지하고, actions만 기상 기준으로 작성한다.\n");
         prompt.append("문장은 현장관리자가 바로 읽을 수 있게 '~해 주세요', '~바랍니다', '~검토해 주세요'의 부드러운 요청형으로 작성한다.\n");
         prompt.append("'실시한다', '통제한다', '결정한다'처럼 딱딱한 명령형은 사용하지 않는다.\n\n");
 

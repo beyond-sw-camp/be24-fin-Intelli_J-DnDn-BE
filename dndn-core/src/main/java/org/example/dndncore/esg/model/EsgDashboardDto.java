@@ -257,6 +257,12 @@ public class EsgDashboardDto {
         private String memo;
 
         public static MetricInputResponseDto from(EsgMetricInput input) {
+            return from(input, null);
+        }
+
+        public static MetricInputResponseDto from(EsgMetricInput input, Double storedFineDustValue) {
+            Double fineDustValue = storedFineDustValue != null ? storedFineDustValue : input.getFineDustValue();
+
             return MetricInputResponseDto.builder()
                     .idx(input.getIdx())
                     .projectId(input.getProject().getIdx())
@@ -268,7 +274,7 @@ public class EsgDashboardDto {
                     .washWaterLiters(input.getWashWaterLiters())
                     .wastewaterLiters(input.getWastewaterLiters())
                     .wastewaterRecoveryRate(input.getWastewaterRecoveryRate())
-                    .fineDustValue(input.getFineDustValue())
+                    .fineDustValue(fineDustValue)
                     .noiseDb(input.getNoiseDb())
                     .complaintCount(input.getComplaintCount())
                     .complaintResolvedCount(input.getComplaintResolvedCount())

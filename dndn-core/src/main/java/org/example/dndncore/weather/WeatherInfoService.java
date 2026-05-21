@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dndncore.weather.model.WeatherInfo;
 import org.example.dndncore.weather.model.WeatherInfoDto;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,6 +35,7 @@ import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -41,6 +43,8 @@ public class WeatherInfoService {
 
     private static final DateTimeFormatter BASIC_DATE = DateTimeFormatter.BASIC_ISO_DATE;
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
+    private static final int VILLAGE_PAGE_SIZE = 1000;
+    private static final int MAX_VILLAGE_PAGE_REQUESTS = 5;
 
     private final WeatherInfoRepository weatherInfoRepository;
     private final WeatherSnapshotWriter weatherSnapshotWriter;
@@ -95,40 +99,10 @@ public class WeatherInfoService {
     // 기상 관제 대시보드 단건 조회
     public WeatherInfoDto.DashboardRes readDashboard(LocalDate reportDate) {
         LocalDate targetDate = reportDate != null ? reportDate : LocalDate.now();
-        LocalDate today = LocalDate.now();
 
-        try {
-            WeatherInfo cached = weatherInfoRepository.findByReportDate(targetDate).orElse(null);
-            WeatherInfoDto.DashboardRes cachedDashboard = cached != null ? fromSnapshot(cached) : null;
-
-            // 지난 날짜는 "확정 기상 데이터"만 고정값으로 사용한다.
-            // DERIVED는 DB에 남아 있어도 확정값으로 인정하지 않고, ASOS/실제 데이터 갱신을 한 번 시도한다.
-            if (targetDate.isBefore(today) && cachedDashboard != null) {
-                if (isConfirmedWeather(cachedDashboard)) {
-                    return cachedDashboard;
-                }
-
-                WeatherInfoDto.DashboardRes refreshed = tryBuildDashboard(targetDate);
-                if (refreshed != null && !isEmptyDashboard(refreshed)) {
-                    saveSnapshotWithPolicy(targetDate, refreshed, cachedDashboard);
-                    return selectDashboardForResponse(refreshed, cachedDashboard);
-                }
-
-                return cachedDashboard;
-            }
-
-            // 오늘/미래 날짜는 빠른 화면 표시를 위해 DERIVED 캐시도 fresh cache로 허용한다.
-            // 단, EMPTY는 캐시로 사용하지 않는다.
-            if (cached != null && isFreshSnapshot(cached) && cachedDashboard != null && !isEmptyDashboard(cachedDashboard)) {
-                return cachedDashboard;
-            }
-
-            WeatherInfoDto.DashboardRes response = buildDashboard(targetDate);
-            saveSnapshotWithPolicy(targetDate, response, cachedDashboard);
-            return selectDashboardForResponse(response, cachedDashboard);
-        } catch (Exception e) {
-            return loadSnapshotOrFallback(targetDate);
-        }
+        // 화면 조회는 어떤 날짜든 DB snapshot만 읽는다.
+        // 외부 기상 API 호출은 정기 스케줄러의 당일 갱신 흐름에서만 수행한다.
+        return loadSnapshotOrFallback(targetDate);
     }
 
     // 작업일보 자동 기입
@@ -138,11 +112,66 @@ public class WeatherInfoService {
 
     // 스케줄러용 강제 갱신
     public void refreshSnapshot(LocalDate targetDate) {
+        if (targetDate == null || !targetDate.equals(LocalDate.now())) {
+            return;
+        }
+
+        refreshTodaySnapshotAndAvailableForecasts();
+    }
+
+    // 스케줄러 전용: 오늘 외부 기상 API는 1회만 호출하고,
+    // 그 응답으로 확보한 예보 범위의 미래 날짜 snapshot을 DB에 같이 저장한다.
+    public void refreshTodaySnapshotAndAvailableForecasts() {
+        LocalDate today = LocalDate.now();
+
+        try {
+            List<WeatherInfoDto.AlertItem> todayAlerts = fetchAlerts();
+            WeatherInfoDto.AirQualityCard todayAirQuality = airKoreaClient.fetchSidoPm10();
+
+            Map<LocalDate, DayWeather> villageForecastMap = fetchVillageForecastMap();
+            Map<LocalDate, DayWeather> midForecastMap = fetchMidForecastMap();
+
+            Map<LocalDate, DayWeather> forecastMap = new TreeMap<>();
+            forecastMap.putAll(villageForecastMap);
+            forecastMap.putAll(midForecastMap);
+
+            log.info("[기상 스냅샷] 예보 수집 완료 - 단기={}일, 중기={}일, 전체={}일",
+                    villageForecastMap.size(),
+                    midForecastMap.size(),
+                    forecastMap.size());
+
+            refreshForecastSnapshot(today, forecastMap, todayAlerts, todayAirQuality);
+
+            forecastMap.keySet().stream()
+                    .filter(date -> date.isAfter(today))
+                    .sorted()
+                    .forEach(date -> refreshForecastSnapshot(
+                            date,
+                            forecastMap,
+                            new ArrayList<>(),
+                            WeatherInfoDto.AirQualityCard.empty()
+                    ));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void refreshForecastSnapshot(
+            LocalDate targetDate,
+            Map<LocalDate, DayWeather> forecastMap,
+            List<WeatherInfoDto.AlertItem> alerts,
+            WeatherInfoDto.AirQualityCard airQualityCard
+    ) {
         try {
             WeatherInfo cached = weatherInfoRepository.findByReportDate(targetDate).orElse(null);
             WeatherInfoDto.DashboardRes cachedDashboard = cached != null ? fromSnapshot(cached) : null;
 
-            WeatherInfoDto.DashboardRes response = buildDashboard(targetDate);
+            WeatherInfoDto.DashboardRes response = buildForecastDashboardFromFetchedData(
+                    targetDate,
+                    forecastMap,
+                    alerts,
+                    airQualityCard
+            );
+            response = mergeMissingAirQuality(response, cachedDashboard);
             saveSnapshotWithPolicy(targetDate, response, cachedDashboard);
         } catch (Exception ignored) {
         }
@@ -154,6 +183,84 @@ public class WeatherInfoService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private WeatherInfoDto.DashboardRes mergeMissingAirQuality(
+            WeatherInfoDto.DashboardRes response,
+            WeatherInfoDto.DashboardRes cachedDashboard
+    ) {
+        if (response == null || hasAvailableAirQuality(response)) {
+            return response;
+        }
+
+        if (cachedDashboard == null || !hasAvailableAirQuality(cachedDashboard)) {
+            return response;
+        }
+
+        return withAirQuality(response, cachedDashboard.getAirQuality());
+    }
+
+    private boolean hasAvailableAirQuality(WeatherInfoDto.DashboardRes dashboard) {
+        return dashboard != null && isAvailableAirQuality(dashboard.getAirQuality());
+    }
+
+    private boolean isAvailableAirQuality(WeatherInfoDto.AirQualityCard airQuality) {
+        return airQuality != null && airQuality.isAvailable() && airQuality.getValue() != null;
+    }
+
+    private WeatherInfoDto.DashboardRes withAirQuality(
+            WeatherInfoDto.DashboardRes source,
+            WeatherInfoDto.AirQualityCard airQuality
+    ) {
+        if (source == null) {
+            return null;
+        }
+
+        Integer fineDustValue = airQuality != null ? airQuality.getValue() : null;
+
+        return WeatherInfoDto.DashboardRes.builder()
+                .reportDate(source.getReportDate())
+                .locationLabel(source.getLocationLabel())
+                .today(source.getToday())
+                .week(source.getWeek())
+                .rain(source.getRain())
+                .airQuality(airQuality != null ? airQuality : WeatherInfoDto.AirQualityCard.empty())
+                .analysis(withFineDust(source.getAnalysis(), fineDustValue))
+                .equipmentRisks(source.getEquipmentRisks())
+                .planRisks(source.getPlanRisks())
+                .alerts(source.getAlerts())
+                .forecastDays(source.getForecastDays())
+                .build();
+    }
+
+    private WeatherInfoDto.WeatherAnalysis withFineDust(
+            WeatherInfoDto.WeatherAnalysis analysis,
+            Integer fineDustValue
+    ) {
+        if (analysis == null) {
+            return null;
+        }
+
+        Integer appliedFineDustValue = fineDustValue != null ? fineDustValue : analysis.getFineDustValue();
+
+        return WeatherInfoDto.WeatherAnalysis.builder()
+                .reportDate(analysis.getReportDate())
+                .sourceType(analysis.getSourceType())
+                .outOfRange(analysis.isOutOfRange())
+                .minTemperature(analysis.getMinTemperature())
+                .maxTemperature(analysis.getMaxTemperature())
+                .avgAmTemperature(analysis.getAvgAmTemperature())
+                .avgPmTemperature(analysis.getAvgPmTemperature())
+                .precipitationProbability(analysis.getPrecipitationProbability())
+                .maxWindSpeed(analysis.getMaxWindSpeed())
+                .fineDustValue(appliedFineDustValue)
+                .fineDustRisk(appliedFineDustValue != null && appliedFineDustValue >= 80)
+                .hasRain(analysis.isHasRain())
+                .hasSnow(analysis.isHasSnow())
+                .heatRisk(analysis.isHeatRisk())
+                .coldRisk(analysis.isColdRisk())
+                .windRisk(analysis.isWindRisk())
+                .build();
     }
 
     private WeatherInfoDto.DashboardRes selectDashboardForResponse(
@@ -255,6 +362,15 @@ public class WeatherInfoService {
         forecastMap.putAll(fetchVillageForecastMap());
         forecastMap.putAll(fetchMidForecastMap());
 
+        return buildForecastDashboardFromFetchedData(targetDate, forecastMap, alerts, airQualityCard);
+    }
+
+    private WeatherInfoDto.DashboardRes buildForecastDashboardFromFetchedData(
+            LocalDate targetDate,
+            Map<LocalDate, DayWeather> forecastMap,
+            List<WeatherInfoDto.AlertItem> alerts,
+            WeatherInfoDto.AirQualityCard airQualityCard
+    ) {
         DayWeather selectedDay = forecastMap.get(targetDate);
         List<WeatherInfoDto.ForecastDay> forecastDays = buildExtendedForecastDays(targetDate, forecastMap);
 
@@ -282,7 +398,7 @@ public class WeatherInfoService {
                 .value(todayMaxPop + "%")
                 .build();
 
-        Integer fineDustValue = airQualityCard.getValue();
+        Integer fineDustValue = airQualityCard != null ? airQualityCard.getValue() : null;
         boolean fineDustRisk = fineDustValue != null && fineDustValue >= 80;
 
         List<WeatherInfoDto.RiskItem> equipmentRisks = buildEquipmentRisks(selectedDay, alerts, fineDustValue);
@@ -313,7 +429,7 @@ public class WeatherInfoService {
                 .today(todayCard)
                 .week(weekCard)
                 .rain(rainCard)
-                .airQuality(airQualityCard)
+                .airQuality(airQualityCard != null ? airQualityCard : WeatherInfoDto.AirQualityCard.empty())
                 .analysis(analysis)
                 .equipmentRisks(equipmentRisks)
                 .planRisks(planRisks)
@@ -586,32 +702,84 @@ public class WeatherInfoService {
                 .build();
     }
 
-    // 기상청 OpenAPI 호출
+    // 기상청 단기예보 OpenAPI 호출
+    // 2024.11 이후 단기예보가 최대 5일권으로 확장되어 1,000건을 초과할 수 있으므로
+    // totalCount 기준으로 페이지를 끝까지 조회해 주간/월간 탭 누락을 막는다.
     private Map<LocalDate, DayWeather> fetchVillageForecastMap() throws Exception {
         BaseDateTime baseDateTime = resolveVillageBaseDateTime();
-
-        String url = UriComponentsBuilder.fromHttpUrl(villageUrl)
-                .queryParam("serviceKey", serviceKey)
-                .queryParam("pageNo", 1)
-                .queryParam("numOfRows", 1000)
-                .queryParam("dataType", "JSON")
-                .queryParam("base_date", baseDateTime.getBaseDate())
-                .queryParam("base_time", baseDateTime.getBaseTime())
-                .queryParam("nx", nx)
-                .queryParam("ny", ny)
-                .build(false)
-                .toUriString();
-
-        JsonNode root = objectMapper.readTree(restTemplate.getForObject(url, String.class));
-
-        if (!isNormalService(root)) {
-            return new LinkedHashMap<>();
-        }
-
-        JsonNode itemsNode = root.path("response").path("body").path("items").path("item");
         Map<LocalDate, TreeMap<String, VillageSlot>> grouped = new TreeMap<>();
 
-        for (JsonNode item : toNodeList(itemsNode)) {
+        int pageNo = 1;
+        int fetchedCount = 0;
+        int totalCount = -1;
+
+        while (pageNo <= MAX_VILLAGE_PAGE_REQUESTS) {
+            String url = UriComponentsBuilder.fromHttpUrl(villageUrl)
+                    .queryParam("serviceKey", serviceKey)
+                    .queryParam("pageNo", pageNo)
+                    .queryParam("numOfRows", VILLAGE_PAGE_SIZE)
+                    .queryParam("dataType", "JSON")
+                    .queryParam("base_date", baseDateTime.getBaseDate())
+                    .queryParam("base_time", baseDateTime.getBaseTime())
+                    .queryParam("nx", nx)
+                    .queryParam("ny", ny)
+                    .build(false)
+                    .toUriString();
+
+            JsonNode root = objectMapper.readTree(restTemplate.getForObject(url, String.class));
+
+            if (!isNormalService(root)) {
+                log.warn("[기상 스냅샷] 단기예보 API 응답 비정상 - baseDate={}, baseTime={}, pageNo={}",
+                        baseDateTime.getBaseDate(), baseDateTime.getBaseTime(), pageNo);
+                return new LinkedHashMap<>();
+            }
+
+            JsonNode bodyNode = root.path("response").path("body");
+            if (totalCount < 0) {
+                totalCount = bodyNode.path("totalCount").asInt(0);
+            }
+
+            List<JsonNode> items = toNodeList(bodyNode.path("items").path("item"));
+            if (items.isEmpty()) {
+                break;
+            }
+
+            collectVillageForecastItems(items, grouped);
+            fetchedCount += items.size();
+
+            if ((totalCount > 0 && fetchedCount >= totalCount) || items.size() < VILLAGE_PAGE_SIZE) {
+                break;
+            }
+
+            pageNo++;
+        }
+
+        if (totalCount > 0 && fetchedCount < totalCount) {
+            log.warn("[기상 스냅샷] 단기예보 일부만 수집됨 - totalCount={}, fetchedCount={}, maxPages={}",
+                    totalCount, fetchedCount, MAX_VILLAGE_PAGE_REQUESTS);
+        }
+
+        Map<LocalDate, DayWeather> result = new LinkedHashMap<>();
+        for (Map.Entry<LocalDate, TreeMap<String, VillageSlot>> entry : grouped.entrySet()) {
+            DayWeather dayWeather = buildVillageDayWeather(entry.getKey(), new ArrayList<>(entry.getValue().values()));
+            result.put(entry.getKey(), dayWeather);
+        }
+
+        log.info("[기상 스냅샷] 단기예보 수집 완료 - baseDate={}, baseTime={}, totalCount={}, fetchedCount={}, dateCount={}",
+                baseDateTime.getBaseDate(),
+                baseDateTime.getBaseTime(),
+                totalCount,
+                fetchedCount,
+                result.size());
+
+        return result;
+    }
+
+    private void collectVillageForecastItems(
+            List<JsonNode> items,
+            Map<LocalDate, TreeMap<String, VillageSlot>> grouped
+    ) {
+        for (JsonNode item : items) {
             String fcstDateText = item.path("fcstDate").asText("");
             if (fcstDateText.isBlank()) {
                 continue;
@@ -632,6 +800,8 @@ public class WeatherInfoService {
                 case "SKY" -> slot.setSky(parseInteger(value));
                 case "PTY" -> slot.setPty(parseInteger(value));
                 case "WSD" -> slot.setWindSpeed(parseDouble(value));
+                case "UUU" -> slot.setEastWestWindComponent(parseDouble(value));
+                case "VVV" -> slot.setNorthSouthWindComponent(parseDouble(value));
                 case "PCP" -> slot.setPrecipitationVolume(parsePrecipitation(value));
                 case "TMN" -> slot.setDailyMin(parseDouble(value));
                 case "TMX" -> slot.setDailyMax(parseDouble(value));
@@ -639,13 +809,6 @@ public class WeatherInfoService {
                 }
             }
         }
-
-        Map<LocalDate, DayWeather> result = new LinkedHashMap<>();
-        for (Map.Entry<LocalDate, TreeMap<String, VillageSlot>> entry : grouped.entrySet()) {
-            DayWeather dayWeather = buildVillageDayWeather(entry.getKey(), new ArrayList<>(entry.getValue().values()));
-            result.put(entry.getKey(), dayWeather);
-        }
-        return result;
     }
 
     private Map<LocalDate, DayWeather> fetchMidForecastMap() {
@@ -888,7 +1051,6 @@ public class WeatherInfoService {
             LocalDate baseDate,
             Map<LocalDate, DayWeather> forecastMap
     ) {
-        LocalDate today = LocalDate.now();
         LocalDate startOfThisMonth = baseDate.withDayOfMonth(1);
         LocalDate endOfNextMonth = baseDate.plusMonths(1).withDayOfMonth(1)
                 .plusMonths(1).minusDays(1);
@@ -898,24 +1060,6 @@ public class WeatherInfoService {
 
         while (!cursor.isAfter(endOfNextMonth)) {
             DayWeather day = forecastMap.get(cursor);
-
-            if (day == null && cursor.isBefore(today) && !cursor.isBefore(today.minusDays(7))) {
-                AsosDay asosDay = fetchAsosDay(cursor);
-                if (asosDay != null) {
-                    int rainPercent = defaultDouble(asosDay.getSumRn()) > 0 ? 100 : 0;
-                    day = DayWeather.builder()
-                            .summary(defaultString(asosDay.getSummary(), "기상정보 없음"))
-                            .amLabel(defaultString(asosDay.getAmLabel(), "기상정보 없음"))
-                            .pmLabel(defaultString(asosDay.getPmLabel(), "기상정보 없음"))
-                            .minTemp(roundInt(asosDay.getMinTa()))
-                            .maxTemp(roundInt(asosDay.getMaxTa()))
-                            .precipitationProbability(rainPercent)
-                            .maxWindSpeed(asosDay.getMaxInsWs())
-                            .hasRain(defaultDouble(asosDay.getSumRn()) > 0)
-                            .hasSnow(defaultDouble(asosDay.getDdMes()) > 0 || defaultDouble(asosDay.getSumDpthFhsc()) > 0)
-                            .build();
-                }
-            }
 
             if (day != null) {
                 result.add(WeatherInfoDto.ForecastDay.builder()
@@ -1010,7 +1154,7 @@ public class WeatherInfoService {
                 .orElse(0);
 
         Double maxWind = slots.stream()
-                .map(VillageSlot::getWindSpeed)
+                .map(this::resolveVillageSlotWindSpeed)
                 .filter(Objects::nonNull)
                 .max(Double::compareTo)
                 .orElse(0.0);
@@ -1055,6 +1199,24 @@ public class WeatherInfoService {
     }
 
     // 풍속 기반 기상 영향도 요약
+    private Double resolveVillageSlotWindSpeed(VillageSlot slot) {
+        if (slot == null) {
+            return null;
+        }
+
+        if (slot.getWindSpeed() != null) {
+            return slot.getWindSpeed();
+        }
+
+        if (slot.getEastWestWindComponent() == null || slot.getNorthSouthWindComponent() == null) {
+            return null;
+        }
+
+        double squared = Math.pow(slot.getEastWestWindComponent(), 2)
+                + Math.pow(slot.getNorthSouthWindComponent(), 2);
+        return Math.round(Math.sqrt(squared) * 10.0) / 10.0;
+    }
+
     private String buildWindSummary(DayWeather selectedDay, List<WeatherInfoDto.AlertItem> alerts) {
         if (alerts != null && !alerts.isEmpty()) {
             return alerts.get(0).getTitle();
@@ -1259,14 +1421,6 @@ public class WeatherInfoService {
         return "EMPTY".equals(sourceType);
     }
 
-    private boolean isFreshSnapshot(WeatherInfo snapshot) {
-        if (snapshot == null || snapshot.getUpdatedAt() == null) {
-            return false;
-        }
-
-        return snapshot.getUpdatedAt().isAfter(LocalDateTime.now().minusMinutes(60));
-    }
-
     private WeatherInfoDto.DashboardRes loadSnapshotOrFallback(LocalDate targetDate) {
         return weatherInfoRepository.findByReportDate(targetDate)
                 .map(this::fromSnapshot)
@@ -1274,20 +1428,35 @@ public class WeatherInfoService {
     }
 
     private WeatherInfoDto.DashboardRes fromSnapshot(WeatherInfo snapshot) {
+        WeatherInfoDto.AirQualityCard storedAirQuality = buildStoredAirQualityCard(snapshot);
+
         try {
             if (snapshot.getDashboardJson() != null && !snapshot.getDashboardJson().isBlank()) {
                 WeatherInfoDto.DashboardRes parsed = objectMapper.readValue(
                         snapshot.getDashboardJson(),
                         WeatherInfoDto.DashboardRes.class
                 );
+
+                WeatherInfoDto.AirQualityCard parsedAirQuality = isAvailableAirQuality(parsed.getAirQuality())
+                        ? parsed.getAirQuality()
+                        : storedAirQuality;
+
+                WeatherInfoDto.WeatherAnalysis parsedAnalysis = parsed.getAnalysis() != null
+                        ? parsed.getAnalysis()
+                        : WeatherInfoDto.WeatherAnalysis.empty(snapshot.getReportDate().toString());
+
+                if (isAvailableAirQuality(parsedAirQuality)) {
+                    parsedAnalysis = withFineDust(parsedAnalysis, parsedAirQuality.getValue());
+                }
+
                 return WeatherInfoDto.DashboardRes.builder()
                         .reportDate(parsed.getReportDate() != null ? parsed.getReportDate() : snapshot.getReportDate().toString())
                         .locationLabel(parsed.getLocationLabel())
                         .today(parsed.getToday())
                         .week(parsed.getWeek())
                         .rain(parsed.getRain())
-                        .airQuality(parsed.getAirQuality() != null ? parsed.getAirQuality() : WeatherInfoDto.AirQualityCard.empty())
-                        .analysis(parsed.getAnalysis() != null ? parsed.getAnalysis() : WeatherInfoDto.WeatherAnalysis.empty(snapshot.getReportDate().toString()))
+                        .airQuality(parsedAirQuality)
+                        .analysis(parsedAnalysis)
                         .equipmentRisks(parsed.getEquipmentRisks() != null ? parsed.getEquipmentRisks() : new ArrayList<>())
                         .planRisks(parsed.getPlanRisks() != null ? parsed.getPlanRisks() : new ArrayList<>())
                         .alerts(parsed.getAlerts() != null ? parsed.getAlerts() : new ArrayList<>())
@@ -1315,19 +1484,58 @@ public class WeatherInfoService {
                 .value(defaultString(snapshot.getPrecipitationProbability(), "0%"))
                 .build();
 
+        WeatherInfoDto.WeatherAnalysis analysis = WeatherInfoDto.WeatherAnalysis.empty(snapshot.getReportDate().toString());
+        if (isAvailableAirQuality(storedAirQuality)) {
+            analysis = withFineDust(analysis, storedAirQuality.getValue());
+        }
+
         return WeatherInfoDto.DashboardRes.builder()
                 .reportDate(snapshot.getReportDate().toString())
                 .locationLabel(defaultString(snapshot.getLocationLabel(), locationLabel))
                 .today(todayCard)
                 .week(weekCard)
                 .rain(rainCard)
-                .airQuality(WeatherInfoDto.AirQualityCard.empty())
-                .analysis(WeatherInfoDto.WeatherAnalysis.empty(snapshot.getReportDate().toString()))
+                .airQuality(storedAirQuality)
+                .analysis(analysis)
                 .equipmentRisks(new ArrayList<>())
                 .planRisks(new ArrayList<>())
                 .alerts(new ArrayList<>())
                 .forecastDays(buildFallbackForecastDays(snapshot.getReportDate()))
                 .build();
+    }
+
+    private WeatherInfoDto.AirQualityCard buildStoredAirQualityCard(WeatherInfo snapshot) {
+        Integer fineDustValue = parseInteger(snapshot.getFineDustValue());
+        String fineDustGrade = defaultString(snapshot.getFineDustGrade(), "");
+
+        if (fineDustValue == null) {
+            return WeatherInfoDto.AirQualityCard.empty();
+        }
+
+        String grade = !fineDustGrade.isBlank()
+                ? fineDustGrade
+                : resolveFineDustGrade(fineDustValue);
+
+        return WeatherInfoDto.AirQualityCard.builder()
+                .available(true)
+                .value(fineDustValue)
+                .pm10(fineDustValue)
+                .grade(grade)
+                .label(grade)
+                .build();
+    }
+
+    private String resolveFineDustGrade(int pm10) {
+        if (pm10 <= 30) {
+            return "좋음";
+        }
+        if (pm10 <= 80) {
+            return "보통";
+        }
+        if (pm10 <= 150) {
+            return "나쁨";
+        }
+        return "매우 나쁨";
     }
 
     // 파서
@@ -1667,6 +1875,8 @@ public class WeatherInfoService {
         private Integer sky;
         private Integer pty;
         private Double windSpeed;
+        private Double eastWestWindComponent;
+        private Double northSouthWindComponent;
         private Double precipitationVolume;
         private Double dailyMin;
         private Double dailyMax;

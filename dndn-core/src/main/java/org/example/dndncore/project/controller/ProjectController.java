@@ -38,6 +38,18 @@ public class ProjectController {
         return ResponseEntity.ok(BaseResponse.success("현장이 수정되었습니다."));
     }
 
+    @PatchMapping("/{projectId}/deactivate")
+    public ResponseEntity<?> deactivate(@PathVariable("projectId") Long projectId) {
+        projectService.deactivate(projectId);
+        return ResponseEntity.ok(BaseResponse.success("현장이 운영 종료 처리되었습니다."));
+    }
+
+    @PatchMapping("/{projectId}/activate")
+    public ResponseEntity<?> activate(@PathVariable("projectId") Long projectId) {
+        projectService.activate(projectId);
+        return ResponseEntity.ok(BaseResponse.success("현장이 운영 중으로 변경되었습니다."));
+    }
+
     @DeleteMapping("/{projectId}")
     public ResponseEntity<?> delete(@PathVariable("projectId") Long projectId) {
         projectService.delete(projectId);

@@ -1,6 +1,3 @@
-server:
-  port: 10000
-
 openai:
   api-key: ${OPENAI_API_KEY}
   model: gpt-5.5
@@ -10,9 +7,16 @@ spring:
     name: dndn
 
   kafka:
-    bootstrap-servers: 192.100.20.37:9094,192.100.20.38:9094,192.100.20.39:9094,192.100.20.40:9094
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     key-deserializer: org.apache.kafka.common.serialization.LongDeserializer
     value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+
+  data:
+    redis:
+      password: ${REDIS_PASSWORD}
+      sentinel:
+        master: ${REDIS_SENTINEL_MASTER}
+        nodes: ${REDIS_SENTINEL_NODES}
 
   servlet:
     multipart:
@@ -24,6 +28,15 @@ spring:
     url: ${DB_URL}
     username: ${DB_USER}
     password: ${DB_PASS}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      max-lifetime: 600000
+      keepalive-time: 60000
+      connection-timeout: 30000
+      idle-timeout: 300000
+      data-source-properties:
+        rewriteBatchedStatements: "true"
 
   jpa:
     database-platform: org.hibernate.dialect.MariaDBDialect
@@ -33,6 +46,10 @@ spring:
       hibernate:
         default_batch_fetch_size: 1000
         format_sql: true
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
 
 management:
   endpoint:
@@ -58,7 +75,6 @@ logging:
     org.hibernate.SQL: debug
     org.hibernate.orm.jdbc.bind: trace
     org.example: debug
-    org.example.dndncore.worker.scheduler: debug
     net.ttddyy.observation: DEBUG
 
 weather:
@@ -109,8 +125,8 @@ cloud:
 worker:
   sync:
     scheduler:
-      enabled: true
-      cron: "0 30 0 * * *"   # 매일 오전 00:30
+      enabled: false          # 인력 동기화는 dndn-batch CronJob이 담당 — 스케줄러 비활성
+      cron: "0 30 0 * * *"   # 매일 오전 00:30 (비활성 상태이므로 실행되지 않음)
 
 storage:
   type: s3   # 기본값: s3 (운영). 부하테스트할 때만 local로 변경
@@ -119,3 +135,11 @@ storage:
 
 file:
   upload-dir: ./uploads
+
+dndn:
+  seed:
+    load-test:
+      enabled: true
+      site-count: 20
+      daily-reports-per-site: 2500
+      work-orders-per-site: 2500

@@ -2,6 +2,7 @@ package org.example.dndncore.workorder;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dndncore.auth.security.AuthAccessService;
+import org.example.dndncore.esg.event.EsgDashboardDataChangedEventPublisher;
 import org.example.dndncore.workorder.model.WorkOrder;
 import org.example.dndncore.workorder.model.WorkOrderDto;
 import org.example.dndncore.workorder.model.WorkOrderEquipment;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 // feat : 작업 지시서 비즈니스 로직 처리 클래스
@@ -30,6 +32,7 @@ public class WorkOrderService {
     private final WorkOrderEquipmentRepository workOrderEquipmentRepository;
     private final WorkPlanRepository workPlanRepository;
     private final AuthAccessService authAccessService;
+    private final EsgDashboardDataChangedEventPublisher esgDashboardDataChangedEventPublisher;
 
     // [WORKORDER_001] 1단계 : 작업 지시서 기본 작성 기능
     // feat : 작업 지시서 신규 생성
@@ -73,6 +76,7 @@ public class WorkOrderService {
 
         // feat : 최종 저장
         workOrderRepository.save(workOrder);
+        publishEsgDashboardChanged(workOrder.getSiteIdx(), workOrder.getDueDate());
     }
 
     // [WORKORDER_003] 3단계 : 지시서 목록 조회 기능
@@ -149,6 +153,9 @@ public class WorkOrderService {
         WorkOrder workOrder = workOrderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("작업 지시서를 찾을 수 없습니다."));
 
+        Long previousSiteIdx = workOrder.getSiteIdx();
+        LocalDate previousDueDate = workOrder.getDueDate();
+
         // feat : 기본 정보 업데이트
         assertWorkOrderAccess(workOrder);
         assertRequestAccess(req);
@@ -185,6 +192,11 @@ public class WorkOrderService {
         }
 
         workOrderRepository.save(workOrder);
+        publishEsgDashboardChanged(previousSiteIdx, previousDueDate);
+        if (!Objects.equals(previousSiteIdx, workOrder.getSiteIdx())
+                || !Objects.equals(previousDueDate, workOrder.getDueDate())) {
+            publishEsgDashboardChanged(workOrder.getSiteIdx(), workOrder.getDueDate());
+        }
     }
 
     // [WORKORDER_006] 6단계 : 주간계획 연동 초안 장비 불러오기 기능
@@ -268,8 +280,14 @@ public class WorkOrderService {
         }
 
         workOrder.setStatusCode("APPROVED");
+        publishEsgDashboardChanged(workOrder.getSiteIdx(), workOrder.getDueDate());
         // JPA 감지로 인해 weeklyPlan 변경사항이 자동 저장됩니다.
     }
+
+    private void publishEsgDashboardChanged(Long projectId, LocalDate reportDate) {
+        esgDashboardDataChangedEventPublisher.publishProjectDate(projectId, reportDate);
+    }
+
     private void assertRequestAccess(WorkOrderDto.Req req) {
         if (req == null) {
             return;

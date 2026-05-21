@@ -42,7 +42,7 @@ public class WorkerFixtureGenerator {
     private static final List<String> RELATIONS = List.of("배우자", "부", "모", "형제", "자녀");
 
     private static final Set<String> EXCLUDED_TRADES = Set.of("준공", "착공", "마일스톤");
-    private static final int WORKERS_PER_TRADE = 3;
+    private static final int WORKERS_PER_TRADE = 40;
 
     public List<WorkerScenarioFixtureRow> generate(String siteCode) {
         Optional<Project> projectOpt = projectRepository.findFirstByNameContaining("[" + siteCode.trim() + "]");
@@ -60,7 +60,7 @@ public class WorkerFixtureGenerator {
         List<String> tradeNames = tradeProcessRepository.findAllByMasterSchedule_IdxIn(scheduleIds)
                 .stream()
                 .map(TradeProcess::getTradeName)
-                .filter(name -> !EXCLUDED_TRADES.contains(name))
+                .filter(name -> name != null && !name.isBlank() && !EXCLUDED_TRADES.contains(name))
                 .distinct()
                 .sorted()
                 .collect(Collectors.toList());
@@ -131,13 +131,13 @@ public class WorkerFixtureGenerator {
     }
 
     private String pickName(int seed) {
-        return LAST_NAMES.get(seed % LAST_NAMES.size())
-                + FIRST_NAMES.get((seed * 7 + 3) % FIRST_NAMES.size());
+        return LAST_NAMES.get(Math.floorMod(seed, LAST_NAMES.size()))
+                + FIRST_NAMES.get(Math.floorMod(seed * 7 + 3, FIRST_NAMES.size()));
     }
 
     private String formatPhone(int seed) {
-        int mid = 1000 + (seed * 37 % 9000);
-        int tail = 1000 + (seed * 53 % 9000);
+        int mid = 1000 + Math.floorMod(seed * 37, 9000);
+        int tail = 1000 + Math.floorMod(seed * 53, 9000);
         return String.format("010-%04d-%04d", mid, tail);
     }
 
