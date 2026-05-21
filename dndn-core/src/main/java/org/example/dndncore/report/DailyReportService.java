@@ -2,6 +2,7 @@ package org.example.dndncore.report;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dndncore.auth.security.AuthAccessService;
+import org.example.dndncore.esg.event.EsgDashboardDataChangedEventPublisher;
 import org.example.dndncore.document_event.DocumentEventProducer;
 import org.example.dndncore.report.model.DailyReport;
 import org.example.dndncore.report.model.ReportDto;
@@ -29,6 +30,7 @@ public class DailyReportService {
     private final DailyReportRepository dailyReportRepository;
     private final WorkPlanRepository workPlanRepository;
     private final AuthAccessService authAccessService;
+    private final EsgDashboardDataChangedEventPublisher esgDashboardDataChangedEventPublisher;
     private final DocumentEventProducer documentEventProducer;
 
     // feat : 공사일보 제출 및 명일 작업계획 자동 연동
@@ -76,7 +78,6 @@ public class DailyReportService {
                 dto.getTomorrowPlan()
         );
         DailyReport savedReport = dailyReportRepository.save(dailyReport);
-        documentEventProducer.publishDailyReportChanged("DAILY_REPORT_CHANGED", savedReport);
 
         // feat : 월간 세부계획 누적 진척률 갱신
         if (monthlyPlan != null) {
@@ -161,7 +162,24 @@ public class DailyReportService {
             workPlanRepository.save(tomorrowPlan);
         }
 
+        Long projectId = resolveProjectId(workPlan);
+        esgDashboardDataChangedEventPublisher.publishProjectDate(projectId, savedReport.getReportDate());
         return savedReport.getIdx();
+    }
+
+
+    private Long resolveProjectId(WorkPlan workPlan) {
+        if (workPlan == null
+                || workPlan.getTradeProcess() == null
+                || workPlan.getTradeProcess().getMasterSchedule() == null
+                || workPlan.getTradeProcess().getMasterSchedule().getProject() == null) {
+            return null;
+        }
+
+        return workPlan.getTradeProcess()
+                .getMasterSchedule()
+                .getProject()
+                .getIdx();
     }
 
     private Double clampPercent(Double value) {

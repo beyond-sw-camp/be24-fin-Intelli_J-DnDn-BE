@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.function.Function;
 
 import static org.example.dndncore.common.model.BaseResponseStatus.WORKER_NOT_FOUND;
 
@@ -68,10 +69,23 @@ public class WorkerDetailService {
             from = LocalDate.of(y, m, 1);
             to = from.withDayOfMonth(from.lengthOfMonth());
         }
-        return attendanceRepository
-                .findAllByWorkerIdxAndWorkDateBetweenOrderByWorkDateDesc(workerIdx, from, to)
+        List<AttendanceRecord> records = attendanceRepository
+                .findAllByWorkerIdxAndWorkDateBetweenOrderByWorkDateDesc(workerIdx, from, to);
+
+        // 날짜별 가장 최근 StaffingLog 1건 → 구역 표시용
+        Map<LocalDate, StaffingLog> zoneByDate = staffingLogRepository
+                .findAllByWorkerIdxAndWorkDateBetween(workerIdx, from, to)
                 .stream()
-                .map(WorkerDetailDto.AttendanceRes::from)
+                .collect(Collectors.toMap(StaffingLog::getWorkDate, Function.identity(),
+                        (existing, newer) -> existing)); // 동일 날짜 중복이면 첫 번째 유지
+
+        return records.stream()
+                .map(ar -> {
+                    StaffingLog sl = zoneByDate.get(ar.getWorkDate());
+                    return WorkerDetailDto.AttendanceRes.from(ar,
+                            sl != null ? sl.getZoneMainTitle() : null,
+                            sl != null ? sl.getZoneSubTitle() : null);
+                })
                 .collect(Collectors.toList());
     }
 
