@@ -14,7 +14,6 @@ import org.example.dndndocumentmanagement.dto.DocumentSummary;
 import org.example.dndndocumentmanagement.model.DocumentType;
 import org.example.dndndocumentmanagement.model.entity.DocumentIndex;
 import org.example.dndndocumentmanagement.model.entity.DocumentPreviewPayload;
-import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -22,7 +21,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("!elastic")
 public class RdbDocumentSearchRepository implements DocumentSearchRepository {
 
     private final DocumentIndexJpaRepository documentIndexJpaRepository;

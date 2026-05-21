@@ -2,12 +2,18 @@ package org.example.dndndocumentmanagement.repository;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.example.dndndocumentmanagement.dto.DocumentPage;
 import org.example.dndndocumentmanagement.dto.DocumentSearchCondition;
 import org.example.dndndocumentmanagement.dto.DocumentSummary;
 import org.example.dndndocumentmanagement.model.DocumentType;
 import org.example.dndndocumentmanagement.model.entity.DocumentPreviewPayload;
 import org.example.dndndocumentmanagement.model.entity.EsDocumentIndex;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -17,43 +23,67 @@ import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.StringQuery;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
 @Component
+@Primary
 @Profile("elastic")
 public class EsDocumentSearchRepository implements DocumentSearchRepository {
 
-    private final ElasticsearchOperations elasticsearchOperations; // feat : ES 통신 템플릿
-    private final DocumentPreviewPayloadJpaRepository previewPayloadJpaRepository; // feat : 프리뷰 데이터 조회
-    private final ObjectMapper objectMapper; // feat : JSON 파싱
+    private static final Logger log = LoggerFactory.getLogger(EsDocumentSearchRepository.class);
+
+    private final ElasticsearchOperations elasticsearchOperations;
+    private final DocumentPreviewPayloadJpaRepository previewPayloadJpaRepository;
+    private final ObjectMapper objectMapper;
+    private final RdbDocumentSearchRepository rdbDocumentSearchRepository;
 
     public EsDocumentSearchRepository(
             ElasticsearchOperations elasticsearchOperations,
             DocumentPreviewPayloadJpaRepository previewPayloadJpaRepository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            RdbDocumentSearchRepository rdbDocumentSearchRepository
     ) {
         this.elasticsearchOperations = elasticsearchOperations;
         this.previewPayloadJpaRepository = previewPayloadJpaRepository;
         this.objectMapper = objectMapper;
+        this.rdbDocumentSearchRepository = rdbDocumentSearchRepository;
     }
 
     @Override
     public DocumentPage search(DocumentSearchCondition condition) {
+        if (!hasKeyword(condition)) {
+            return rdbDocumentSearchRepository.search(condition);
+        }
+
+        try {
+            return searchByElasticsearch(condition);
+        } catch (RuntimeException e) {
+            log.warn(
+                    "Elasticsearch document search failed. Falling back to RDB. projectId={}, documentType={}, keyword={}, reason={}",
+                    condition.projectId(),
+                    condition.documentType(),
+                    condition.keyword(),
+                    e.getMessage()
+            );
+            return rdbDocumentSearchRepository.search(condition);
+        }
+    }
+
+    private boolean hasKeyword(DocumentSearchCondition condition) {
+        return condition.keyword() != null && !condition.keyword().isBlank();
+    }
+
+    private DocumentPage searchByElasticsearch(DocumentSearchCondition condition) {
         StringBuilder queryBuilder = new StringBuilder();
         queryBuilder.append("{ \"bool\": { \"must\": [ ");
 
-        // feat : 명시적 매핑 필드 (project_id)
         queryBuilder.append("{ \"term\": { \"project_id\": ").append(condition.projectId()).append(" } }");
 
         if (condition.documentType() != DocumentType.ALL) {
-            // feat : 명시적 매핑 필드 (document_type)
-            queryBuilder.append(", { \"match\": { \"document_type\": \"").append(condition.documentType().name()).append("\" } }");
+            queryBuilder.append(", { \"match\": { \"document_type\": \"")
+                    .append(condition.documentType().name())
+                    .append("\" } }");
         }
 
         if (condition.keyword() != null && !condition.keyword().isBlank()) {
-            // feat : 명시적 매핑 필드와 암시적 매핑 필드(camelCase) 혼용
             queryBuilder.append(", { \"multi_match\": { ")
                     .append("\"query\": \"").append(condition.keyword()).append("\", ")
                     .append("\"fields\": [\"document_code\", \"file_name\", \"partnerName\", \"uploader\", \"tradeName\", \"content_text\"], ")
@@ -62,14 +92,14 @@ public class EsDocumentSearchRepository implements DocumentSearchRepository {
         }
 
         if (condition.partnerName() != null && !condition.partnerName().isBlank()) {
-            // feat : 암시적 매핑 필드 (partnerName)
-            queryBuilder.append(", { \"term\": { \"partnerName\": \"").append(condition.partnerName()).append("\" } }");
+            queryBuilder.append(", { \"term\": { \"partnerName\": \"")
+                    .append(condition.partnerName())
+                    .append("\" } }");
         }
 
         queryBuilder.append(" ]");
 
         if (condition.startDate() != null || condition.endDate() != null) {
-            // feat : 암시적 매핑 필드 (docDate)
             queryBuilder.append(", \"filter\": [ { \"range\": { \"docDate\": { ");
             boolean hasDate = false;
             if (condition.startDate() != null) {
@@ -77,7 +107,9 @@ public class EsDocumentSearchRepository implements DocumentSearchRepository {
                 hasDate = true;
             }
             if (condition.endDate() != null) {
-                if (hasDate) queryBuilder.append(", ");
+                if (hasDate) {
+                    queryBuilder.append(", ");
+                }
                 queryBuilder.append("\"lte\": \"").append(condition.endDate()).append("\"");
             }
             queryBuilder.append(" } } } ]");
@@ -151,7 +183,8 @@ public class EsDocumentSearchRepository implements DocumentSearchRepository {
             return Map.of();
         }
         try {
-            return objectMapper.readValue(value, new TypeReference<>() {});
+            return objectMapper.readValue(value, new TypeReference<>() {
+            });
         } catch (Exception ignored) {
             return Map.of();
         }
@@ -162,7 +195,6 @@ public class EsDocumentSearchRepository implements DocumentSearchRepository {
     }
 
     private String sortProperty(String value) {
-        // feat : 엔티티 필드 매핑 규칙에 따라 명시적 필드와 암시적 필드 구분 반환
         return switch (value != null ? value : "") {
             case "docCode" -> "document_code";
             case "docType" -> "document_type";
