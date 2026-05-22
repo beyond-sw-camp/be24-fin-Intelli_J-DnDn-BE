@@ -86,13 +86,14 @@ public class EsDocumentSearchRepository implements DocumentSearchRepository {
         if (condition.keyword() != null && !condition.keyword().isBlank()) {
             queryBuilder.append(", { \"multi_match\": { ")
                     .append("\"query\": \"").append(condition.keyword()).append("\", ")
-                    .append("\"fields\": [\"document_code\", \"file_name\", \"partnerName\", \"uploader\", \"tradeName\", \"content_text\"], ")
-                    .append("\"type\": \"phrase\"")
+                    .append("\"fields\": [\"document_code\", \"file_name\", \"partnername\", \"uploader\", \"tradename\", \"content_text\"], ")
+                    .append("\"type\": \"best_fields\", ")
+                    .append("\"lenient\": true")
                     .append(" } }");
         }
 
         if (condition.partnerName() != null && !condition.partnerName().isBlank()) {
-            queryBuilder.append(", { \"term\": { \"partnerName\": \"")
+            queryBuilder.append(", { \"term\": { \"partnername.keyword\": \"")
                     .append(condition.partnerName())
                     .append("\" } }");
         }
@@ -201,8 +202,8 @@ public class EsDocumentSearchRepository implements DocumentSearchRepository {
             case "fileName" -> "file_name";
             case "origin" -> "origin";
             case "uploader" -> "uploader";
-            case "uploadDate" -> "uploadDate";
-            default -> "uploadDate";
+            case "uploadDate" -> "uploaddate";
+            default -> "uploaddate";
         };
     }
 }

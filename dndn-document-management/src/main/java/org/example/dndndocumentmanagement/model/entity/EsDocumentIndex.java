@@ -50,22 +50,22 @@ public class EsDocumentIndex {
     @Field(name = "@timestamp", type = FieldType.Date)
     private LocalDateTime timestamp; // feat : 로그스태시 적재 일시
 
-    @Field(type = FieldType.Keyword)
+    @Field(name = "fileext", type = FieldType.Keyword)
     private String fileExt; // feat : 파일 확장자
 
-    @Field(type = FieldType.Keyword, index = false)
+    @Field(name = "fileurl", type = FieldType.Keyword, index = false)
     private String fileUrl; // feat : 파일 다운로드 URL
 
     @Field(type = FieldType.Keyword)
     private String origin; // feat : 문서 원본 출처
 
-    @Field(type = FieldType.Keyword)
+    @Field(name = "partnername", type = FieldType.Text, analyzer = "construction_analyzer")
     private String partnerName; // feat : 협력사명
 
-    @Field(type = FieldType.Date)
+    @Field(name = "uploaddate", type = FieldType.Date)
     private LocalDate uploadDate; // feat : 업로드 일자
 
-    @Field(type = FieldType.Date)
+    @Field(name = "docdate", type = FieldType.Date)
     private LocalDate docDate; // feat : 문서 기준 일자
 
     @Field(type = FieldType.Keyword)
@@ -74,13 +74,13 @@ public class EsDocumentIndex {
     @Field(type = FieldType.Keyword)
     private String version; // feat : 문서 버전 정보
 
-    @Field(type = FieldType.Keyword, index = false)
+    @Field(name = "filesize", type = FieldType.Keyword, index = false)
     private String fileSize; // feat : 파일 크기
 
-    @Field(type = FieldType.Keyword)
+    @Field(name = "statuscode", type = FieldType.Keyword)
     private String statusCode; // feat : 문서 상태 코드
 
-    @Field(type = FieldType.Keyword)
+    @Field(name = "tradename", type = FieldType.Text, analyzer = "construction_analyzer")
     private String tradeName; // feat : 공종명
 
     @Field(type = FieldType.Boolean)
