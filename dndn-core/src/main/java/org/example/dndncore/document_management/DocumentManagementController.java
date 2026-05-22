@@ -30,8 +30,6 @@ public class DocumentManagementController {
 
     private final DocumentManagementService documentManagementService;
 
-    // LocalStorageService는 storage.type=local 일 때만 빈으로 등록되므로 Optional 주입
-    // S3 모드일 때는 null이며, /local-files 엔드포인트는 사용되지 않는다.
     @Autowired(required = false)
     private LocalStorageService localStorageService;
 
