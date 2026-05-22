@@ -60,7 +60,7 @@ public class WorkerFixtureGenerator {
         List<String> tradeNames = tradeProcessRepository.findAllByMasterSchedule_IdxIn(scheduleIds)
                 .stream()
                 .map(TradeProcess::getTradeName)
-                .filter(name -> !EXCLUDED_TRADES.contains(name))
+                .filter(name -> name != null && !name.isBlank() && !EXCLUDED_TRADES.contains(name))
                 .distinct()
                 .sorted()
                 .collect(Collectors.toList());

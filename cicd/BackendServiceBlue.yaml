@@ -1,12 +1,12 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: backend-service-blue
-spec:
-  type: ClusterIP
-  selector:
-    type: backend
-    version: blue
-  ports:
-    - port: 8080
-      targetPort: 8080
+#apiVersion: v1
+#kind: Service
+#metadata:
+#  name: backend-service-blue
+#spec:
+#  type: ClusterIP
+#  selector:
+#    type: backend
+#    version: blue
+#  ports:
+#    - port: 8080
+#      targetPort: 8080

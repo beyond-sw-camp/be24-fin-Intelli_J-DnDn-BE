@@ -24,6 +24,12 @@ spring:
         order_inserts: true
         order_updates: true
 
+
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://192.100.20.111:9200,http://192.100.20.112:9200,http://192.100.20.113:9200}
+    connection-timeout: ${ELASTICSEARCH_CONNECTION_TIMEOUT:2s}
+    socket-timeout: ${ELASTICSEARCH_SOCKET_TIMEOUT:3s}
+
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     consumer:

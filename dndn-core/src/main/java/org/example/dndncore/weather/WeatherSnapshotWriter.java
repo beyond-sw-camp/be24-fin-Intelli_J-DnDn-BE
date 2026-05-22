@@ -2,6 +2,7 @@ package org.example.dndncore.weather;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.example.dndncore.esg.event.EsgDashboardDataChangedEventPublisher;
 import org.example.dndncore.weather.model.WeatherInfo;
 import org.example.dndncore.weather.model.WeatherInfoDto;
 import org.springframework.stereotype.Component;
@@ -14,6 +15,7 @@ import java.time.LocalDate;
 public class WeatherSnapshotWriter {
 
     private final WeatherInfoRepository weatherInfoRepository;
+    private final EsgDashboardDataChangedEventPublisher esgDashboardDataChangedEventPublisher;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
 
@@ -53,6 +55,7 @@ public class WeatherSnapshotWriter {
             );
 
             weatherInfoRepository.save(snapshot);
+            esgDashboardDataChangedEventPublisher.publishDate(targetDate);
         } catch (Exception ignored) {
         }
     }

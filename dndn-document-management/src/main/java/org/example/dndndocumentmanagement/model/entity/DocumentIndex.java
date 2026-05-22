@@ -15,6 +15,8 @@ import java.time.LocalDateTime;
         name = "document_index",
         indexes = {
                 @Index(name = "idx_document_project_type_date", columnList = "projectId,docTypeCode,docDate"),
+                @Index(name = "idx_document_project_upload_date", columnList = "projectId,uploadDate"),
+                @Index(name = "idx_document_project_type_upload_date", columnList = "projectId,docTypeCode,uploadDate"),
                 @Index(name = "idx_document_source", columnList = "sourceType,sourceId", unique = true),
                 @Index(name = "idx_document_doc_code", columnList = "docCode")
         }

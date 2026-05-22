@@ -7,13 +7,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.example.dndndocumentmanagement.dto.DocumentPage;
 import org.example.dndndocumentmanagement.dto.DocumentSearchCondition;
 import org.example.dndndocumentmanagement.dto.DocumentSummary;
 import org.example.dndndocumentmanagement.model.DocumentType;
 import org.example.dndndocumentmanagement.model.entity.DocumentIndex;
 import org.example.dndndocumentmanagement.model.entity.DocumentPreviewPayload;
-import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -21,7 +21,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("!elastic")
 public class RdbDocumentSearchRepository implements DocumentSearchRepository {
 
     private final DocumentIndexJpaRepository documentIndexJpaRepository;
@@ -46,9 +45,14 @@ public class RdbDocumentSearchRepository implements DocumentSearchRepository {
                 Sort.by(sortDirection(condition.sortDir()), sortProperty(condition.sortField()))
         );
         Page<DocumentIndex> page = documentIndexJpaRepository.findAll(specification(condition), pageRequest);
+        Map<String, Map<String, Object>> rawPayloads = rawPayloads(
+                page.getContent().stream().map(DocumentIndex::getId).toList()
+        );
 
         return new DocumentPage(
-                page.getContent().stream().map(this::toSummary).toList(),
+                page.getContent().stream()
+                        .map(entity -> toSummary(entity, rawPayloads.getOrDefault(entity.getId(), Map.of())))
+                        .toList(),
                 page.getNumber(),
                 page.getTotalPages() == 0 ? 1 : page.getTotalPages(),
                 page.getTotalElements(),
@@ -90,7 +94,7 @@ public class RdbDocumentSearchRepository implements DocumentSearchRepository {
         };
     }
 
-    private DocumentSummary toSummary(DocumentIndex entity) {
+    private DocumentSummary toSummary(DocumentIndex entity, Map<String, Object> rawPayload) {
         return new DocumentSummary(
                 entity.getId(),
                 DocumentType.fromCode(entity.getSourceType()),
@@ -110,15 +114,20 @@ public class RdbDocumentSearchRepository implements DocumentSearchRepository {
                 entity.getStatusCode(),
                 entity.getTradeName(),
                 entity.isDownloadable(),
-                rawPayload(entity.getId())
+                rawPayload
         );
     }
 
-    private Map<String, Object> rawPayload(String documentId) {
-        return previewPayloadJpaRepository.findById(documentId)
-                .map(DocumentPreviewPayload::getPayloadJson)
-                .map(this::parseJson)
-                .orElse(Map.of());
+    private Map<String, Map<String, Object>> rawPayloads(List<String> documentIds) {
+        if (documentIds.isEmpty()) {
+            return Map.of();
+        }
+        return previewPayloadJpaRepository.findAllById(documentIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        DocumentPreviewPayload::getDocumentId,
+                        entity -> parseJson(entity.getPayloadJson())
+                ));
     }
 
     private Map<String, Object> parseJson(String value) {
