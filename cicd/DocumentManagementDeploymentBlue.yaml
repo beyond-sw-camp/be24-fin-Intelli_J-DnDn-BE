@@ -1,16 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dndn-discovery
+  name: dndn-document-management-blue
   labels:
-    app: dndn-discovery
-    type: discovery
+    app: dndn-document-management
+    type: document-management
+    version: blue
 spec:
-  replicas: 2
+  replicas: 0
   selector:
     matchLabels:
-      app: dndn-discovery
-      type: discovery
+      app: dndn-document-management
+      type: document-management
+      version: blue
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -19,33 +21,34 @@ spec:
   template:
     metadata:
       labels:
-        app: dndn-discovery
-        type: discovery
+        app: dndn-document-management
+        type: document-management
+        version: blue
     spec:
       containers:
-        - name: discovery
-          image: seungwoo0128/dndn-discovery:latest
+        - name: document-management
+          image: seungwoo0128/dndn-document-management:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 8761
+            - containerPort: 8082
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8761
+              port: 8082
             periodSeconds: 10
             failureThreshold: 30
             timeoutSeconds: 3
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: 8761
+              port: 8082
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8761
+              port: 8082
             initialDelaySeconds: 0
             periodSeconds: 10
             timeoutSeconds: 3
@@ -56,7 +59,14 @@ spec:
               memory: "128Mi"
             limits:
               cpu: "1000m"
-              memory: "1024Mi"
+              memory: "2048Mi"
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
+            - name: EUREKA_DEFAULT_ZONE
+              value: "http://discovery-service:8761/eureka/"
+            - name: DEPLOYMENT_COLOR
+              value: "blue"
+          envFrom:
+            - configMapRef:
+                name: document-management-config

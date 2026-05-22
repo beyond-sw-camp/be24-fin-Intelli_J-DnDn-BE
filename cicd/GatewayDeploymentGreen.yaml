@@ -1,16 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dndn-discovery
+  name: dndn-gateway-green
   labels:
-    app: dndn-discovery
-    type: discovery
+    app: dndn-gateway
+    type: gateway
+    version: green
 spec:
-  replicas: 2
+  replicas: 0
   selector:
     matchLabels:
-      app: dndn-discovery
-      type: discovery
+      app: dndn-gateway
+      type: gateway
+      version: green
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -19,33 +21,34 @@ spec:
   template:
     metadata:
       labels:
-        app: dndn-discovery
-        type: discovery
+        app: dndn-gateway
+        type: gateway
+        version: green
     spec:
       containers:
-        - name: discovery
-          image: seungwoo0128/dndn-discovery:latest
+        - name: gateway
+          image: seungwoo0128/dndn-gateway:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 8761
+            - containerPort: 8088
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8761
+              port: 8088
             periodSeconds: 10
             failureThreshold: 30
             timeoutSeconds: 3
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: 8761
+              port: 8088
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8761
+              port: 8088
             initialDelaySeconds: 0
             periodSeconds: 10
             timeoutSeconds: 3
@@ -60,3 +63,10 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
+            - name: EUREKA_DEFAULT_ZONE
+              value: "http://discovery-service:8761/eureka/"
+            - name: DEPLOYMENT_COLOR
+              value: "green"
+          envFrom:
+            - configMapRef:
+                name: backend-config
