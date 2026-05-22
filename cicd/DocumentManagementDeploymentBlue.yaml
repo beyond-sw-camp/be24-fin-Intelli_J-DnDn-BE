@@ -62,11 +62,11 @@ spec:
               memory: "2048Mi"
           env:
             - name: SPRING_PROFILES_ACTIVE
-              value: "prod"
+              value: "prod,elastic"
             - name: EUREKA_DEFAULT_ZONE
               value: "http://discovery-service:8761/eureka/"
             - name: DEPLOYMENT_COLOR
               value: "blue"
           envFrom:
             - configMapRef:
-                name: document-management-config
+                name: backend-config

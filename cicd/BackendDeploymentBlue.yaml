@@ -6,7 +6,7 @@ metadata:
     type: backend
     version: blue
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       type: backend

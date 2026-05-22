@@ -4,10 +4,17 @@ server:
 spring:
   application:
     name: dndn-gateway
-
-gateway:
-  routes:
-    document-management-uri: ${DOCUMENT_MANAGEMENT_SERVICE_URI:lb://DNDN-DOCUMENT-MANAGEMENT}
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: document-management-api
+              uri: ${DOCUMENT_MANAGEMENT_SERVICE_URI:lb://DNDN-DOCUMENT-MANAGEMENT}
+              predicates:
+                - Path=/api/msa/document-management/**
+              filters:
+                - RewritePath=/api/msa/(?<path>.*), /$\{path}
 
 eureka:
   client:

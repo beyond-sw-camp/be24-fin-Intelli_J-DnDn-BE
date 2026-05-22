@@ -141,35 +141,19 @@ spec:
       }
     }
 
-    stage('Deploy to Kubernetes Blue-Green') {
+    stage('Deploy to Kubernetes') {
       when {
         expression { env.SKIP_PIPELINE != 'true' }
       }
       steps {
         container('kubectl') {
-          script {
-            sh "kubectl get deployment/dndn-gateway-blue -n ${NAMESPACE} >/dev/null 2>&1 || kubectl apply -f cicd/GatewayDeploymentBlue.yaml -n ${NAMESPACE}"
-            sh "kubectl get deployment/dndn-gateway-green -n ${NAMESPACE} >/dev/null 2>&1 || kubectl apply -f cicd/GatewayDeploymentGreen.yaml -n ${NAMESPACE}"
-
-            def activeService = sh(
-              script: "kubectl get svc gateway-service -n ${NAMESPACE} -o jsonpath='{.spec.selector.version}' 2>/dev/null || true",
-              returnStdout: true
-            ).trim()
-            def activeVersion = activeService == 'blue' ? 'blue' : 'green'
-            def inactiveVersion = activeVersion == 'blue' ? 'green' : 'blue'
-
-            echo "Namespace: ${NAMESPACE} | Active gateway: ${activeVersion} | Deploying to: ${inactiveVersion}"
-
-            sh "kubectl set image deployment/dndn-gateway-${inactiveVersion} gateway=${IMAGE_NAME}:${IMAGE_TAG} -n ${NAMESPACE}"
-            sh "kubectl scale deployment/dndn-gateway-${inactiveVersion} --replicas=1 -n ${NAMESPACE}"
-            sh "kubectl rollout status deployment/dndn-gateway-${inactiveVersion} -n ${NAMESPACE} --timeout=180s"
-            sh "kubectl get svc gateway-service -n ${NAMESPACE} >/dev/null 2>&1 || kubectl apply -f cicd/GatewayService.yaml -n ${NAMESPACE}"
-            sh "kubectl patch svc gateway-service -n ${NAMESPACE} -p '{\"spec\":{\"selector\":{\"app\":\"dndn-gateway\",\"type\":\"gateway\",\"version\":\"${inactiveVersion}\"}}}'"
-            sh "kubectl apply -f cicd/GatewayIngress.yaml -n ${NAMESPACE}"
-            sh "kubectl scale deployment/dndn-gateway-${activeVersion} --replicas=0 -n ${NAMESPACE}"
-
-            echo "Gateway switched to: ${inactiveVersion}"
-          }
+          sh "kubectl apply -f cicd/GatewayDeployment.yaml -n ${NAMESPACE}"
+          sh "kubectl set image deployment/dndn-gateway gateway=${IMAGE_NAME}:${IMAGE_TAG} -n ${NAMESPACE}"
+          sh "kubectl rollout status deployment/dndn-gateway -n ${NAMESPACE} --timeout=180s"
+          sh "kubectl apply -f cicd/GatewayService.yaml -n ${NAMESPACE}"
+          sh "kubectl apply -f cicd/GatewayIngress.yaml -n ${NAMESPACE}"
+          sh "kubectl delete deployment dndn-gateway-blue dndn-gateway-green -n ${NAMESPACE} --ignore-not-found=true"
+          echo "Gateway deployed: ${IMAGE_NAME}:${IMAGE_TAG}"
         }
       }
     }

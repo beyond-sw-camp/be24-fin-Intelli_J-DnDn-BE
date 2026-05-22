@@ -53,12 +53,11 @@ spec:
   }
 
   parameters {
-    booleanParam(name: 'FORCE_DEPLOY', defaultValue: false, description: 'Deploy core and discovery even when no related files changed.')
+    booleanParam(name: 'FORCE_DEPLOY', defaultValue: false, description: 'Deploy core even when no related files changed.')
   }
 
   environment {
     IMAGE_NAME = 'seungwoo0128/dndn-backend'
-    DISCOVERY_IMAGE_NAME = 'seungwoo0128/dndn-discovery'
     IMAGE_TAG = "${env.JOB_NAME.contains('test') ? 'test-' : ''}1.${env.BUILD_NUMBER}"
     NAMESPACE = "${env.JOB_NAME.contains('test') ? 'test' : 'default'}"
     SKIP_PIPELINE = 'false'
@@ -93,18 +92,15 @@ spec:
             path == 'gradlew.bat' ||
             path.startsWith('gradle/') ||
             path.startsWith('dndn-core/') ||
-            path.startsWith('dndn-discovery/') ||
             path == 'Dockerfile' ||
-            path == 'Dockerfile.discovery' ||
             path.startsWith('cicd/Backend') ||
-            path.startsWith('cicd/Discovery') ||
             path == 'cicd/Jenkinsfile.core'
           }
 
           if (!relevant) {
             env.SKIP_PIPELINE = 'true'
             currentBuild.result = 'NOT_BUILT'
-            echo "No core/discovery related changes. Changed files: ${changedFiles.join(', ')}"
+            echo "No core related changes. Changed files: ${changedFiles.join(', ')}"
           }
         }
       }
@@ -118,29 +114,8 @@ spec:
         container('gradle') {
           sh '''
             chmod +x ./gradlew || true
-            ./gradlew --no-daemon clean :dndn-core:bootJar :dndn-discovery:bootJar
+            ./gradlew --no-daemon clean :dndn-core:bootJar
           '''
-        }
-      }
-    }
-
-    stage('Kaniko Build & Push Discovery') {
-      when {
-        expression { env.SKIP_PIPELINE != 'true' }
-      }
-      steps {
-        container('kaniko') {
-          sh """
-            /kaniko/executor \
-              --context=${WORKSPACE} \
-              --dockerfile=${WORKSPACE}/Dockerfile.discovery \
-              --destination=${DISCOVERY_IMAGE_NAME}:${IMAGE_TAG} \
-              --destination=${DISCOVERY_IMAGE_NAME}:latest \
-              --single-snapshot \
-              --use-new-run \
-              --cache=true \
-              --snapshotMode=redo
-          """
         }
       }
     }
@@ -162,20 +137,6 @@ spec:
               --cache=true \
               --snapshotMode=redo
           """
-        }
-      }
-    }
-
-    stage('Deploy Discovery') {
-      when {
-        expression { env.SKIP_PIPELINE != 'true' }
-      }
-      steps {
-        container('kubectl') {
-          sh "kubectl apply -f cicd/DiscoveryService.yaml -n ${NAMESPACE}"
-          sh "kubectl apply -f cicd/DiscoveryDeployment.yaml -n ${NAMESPACE}"
-          sh "kubectl set image deployment/dndn-discovery discovery=${DISCOVERY_IMAGE_NAME}:${IMAGE_TAG} -n ${NAMESPACE}"
-          sh "kubectl rollout status deployment/dndn-discovery -n ${NAMESPACE} --timeout=180s"
         }
       }
     }
@@ -213,7 +174,6 @@ spec:
         expression { env.SKIP_PIPELINE != 'true' }
       }
       steps {
-        echo "Pushed: ${DISCOVERY_IMAGE_NAME}:${IMAGE_TAG}"
         echo "Pushed: ${IMAGE_NAME}:${IMAGE_TAG}"
       }
     }

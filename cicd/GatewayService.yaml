@@ -7,7 +7,7 @@ spec:
   selector:
     app: dndn-gateway
     type: gateway
-    version: green
+    version: stable
   ports:
     - port: 8088
       targetPort: 8088
