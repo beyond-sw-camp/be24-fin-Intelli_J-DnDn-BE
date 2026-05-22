@@ -135,31 +135,40 @@ public class AttendanceBulkService {
 
         attendanceRecordRepository.saveAll(toSave);
 
-        // attendance_log 동기화 + 피로도 재계산
-        // FatigueCalculationService는 attendance_log(CLOCK_IN) 기반으로 streak을 산정한다.
+        // 피로도 streak는 attendance_log(CLOCK_IN)만 본다 — record 시각과 동일하게 log 동기화
         attendanceLogRepository.deleteAllByWorkerIdxInAndWorkDate(workerIdxes, date);
+        attendanceLogRepository.flush();
 
-        if ("PRESENT".equals(ts) || "LATE".equals(ts)) {
-            // 출근/지각 → 오늘 CLOCK_IN 로그 추가 → ref=date 재계산 → streak +1(오늘 포함)
-            List<AttendanceLog> logsToSave = new ArrayList<>(workers.size());
-            for (AttendanceRecord record : toSave) {
+        List<AttendanceLog> logsToSave = new ArrayList<>();
+        for (AttendanceRecord record : toSave) {
+            Long wid = record.getWorker().getIdx();
+            if (record.getClockIn() != null) {
                 logsToSave.add(AttendanceLog.builder()
-                        .workerIdx(record.getWorker().getIdx())
+                        .workerIdx(wid)
                         .siteCode(siteCode)
                         .workDate(date)
                         .eventType(AttendanceEventType.CLOCK_IN)
                         .recognizedAt(record.getClockIn())
                         .build());
             }
+            if (record.getClockOut() != null) {
+                logsToSave.add(AttendanceLog.builder()
+                        .workerIdx(wid)
+                        .siteCode(siteCode)
+                        .workDate(date)
+                        .eventType(AttendanceEventType.CLOCK_OUT)
+                        .recognizedAt(record.getClockOut())
+                        .build());
+            }
+        }
+        if (!logsToSave.isEmpty()) {
             attendanceLogRepository.saveAll(logsToSave);
-            log.info("[일괄출결변경] attendance_log CLOCK_IN 저장 완료: {}건", logsToSave.size());
+            attendanceLogRepository.flush();
+            log.info("[일괄출결변경] attendance_log 저장 완료: {}건 (targetStatus={})", logsToSave.size(), ts);
         } else {
-            // 미출근(PENDING) 등 → 오늘 로그 삭제만 수행(위에서 완료)
-            // ref=date로 재계산 시 오늘 CLOCK_IN 없으므로 streak이 어제 기준으로 줄어든다.
-            log.info("[일괄출결변경] attendance_log 삭제 완료 (targetStatus={})", ts);
+            log.info("[일괄출결변경] attendance_log 없음 — 당일 streak 제외 (targetStatus={})", ts);
         }
 
-        // 공통 피로도 재계산 — PRESENT/LATE는 오늘 포함, PENDING은 오늘 제외로 자동 반영
         fatigueCalculationService.bulkRecalculateAndPersist(workers, date);
         log.info("[일괄출결변경] 피로도 재계산 완료: siteCode={} date={}", siteCode, date);
 
