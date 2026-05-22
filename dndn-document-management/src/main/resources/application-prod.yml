@@ -25,7 +25,9 @@ spring:
         order_updates: true
 
   elasticsearch:
-    uris: ${ELASTICSEARCH_URIS:http://192.100.20.111:9200,http://192.100.20.112:9200,http://192.100.20.113:9200}
+    uris: ${ELASTICSEARCH_URIS:https://quickstart-eck-elasticsearch-es-http.elasticsearch.svc:9200}
+    username: ${ELASTICSEARCH_USERNAME:}
+    password: ${ELASTICSEARCH_PASSWORD:}
     connection-timeout: ${ELASTICSEARCH_CONNECTION_TIMEOUT:2s}
     socket-timeout: ${ELASTICSEARCH_SOCKET_TIMEOUT:3s}
 
@@ -81,6 +83,10 @@ logging:
     org.springframework.kafka: info
     org.apache.kafka: warn
     org.example: info
+
+elasticsearch:
+  ssl:
+    ca-cert-path: ${ELASTICSEARCH_CA_CERT_PATH:/etc/elasticsearch/certs/ca.crt}
 
 document:
   seed:

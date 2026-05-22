@@ -31,6 +31,10 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8082
+          volumeMounts:
+            - name: elasticsearch-ca
+              mountPath: /etc/elasticsearch/certs
+              readOnly: true
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
@@ -70,3 +74,7 @@ spec:
           envFrom:
             - configMapRef:
                 name: backend-config
+      volumes:
+        - name: elasticsearch-ca
+          secret:
+            secretName: quickstart-eck-elasticsearch-es-http-certs-public
