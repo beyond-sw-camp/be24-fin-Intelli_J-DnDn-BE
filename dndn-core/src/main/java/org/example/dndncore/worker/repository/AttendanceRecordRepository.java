@@ -99,4 +99,9 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("workerIdxes") List<Long> workerIdxes,
             @Param("from") LocalDate from,
             @Param("to") LocalDate to);
+
+    /** 당일 로스터 전용 — 과거 work_date 스냅샷 잔존 분 정리 */
+    @Modifying
+    @Query("DELETE FROM AttendanceRecord ar WHERE ar.workDate < :date")
+    int deleteAllByWorkDateBefore(@Param("date") LocalDate date);
 }

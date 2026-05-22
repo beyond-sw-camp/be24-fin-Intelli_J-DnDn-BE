@@ -29,17 +29,7 @@ public class WorkerController {
     private final AttendanceSeedService attendanceSeedService;
     private final AttendanceBulkService attendanceBulkService;
 
-    // MANAGEMENT_001 인력 데이터 불러오기 (단일 현장)
-    @GetMapping("/sync")
-    public ResponseEntity<BaseResponse<WorkerDto.SyncRes>> syncWorkforce(
-            @RequestParam String siteCode,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
-    ) {
-        WorkerDto.SyncRes dto = workerService.syncWorkforce(siteCode, date);
-        return ResponseEntity.ok(BaseResponse.success(dto));
-    }
-
-    // MANAGEMENT_001 인력 데이터 불러오기 (전체 현장 수동 트리거 — dndn-batch K8s Job 실행)
+    // MANAGEMENT_001 전체 현장 동기화 수동 트리거 — dndn-batch K8s Job 실행
     @PostMapping("/sync/all")
     public ResponseEntity<BaseResponse<String>> syncAllSites() {
         String jobName = batchTriggerService.triggerWorkerSync();

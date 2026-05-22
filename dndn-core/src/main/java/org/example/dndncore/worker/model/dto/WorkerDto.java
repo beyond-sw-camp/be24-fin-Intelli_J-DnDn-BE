@@ -58,20 +58,6 @@ public class WorkerDto {
         private String siteCode;     // 현장 구분 — 제공 시 worker.siteCode 불일치면 거부
     }
 
-    // MANAGEMENT_001 인력 데이터 요약
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class SyncRes {
-        private int created;
-        private int updated;
-        private int total;
-        private int documentsSynced;
-        private int accidentsSynced;
-        private int attendanceRecordsSynced;
-    }
-
     // MANAGEMENT_010, MANAGEMENT_011 게이트 처리 직후 해당 일 근태 스냅샷.
     @Getter
     @NoArgsConstructor
