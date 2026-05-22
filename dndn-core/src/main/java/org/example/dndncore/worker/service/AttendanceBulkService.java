@@ -2,10 +2,13 @@ package org.example.dndncore.worker.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dndncore.worker.model.entity.AttendanceLog;
 import org.example.dndncore.worker.model.entity.AttendanceRecord;
 import org.example.dndncore.worker.model.entity.Worker;
+import org.example.dndncore.worker.model.enums.AttendanceEventType;
 import org.example.dndncore.worker.model.enums.AttendanceStatus;
 import org.example.dndncore.worker.model.enums.EmploymentKind;
+import org.example.dndncore.worker.repository.AttendanceLogRepository;
 import org.example.dndncore.worker.repository.AttendanceRecordRepository;
 import org.example.dndncore.worker.repository.WorkerRepository;
 import org.springframework.stereotype.Service;
@@ -40,6 +43,8 @@ public class AttendanceBulkService {
 
     private final WorkerRepository workerRepository;
     private final AttendanceRecordRepository attendanceRecordRepository;
+    private final AttendanceLogRepository attendanceLogRepository;
+    private final FatigueCalculationService fatigueCalculationService;
 
     public record BulkResult(String siteCode, String date, String targetStatus, int total) {}
 
@@ -129,6 +134,35 @@ public class AttendanceBulkService {
         }
 
         attendanceRecordRepository.saveAll(toSave);
+
+        // attendance_log 동기화 + 피로도 재계산
+        // FatigueCalculationService는 attendance_log(CLOCK_IN) 기반으로 streak을 산정한다.
+        attendanceLogRepository.deleteAllByWorkerIdxInAndWorkDate(workerIdxes, date);
+
+        if ("PRESENT".equals(ts) || "LATE".equals(ts)) {
+            // 출근/지각 → 오늘 CLOCK_IN 로그 추가 → ref=date 재계산 → streak +1(오늘 포함)
+            List<AttendanceLog> logsToSave = new ArrayList<>(workers.size());
+            for (AttendanceRecord record : toSave) {
+                logsToSave.add(AttendanceLog.builder()
+                        .workerIdx(record.getWorker().getIdx())
+                        .siteCode(siteCode)
+                        .workDate(date)
+                        .eventType(AttendanceEventType.CLOCK_IN)
+                        .recognizedAt(record.getClockIn())
+                        .build());
+            }
+            attendanceLogRepository.saveAll(logsToSave);
+            log.info("[일괄출결변경] attendance_log CLOCK_IN 저장 완료: {}건", logsToSave.size());
+        } else {
+            // 미출근(PENDING) 등 → 오늘 로그 삭제만 수행(위에서 완료)
+            // ref=date로 재계산 시 오늘 CLOCK_IN 없으므로 streak이 어제 기준으로 줄어든다.
+            log.info("[일괄출결변경] attendance_log 삭제 완료 (targetStatus={})", ts);
+        }
+
+        // 공통 피로도 재계산 — PRESENT/LATE는 오늘 포함, PENDING은 오늘 제외로 자동 반영
+        fatigueCalculationService.bulkRecalculateAndPersist(workers, date);
+        log.info("[일괄출결변경] 피로도 재계산 완료: siteCode={} date={}", siteCode, date);
+
         log.info("[일괄출결변경] siteCode={} date={} targetStatus={} total={}",
                 siteCode, date, targetStatus, toSave.size());
         return new BulkResult(siteCode, date.toString(), targetStatus, toSave.size());
