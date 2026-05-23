@@ -44,7 +44,7 @@ public class FatigueCalculationService {
     private static final int LOOKBACK_SCAN_DAYS = 120;
 
     private static final int PT_ACCIDENT = 20;
-    private static final int TRADE_UNKNOWN_POINTS = 10;
+    private static final int TRADE_UNKNOWN_POINTS = 5;
     private static final String TRADE_UNKNOWN_KEY = "UNKNOWN";
 
     private final WorkerRepository workerRepository;
@@ -133,7 +133,7 @@ public class FatigueCalculationService {
                             + "점 적용";
         } else {
             tradeExplanation =
-                    "목공·철근·용접·타일 문자열 미매칭 — 기본("
+                    "공종 키워드 미매칭(목공/목수/형틀/철근/용접/장비/굴착/토목/토공/배수/타일/마감/인부/보통공/정리) — 기본("
                             + TRADE_UNKNOWN_POINTS
                             + "점)·trade="
                             + nullable(worker.getTrade());
@@ -228,10 +228,21 @@ public class FatigueCalculationService {
         return s == null ? "" : s;
     }
 
-    /** referenceDate 포함 거꾸로 CLOCK_IN 이벤트가 연속으로 존재하는 캘린더 일수 */
+    /**
+     * referenceDate 기준으로 거꾸로 CLOCK_IN 이벤트가 연속으로 존재하는 캘린더 일수.
+     *
+     * <p>referenceDate 당일 출근 기록이 없는 경우(예: 어제 퇴근 후 오늘 미출근 상태로 조회),
+     * 전일(referenceDate - 1)부터 카운트를 시작한다. 전일도 출근 기록이 없으면 0을 반환한다.</p>
+     */
     static int consecutiveOnsiteDaysEnding(Set<LocalDate> workedDates, LocalDate referenceDate) {
+        if (workedDates.isEmpty()) return 0;
+        // 기준일에 출근 기록이 없으면 전일을 시작점으로 사용
+        LocalDate start = workedDates.contains(referenceDate)
+                ? referenceDate
+                : referenceDate.minusDays(1);
+        if (!workedDates.contains(start)) return 0;
         int streak = 0;
-        LocalDate d = referenceDate;
+        LocalDate d = start;
         while (workedDates.contains(d)) {
             streak++;
             d = d.minusDays(1);

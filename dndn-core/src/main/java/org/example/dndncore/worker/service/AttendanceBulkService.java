@@ -2,10 +2,13 @@ package org.example.dndncore.worker.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dndncore.worker.model.entity.AttendanceLog;
 import org.example.dndncore.worker.model.entity.AttendanceRecord;
 import org.example.dndncore.worker.model.entity.Worker;
+import org.example.dndncore.worker.model.enums.AttendanceEventType;
 import org.example.dndncore.worker.model.enums.AttendanceStatus;
 import org.example.dndncore.worker.model.enums.EmploymentKind;
+import org.example.dndncore.worker.repository.AttendanceLogRepository;
 import org.example.dndncore.worker.repository.AttendanceRecordRepository;
 import org.example.dndncore.worker.repository.WorkerRepository;
 import org.springframework.stereotype.Service;
@@ -40,6 +43,8 @@ public class AttendanceBulkService {
 
     private final WorkerRepository workerRepository;
     private final AttendanceRecordRepository attendanceRecordRepository;
+    private final AttendanceLogRepository attendanceLogRepository;
+    private final FatigueCalculationService fatigueCalculationService;
 
     public record BulkResult(String siteCode, String date, String targetStatus, int total) {}
 
@@ -129,6 +134,44 @@ public class AttendanceBulkService {
         }
 
         attendanceRecordRepository.saveAll(toSave);
+
+        // 피로도 streak는 attendance_log(CLOCK_IN)만 본다 — record 시각과 동일하게 log 동기화
+        attendanceLogRepository.deleteAllByWorkerIdxInAndWorkDate(workerIdxes, date);
+        attendanceLogRepository.flush();
+
+        List<AttendanceLog> logsToSave = new ArrayList<>();
+        for (AttendanceRecord record : toSave) {
+            Long wid = record.getWorker().getIdx();
+            if (record.getClockIn() != null) {
+                logsToSave.add(AttendanceLog.builder()
+                        .workerIdx(wid)
+                        .siteCode(siteCode)
+                        .workDate(date)
+                        .eventType(AttendanceEventType.CLOCK_IN)
+                        .recognizedAt(record.getClockIn())
+                        .build());
+            }
+            if (record.getClockOut() != null) {
+                logsToSave.add(AttendanceLog.builder()
+                        .workerIdx(wid)
+                        .siteCode(siteCode)
+                        .workDate(date)
+                        .eventType(AttendanceEventType.CLOCK_OUT)
+                        .recognizedAt(record.getClockOut())
+                        .build());
+            }
+        }
+        if (!logsToSave.isEmpty()) {
+            attendanceLogRepository.saveAll(logsToSave);
+            attendanceLogRepository.flush();
+            log.info("[일괄출결변경] attendance_log 저장 완료: {}건 (targetStatus={})", logsToSave.size(), ts);
+        } else {
+            log.info("[일괄출결변경] attendance_log 없음 — 당일 streak 제외 (targetStatus={})", ts);
+        }
+
+        fatigueCalculationService.bulkRecalculateAndPersist(workers, date);
+        log.info("[일괄출결변경] 피로도 재계산 완료: siteCode={} date={}", siteCode, date);
+
         log.info("[일괄출결변경] siteCode={} date={} targetStatus={} total={}",
                 siteCode, date, targetStatus, toSave.size());
         return new BulkResult(siteCode, date.toString(), targetStatus, toSave.size());

@@ -57,7 +57,7 @@ public class BatchTriggerService {
             log.error("[배치 트리거] 실패: {}", e.getMessage(), e);
             // K8s Pod 외부(로컬)에서 실행 시 cluster() 빌드 실패 — 명확한 메시지 제공
             if (e.getMessage() != null && e.getMessage().contains("cluster config")) {
-                throw new RuntimeException("K8s 클러스터 환경에서만 동작합니다. 로컬에서는 /management/sync?siteCode=&date= 를 사용하세요.", e);
+                throw new RuntimeException("K8s 클러스터 환경에서만 동작합니다. 로컬에서는 dndn-batch workerSyncJob 또는 POST /management/sync/all 을 사용하세요.", e);
             }
             throw new RuntimeException("배치 트리거 실패: " + e.getMessage(), e);
         }
