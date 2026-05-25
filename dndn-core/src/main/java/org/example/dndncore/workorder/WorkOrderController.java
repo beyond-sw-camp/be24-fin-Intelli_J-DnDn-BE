@@ -34,6 +34,32 @@ public class WorkOrderController {
         return ResponseEntity.ok(BaseResponse.success(list));
     }
 
+    @GetMapping("/slice")
+    public ResponseEntity<?> getWorkOrderSlice(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate targetDate,
+            @RequestParam(required = false) String tradeType,
+            @RequestParam(required = false) String statusCode,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate cursorDueDate,
+            @RequestParam(required = false) Long cursorId,
+            @RequestParam(defaultValue = "10") Integer size
+    ) {
+        WorkOrderDto.SliceRes slice = workOrderService.getWorkOrderSlice(
+                targetDate,
+                tradeType,
+                statusCode,
+                keyword,
+                cursorDueDate,
+                cursorId,
+                size
+        );
+        return ResponseEntity.ok(BaseResponse.success(slice));
+    }
+
     // [WORKORDER_008] 중장비 입출차/기상관제/ESG 연동용 장비 조회 API
     // feat : 작업 지시서에 등록된 장비와 작업구역/상세내역 조회 API
     @GetMapping("/gate-equipments")

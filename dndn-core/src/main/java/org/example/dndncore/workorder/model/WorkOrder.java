@@ -9,6 +9,10 @@ import java.util.List;
 
 // [WORKORDER_001] 1단계 : 작업 지시서 기본 엔티티 설계
 @Entity
+@Table(indexes = {
+        @Index(name = "idx_work_order_site_deleted_due", columnList = "site_idx,is_deleted,due_date"),
+        @Index(name = "idx_work_order_deleted_due", columnList = "is_deleted,due_date")
+})
 @Getter
 @Setter
 @NoArgsConstructor
