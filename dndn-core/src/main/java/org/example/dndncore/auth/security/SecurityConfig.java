@@ -42,8 +42,12 @@ public class SecurityConfig {
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
+                        // 모바일 작업자 — 로그인은 인증 불필요, 나머지는 ROLE_WORKER 필요
+                        .requestMatchers("/mobile/auth/**").permitAll()
+                        .requestMatchers("/mobile/worker/**").hasRole("WORKER")
+                        // 관리자 웹 기존 규칙
                         .requestMatchers(HttpMethod.PUT, "/auth/password").authenticated()
-                        .requestMatchers("/auth/**","/project/**").permitAll()
+                        .requestMatchers("/auth/**", "/project/**").permitAll()
                         .requestMatchers("/document-management/local-files/**").permitAll()
                         .requestMatchers("/document-management/**").authenticated()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
@@ -71,9 +75,16 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173"));
+        config.setAllowedOrigins(List.of(
+                "http://localhost:5173",   // 관리자 웹 Vite dev
+                "http://localhost:8081",   // 모바일 Vite dev
+                "http://localhost",        // Capacitor Android WebView
+                "capacitor://localhost",   // Capacitor iOS WebView
+                "ionic://localhost"        // Ionic 앱 내부 scheme
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
+        config.setExposedHeaders(List.of("Content-Type", "Cache-Control", "X-Accel-Buffering"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

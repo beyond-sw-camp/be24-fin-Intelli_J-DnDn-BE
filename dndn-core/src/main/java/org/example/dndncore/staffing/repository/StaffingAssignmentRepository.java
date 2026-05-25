@@ -78,6 +78,19 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
 
     void deleteAllByWorkDateAndSiteCode(LocalDate workDate, String siteCode);
 
+    /** 모바일 오늘 현황 — 특정 작업자의 당일 배치 행(ZoneSub·ZoneMain 페치). */
+    @Query("""
+            select a from StaffingAssignment a
+                join fetch a.zoneSub zs
+                join fetch zs.zoneMain zm
+            where a.workerIdx = :workerIdx
+              and a.workDate = :workDate
+            order by a.idx asc
+            """)
+    List<StaffingAssignment> findAllWithZonesByWorkerIdxAndWorkDate(
+            @Param("workerIdx") Long workerIdx,
+            @Param("workDate") LocalDate workDate);
+
     /** buildZoneMainResponses 용 — ZoneSub별 배치 수를 GROUP BY 1쿼리로 집계 (M번 COUNT 대체) */
     @Query("""
             select a.zoneSub.idx as zoneSubIdx, count(a) as cnt

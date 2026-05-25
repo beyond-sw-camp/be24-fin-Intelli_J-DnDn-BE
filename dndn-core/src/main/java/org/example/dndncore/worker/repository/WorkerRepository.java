@@ -27,4 +27,20 @@ public interface WorkerRepository extends JpaRepository<Worker, Long> {
     List<Worker> search(@Param("name") String name, @Param("siteCode") String siteCode);
 
     List<Worker> findAllBySiteCode(String siteCode);
+
+    /**
+     * 모바일 로그인 — 이름 + 전화번호(하이픈·공백 제거 후 비교) 일치 작업자 조회.
+     * :phoneDigits 는 Java 쪽에서 숫자만 추출해 전달한다.
+     */
+    @Query(value = """
+            SELECT * FROM worker
+            WHERE name = :name
+              AND (phone = :phone
+                OR REPLACE(REPLACE(COALESCE(phone, ''), '-', ''), ' ', '') = :phoneDigits)
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<Worker> findByNameAndPhone(
+            @Param("name") String name,
+            @Param("phone") String phone,
+            @Param("phoneDigits") String phoneDigits);
 }

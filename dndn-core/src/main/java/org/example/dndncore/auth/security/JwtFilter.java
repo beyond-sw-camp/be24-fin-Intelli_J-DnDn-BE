@@ -28,11 +28,22 @@ public class JwtFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             try {
                 Claims claims = jwtProvider.parse(header.substring(7));
-                Long idx = claims.get("idx", Long.class);
-                String role = claims.get("role", String.class);
-                var auth = new UsernamePasswordAuthenticationToken(
-                        idx, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
-                SecurityContextHolder.getContext().setAuthentication(auth);
+                String type = claims.get("type", String.class);
+
+                if ("WORKER".equals(type)) {
+                    // 모바일 작업자 토큰 — principal = workerIdx, authority = ROLE_WORKER
+                    Long workerIdx = claims.get("workerIdx", Long.class);
+                    var auth = new UsernamePasswordAuthenticationToken(
+                            workerIdx, null, List.of(new SimpleGrantedAuthority("ROLE_WORKER")));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                } else {
+                    // 관리자(SystemUser) 토큰 — 기존 로직 유지
+                    Long idx = claims.get("idx", Long.class);
+                    String role = claims.get("role", String.class);
+                    var auth = new UsernamePasswordAuthenticationToken(
+                            idx, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                }
             } catch (Exception ignored) {
                 // 유효하지 않은 토큰은 인증 없이 통과 — 이후 접근 제어에서 거절됨
             }

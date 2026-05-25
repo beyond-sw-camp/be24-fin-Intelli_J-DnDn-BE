@@ -35,6 +35,19 @@ public class JwtProvider {
                 .compact();
     }
 
+    /** 모바일 작업자(Worker) 전용 JWT. claim type=WORKER 로 SystemUser 토큰과 구분. */
+    public String generateWorkerToken(Long workerIdx, String name) {
+        return Jwts.builder()
+                .subject(String.valueOf(workerIdx))
+                .claim("workerIdx", workerIdx)
+                .claim("name", name)
+                .claim("type", "WORKER")
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + expirationMs))
+                .signWith(key)
+                .compact();
+    }
+
     public Claims parse(String token) {
         return Jwts.parser()
                 .verifyWith(key)

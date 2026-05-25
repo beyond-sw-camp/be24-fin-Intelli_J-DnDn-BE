@@ -54,6 +54,10 @@ public enum BaseResponseStatus {
     DOCUMENT_NOT_FOUND(false, 3406, "존재하지 않는 문서입니다."),
     DOCUMENT_FILE_READ_FAIL(false, 3407, "파일을 읽을 수 없습니다."),
 
+    // 4000번대 모바일 작업자(Worker) 인증 오류
+    MOBILE_WORKER_INVALID_CREDENTIALS(false, 4001, "이름 또는 전화번호가 일치하지 않습니다."),
+    MOBILE_WORKER_NOT_ROSTERED(false, 4002, "오늘 근무 명단에 등록되지 않은 작업자입니다."),
+
     // 5000번대 서버 오류
     FAIL(false, 5000, "요청이 실패했습니다."),
     AWS_UPLOAD_FAIL(false, 5001, "파일 업로드에 실패했습니다.");
