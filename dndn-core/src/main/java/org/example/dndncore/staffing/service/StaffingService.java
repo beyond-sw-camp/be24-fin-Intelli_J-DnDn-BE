@@ -391,7 +391,8 @@ public class StaffingService {
             Worker w = workers.get(a.getWorkerIdx());
             Trade t = Trade.classifyWorker(w);
             if (t != null) {
-                out.merge(t, 1, Integer::sum);
+                // TradeNeed의 4-카테고리 기준으로 집계 (세분화 직종 → 카테고리로 합산)
+                out.merge(t.staffingGroup(), 1, Integer::sum);
             }
         }
         return out;
@@ -592,7 +593,7 @@ public class StaffingService {
         return byFatigue.reversed();
     }
 
-    /** 상세구역 {@code trade_need} 중 필요(need{@literal >}0)한 공종의 위험도 상한(max). 필요행이 없으면 미분류(10). */
+    /** 상세구역 {@code trade_need} 중 필요(need{@literal >}0)한 공종의 위험도 상한(max). 필요행이 없으면 미분류(5). */
     private static int zoneCeilingTradeRiskScore(ZoneSub zs) {
         if (zs.getTradeNeeds() == null || zs.getTradeNeeds().isEmpty()) {
             return Trade.fatigueRiskWeightOrDefault(null);
@@ -622,7 +623,7 @@ public class StaffingService {
     }
 
     private List<ZoneSub> syncScheduleZonesFromWorkPlans(LocalDate date) {
-        List<WorkPlan> weeklyPlans = workPlanRepository.findAllByPlanTypeWithStaffingGraph(PlanType.WEEKLY).stream()
+        List<WorkPlan> weeklyPlans = workPlanRepository.findActiveByPlanTypeWithStaffingGraph(PlanType.WEEKLY, date).stream()
                 .filter(authAccessService::canAccessWorkPlan)
                 .filter(plan -> isActiveOnDate(plan, date))
                 .sorted(Comparator

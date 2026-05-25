@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.example.dndncore.staffing.model.StaffingLog;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,21 +27,25 @@ import static org.example.dndncore.common.model.BaseResponseStatus.WORKER_NOT_FO
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class WorkerDetailService {
+    private static final ZoneId ROSTER_ZONE = ZoneId.of("Asia/Seoul");
+
     private final WorkerRepository workerRepository;
     private final AttendanceRecordRepository attendanceRepository;
     private final WorkerDocumentRepository documentRepository;
     private final SafetyAccidentRepository accidentRepository;
     private final StaffingLogRepository staffingLogRepository;
     private final FatigueCalculationService fatigueCalculationService;
+    private final AttendanceLogCalendarService attendanceLogCalendarService;
 
     // MANAGEMENT_004 작업자 상세 프로필 조회 (기본 정보 카드) — 열람 시 피로도 재산정·저장 후 응답
     @Transactional(readOnly = false)
     public WorkerDetailDto.ProfileRes getProfile(Long workerIdx) {
+        LocalDate rosterToday = LocalDate.now(ROSTER_ZONE);
         WorkerDetailDto.FatigueSummaryRes fatigue =
-                fatigueCalculationService.recalculateAndPersist(workerIdx, LocalDate.now());
+                fatigueCalculationService.recalculateAndPersist(workerIdx, rosterToday);
         Worker w = findWorker(workerIdx);
         EmploymentKind rosterEk = attendanceRepository
-                .findByWorkerIdxAndWorkDate(workerIdx, LocalDate.now())
+                .findByWorkerIdxAndWorkDate(workerIdx, rosterToday)
                 .map(AttendanceRecord::getEmploymentKind)
                 .orElse(w.getEmploymentKind());
         return WorkerDetailDto.ProfileRes.from(w, rosterEk, fatigue);
@@ -54,9 +59,9 @@ public class WorkerDetailService {
                 .collect(Collectors.toList());
     }
 
-    // MANAGEMENT_006 최근 출결 이력 조회 (월별 캘린더).
+    // MANAGEMENT_006 최근 출결 이력 조회 (월별 캘린더) — attendance_log 기반, 당일만 record 우선.
     public List<WorkerDetailDto.AttendanceRes> getAttendance(Long workerIdx, String yearMonth) {
-        ensureExists(workerIdx);
+        Worker w = findWorker(workerIdx);
         LocalDate from, to;
         if (yearMonth == null || yearMonth.isBlank()) {
             LocalDate now = LocalDate.now();
@@ -69,24 +74,8 @@ public class WorkerDetailService {
             from = LocalDate.of(y, m, 1);
             to = from.withDayOfMonth(from.lengthOfMonth());
         }
-        List<AttendanceRecord> records = attendanceRepository
-                .findAllByWorkerIdxAndWorkDateBetweenOrderByWorkDateDesc(workerIdx, from, to);
-
-        // 날짜별 가장 최근 StaffingLog 1건 → 구역 표시용
-        Map<LocalDate, StaffingLog> zoneByDate = staffingLogRepository
-                .findAllByWorkerIdxAndWorkDateBetween(workerIdx, from, to)
-                .stream()
-                .collect(Collectors.toMap(StaffingLog::getWorkDate, Function.identity(),
-                        (existing, newer) -> existing)); // 동일 날짜 중복이면 첫 번째 유지
-
-        return records.stream()
-                .map(ar -> {
-                    StaffingLog sl = zoneByDate.get(ar.getWorkDate());
-                    return WorkerDetailDto.AttendanceRes.from(ar,
-                            sl != null ? sl.getZoneMainTitle() : null,
-                            sl != null ? sl.getZoneSubTitle() : null);
-                })
-                .collect(Collectors.toList());
+        return attendanceLogCalendarService.buildMonthlyCalendar(
+                workerIdx, from, to, w.getEmploymentKind());
     }
 
     /**

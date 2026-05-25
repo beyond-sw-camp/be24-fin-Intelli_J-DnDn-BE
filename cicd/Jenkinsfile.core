@@ -23,6 +23,13 @@ spec:
       image: gcr.io/kaniko-project/executor:debug
       command: ['/busybox/sh','-c','sleep infinity']
       tty: true
+      resources:
+        requests:
+          memory: "2Gi"
+          cpu: "500m"
+        limits:
+          memory: "4Gi"
+          cpu: "2"
       volumeMounts:
         - name: docker-config
           mountPath: /kaniko/.docker

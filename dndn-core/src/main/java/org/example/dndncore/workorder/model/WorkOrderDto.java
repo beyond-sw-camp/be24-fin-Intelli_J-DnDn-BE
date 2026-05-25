@@ -45,6 +45,15 @@ public class WorkOrderDto {
         private List<WorkOrderEquipmentDto> equipments;
     }
 
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class SliceRes {
+        private List<Res> items;
+        private boolean hasNext;
+        private LocalDate nextCursorDueDate;
+        private Long nextCursorId;
+        private Integer size;
+    }
+
     // [WORKORDER_008] 중장비 입출차/기상관제/ESG 연동용 장비 조회 응답 DTO
     // feat : 작업지시서의 장비, 게이트, 작업구역, 상세내역을 한 번에 전달
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder

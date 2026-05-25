@@ -10,6 +10,8 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dndncore.auth.model.entity.SystemUser;
+import org.example.dndncore.auth.repository.SystemUserRepository;
 import org.example.dndncore.document_event.dto.DailyReportChangedEvent;
 import org.example.dndncore.document_event.dto.DocumentUploadedEvent;
 import org.example.dndncore.document_event.dto.WorkOrderChangedEvent;
@@ -20,6 +22,7 @@ import org.example.dndncore.workorder.model.WorkOrder;
 import org.example.dndncore.workplan.model.entity.WorkPlan;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -31,6 +34,7 @@ public class DocumentEventProducer {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
+    private final SystemUserRepository systemUserRepository;
 
     @Value("${document.kafka.topics.document-uploaded:document.uploaded.v1}")
     private String documentUploadedTopic;
@@ -104,6 +108,7 @@ public class DocumentEventProducer {
             return Optional.empty();
         }
 
+        String uploader = currentUserName();
         Map<String, Object> previewPayload = new LinkedHashMap<>();
         previewPayload.put("idx", workOrder.getIdx());
         previewPayload.put("tradeType", workOrder.getTradeType());
@@ -115,6 +120,7 @@ public class DocumentEventProducer {
         previewPayload.put("dueDate", workOrder.getDueDate());
         previewPayload.put("workerCount", workOrder.getWorkerCount());
         previewPayload.put("statusCode", blankToDefault(workOrder.getStatusCode(), "OPEN"));
+        previewPayload.put("uploader", uploader);
         previewPayload.put("equipments", workOrder.getEquipments() == null
                 ? java.util.List.of()
                 : workOrder.getEquipments().stream()
@@ -134,7 +140,7 @@ public class DocumentEventProducer {
                 workOrder.getTitle(),
                 workOrder.getTradeType(),
                 workOrder.getDueDate(),
-                "site manager",
+                uploader,
                 blankToDefault(workOrder.getStatusCode(), "OPEN"),
                 firstNonBlank(workOrder.getWorkDetail(), workOrder.getInstructionContent()),
                 workOrder.getWorkTime(),
@@ -159,6 +165,7 @@ public class DocumentEventProducer {
             return Optional.empty();
         }
 
+        String uploader = currentUserName();
         Map<String, Object> previewPayload = new LinkedHashMap<>();
         previewPayload.put("idx", report.getIdx());
         previewPayload.put("process", tradeName);
@@ -171,6 +178,7 @@ public class DocumentEventProducer {
         previewPayload.put("issue", report.getIssue());
         previewPayload.put("todayWork", report.getTodayWork());
         previewPayload.put("tomorrowPlan", report.getTomorrowPlan());
+        previewPayload.put("uploader", uploader);
 
         return Optional.of(new DailyReportChangedEvent(
                 UUID.randomUUID().toString(),
@@ -181,7 +189,7 @@ public class DocumentEventProducer {
                 "RP-" + report.getIdx(),
                 tradeName,
                 report.getReportDate(),
-                "site manager",
+                uploader,
                 report.getActualProgress(),
                 report.getTodayProgress(),
                 report.getActualWorkerCount(),
@@ -268,6 +276,24 @@ public class DocumentEventProducer {
             return workPlan.getParentWorkPlan().getTradeProcess();
         }
         return null;
+    }
+
+    private String currentUserName() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return "system";
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof Long userIdx) {
+            return systemUserRepository.findById(userIdx)
+                    .map(SystemUser::getName)
+                    .filter(name -> name != null && !name.isBlank())
+                    .orElse("system");
+        }
+
+        String name = authentication.getName();
+        return name == null || name.isBlank() ? "system" : name;
     }
 
     private String firstNonBlank(String... values) {

@@ -1,6 +1,7 @@
 package org.example.dndncore.workorder;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dndncore.auth.model.entity.SystemUser;
 import org.example.dndncore.auth.security.AuthAccessService;
 import org.example.dndncore.esg.event.EsgDashboardDataChangedEventPublisher;
 import org.example.dndncore.document_event.DocumentEventProducer;
@@ -15,19 +16,26 @@ import org.example.dndncore.workplan.model.entity.WorkPlanWorker;
 import org.example.dndncore.workplan.model.enums.EquipmentType;
 import org.example.dndncore.workplan.model.enums.PlanStatus;
 import org.example.dndncore.workplan.model.enums.WorkerTrade;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Date;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 // feat : 작업 지시서 비즈니스 로직 처리 클래스
 @Service
 @RequiredArgsConstructor
 public class WorkOrderService {
+
+    private static final int DEFAULT_SLICE_SIZE = 10;
+    private static final int MAX_SLICE_SIZE = 50;
 
     private final WorkOrderRepository workOrderRepository;
     private final WorkOrderEquipmentRepository workOrderEquipmentRepository;
@@ -86,35 +94,159 @@ public class WorkOrderService {
     // feat : 작업 지시서 목록 전체 조회
     @Transactional(readOnly = true)
     public List<WorkOrderDto.Res> getWorkOrderList() {
-        return workOrderRepository.findAll().stream()
-                .filter(this::canAccessWorkOrder)
-                .map(order -> {
-            List<WorkOrderEquipmentDto> eqDtos = order.getEquipments().stream()
-                    .map(eq -> WorkOrderEquipmentDto.builder()
-                            .idx(eq.getIdx())
-                            .gateIdx(eq.getGateIdx())
-                            .equipmentName(eq.getEquipmentName())
-                            .equipmentCount(eq.getEquipmentCount())
-                            .build())
-                    .collect(Collectors.toList());
+        return findAccessibleWorkOrders().stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
 
-            return WorkOrderDto.Res.builder()
-                    .idx(order.getIdx())
-                    .siteIdx(order.getSiteIdx())
-                    .partnerCompanyIdx(order.getPartnerCompanyIdx())
-                    .workPlanId(order.getWorkPlanId())
-                    .tradeType(order.getTradeType())
-                    .title(order.getTitle())
-                    .instructionContent(order.getInstructionContent())
-                    .workDetail(firstNonBlank(order.getWorkDetail(), order.getInstructionContent()))
-                    .workTime(order.getWorkTime())
-                    .safetyContent(order.getSafetyContent())
-                    .dueDate(order.getDueDate())
-                    .statusCode(order.getStatusCode())
-                    .workerCount(order.getWorkerCount())
-                    .equipments(eqDtos)
+    @Transactional(readOnly = true)
+    public WorkOrderDto.SliceRes getWorkOrderSlice(
+            LocalDate targetDate,
+            String tradeType,
+            String statusCode,
+            String keyword,
+            LocalDate cursorDueDate,
+            Long cursorId,
+            Integer size
+    ) {
+        int requestSize = normalizeSliceSize(size);
+        List<Long> ids = findAccessibleWorkOrderIds(
+                targetDate,
+                normalizeFilter(tradeType),
+                normalizeFilter(statusCode),
+                normalizeFilter(keyword),
+                cursorDueDate,
+                cursorDueDate == null ? null : defaultCursorId(cursorId),
+                requestSize + 1
+        );
+
+        boolean hasNext = ids.size() > requestSize;
+        List<Long> pageIds = hasNext ? ids.subList(0, requestSize) : ids;
+        if (pageIds.isEmpty()) {
+            return WorkOrderDto.SliceRes.builder()
+                    .items(List.of())
+                    .hasNext(false)
+                    .size(requestSize)
                     .build();
-        }).collect(Collectors.toList());
+        }
+
+        Map<Long, WorkOrder> ordersById = workOrderRepository.findByIdxInWithEquipments(pageIds).stream()
+                .collect(Collectors.toMap(WorkOrder::getIdx, Function.identity()));
+
+        List<WorkOrderDto.Res> items = pageIds.stream()
+                .map(ordersById::get)
+                .filter(Objects::nonNull)
+                .filter(this::canAccessWorkOrder)
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+
+        WorkOrder cursorAnchor = pageIds.stream()
+                .map(ordersById::get)
+                .filter(Objects::nonNull)
+                .reduce((previous, current) -> current)
+                .orElse(null);
+
+        return WorkOrderDto.SliceRes.builder()
+                .items(items)
+                .hasNext(hasNext)
+                .nextCursorDueDate(cursorAnchor != null ? cursorAnchor.getDueDate() : null)
+                .nextCursorId(cursorAnchor != null ? cursorAnchor.getIdx() : null)
+                .size(requestSize)
+                .build();
+    }
+
+    private List<WorkOrder> findAccessibleWorkOrders() {
+        Optional<SystemUser> currentUser = authAccessService.currentUser();
+        Optional<List<Long>> scopedProjectIds = currentUser.flatMap(authAccessService::accessibleProjectIds);
+
+        List<WorkOrder> orders;
+        if (scopedProjectIds.isPresent()) {
+            List<Long> projectIds = scopedProjectIds.get();
+            if (projectIds.isEmpty()) {
+                return List.of();
+            }
+            orders = workOrderRepository.findActiveBySiteIdxInWithEquipments(projectIds);
+        } else {
+            orders = workOrderRepository.findActiveWithEquipments();
+        }
+
+        if (!currentUser.map(authAccessService::isTradeScoped).orElse(false)) {
+            return orders;
+        }
+
+        SystemUser user = currentUser.get();
+        return orders.stream()
+                .filter(order -> authAccessService.tradeMatches(order.getTradeType(), user.getTrade()))
+                .collect(Collectors.toList());
+    }
+
+    private List<Long> findAccessibleWorkOrderIds(
+            LocalDate targetDate,
+            String tradeType,
+            String statusCode,
+            String keyword,
+            LocalDate cursorDueDate,
+            Long cursorId,
+            int limit
+    ) {
+        Optional<SystemUser> currentUser = authAccessService.currentUser();
+        Optional<List<Long>> scopedProjectIds = currentUser.flatMap(authAccessService::accessibleProjectIds);
+        PageRequest limitOnly = PageRequest.of(0, limit);
+
+        if (scopedProjectIds.isPresent()) {
+            List<Long> projectIds = scopedProjectIds.get();
+            if (projectIds.isEmpty()) {
+                return List.of();
+            }
+            return workOrderRepository.findActiveIdsBySiteIdxInBefore(
+                    projectIds,
+                    targetDate,
+                    tradeType,
+                    statusCode,
+                    keyword,
+                    cursorDueDate,
+                    cursorId,
+                    limitOnly
+            );
+        }
+
+        return workOrderRepository.findActiveIdsBefore(
+                targetDate,
+                tradeType,
+                statusCode,
+                keyword,
+                cursorDueDate,
+                cursorId,
+                limitOnly
+        );
+    }
+
+    private WorkOrderDto.Res toResponse(WorkOrder order) {
+        List<WorkOrderEquipmentDto> eqDtos = order.getEquipments().stream()
+                .map(eq -> WorkOrderEquipmentDto.builder()
+                        .idx(eq.getIdx())
+                        .gateIdx(eq.getGateIdx())
+                        .equipmentName(eq.getEquipmentName())
+                        .equipmentCount(eq.getEquipmentCount())
+                        .build())
+                .collect(Collectors.toList());
+
+        return WorkOrderDto.Res.builder()
+                .idx(order.getIdx())
+                .siteIdx(order.getSiteIdx())
+                .partnerCompanyIdx(order.getPartnerCompanyIdx())
+                .workPlanId(order.getWorkPlanId())
+                .tradeType(order.getTradeType())
+                .title(order.getTitle())
+                .instructionContent(order.getInstructionContent())
+                .workDetail(firstNonBlank(order.getWorkDetail(), order.getInstructionContent()))
+                .workTime(order.getWorkTime())
+                .safetyContent(order.getSafetyContent())
+                .dueDate(order.getDueDate())
+                .statusCode(order.getStatusCode())
+                .workerCount(order.getWorkerCount())
+                .equipments(eqDtos)
+                .build();
     }
 
     // [WORKORDER_008] 중장비 입출차/기상관제/ESG 연동용 장비 조회 기능
@@ -317,6 +449,24 @@ public class WorkOrderService {
         return workOrder != null
                 && authAccessService.canAccessProjectId(workOrder.getSiteIdx())
                 && authAccessService.canAccessTradeName(workOrder.getTradeType());
+    }
+
+    private int normalizeSliceSize(Integer size) {
+        if (size == null || size <= 0) {
+            return DEFAULT_SLICE_SIZE;
+        }
+        return Math.min(size, MAX_SLICE_SIZE);
+    }
+
+    private String normalizeFilter(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private Long defaultCursorId(Long cursorId) {
+        return cursorId == null ? Long.MAX_VALUE : cursorId;
     }
 
     private Long toLong(Object value) {
