@@ -11,14 +11,6 @@ import java.util.List;
 
 public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssignment, Long> {
 
-    @Query("select distinct a.workerIdx from StaffingAssignment a where a.workDate = :workDate")
-    List<Long> findDistinctAssignedWorkerIdxesByWorkDate(@Param("workDate") LocalDate workDate);
-
-    @Query("select distinct a.workerIdx from StaffingAssignment a where a.workDate = :workDate and a.siteCode = :siteCode")
-    List<Long> findDistinctAssignedWorkerIdxesByWorkDateAndSiteCode(
-            @Param("workDate") LocalDate workDate,
-            @Param("siteCode") String siteCode);
-
     @Query("""
             select distinct a from StaffingAssignment a
                 join fetch a.zoneSub zs
@@ -88,6 +80,19 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
     List<ZoneSubCountProjection> countGroupedByZoneSubIdxAndWorkDate(
             @Param("zoneSubIdxes") Collection<Long> zoneSubIdxes,
             @Param("workDate") LocalDate workDate);
+
+    /** STAFFING board — 구역 트리에 속한 배치 행 일괄 로드 */
+    @Query("""
+            select a from StaffingAssignment a
+                join fetch a.zoneSub zs
+                join fetch zs.zoneMain zm
+            where a.workDate = :workDate
+              and zs.idx in :zoneSubIdxes
+            order by zm.displayOrder asc, zs.displayOrder asc, a.idx asc
+            """)
+    List<StaffingAssignment> findAllWithZoneHierarchyByWorkDateAndZoneSubIdxIn(
+            @Param("workDate") LocalDate workDate,
+            @Param("zoneSubIdxes") Collection<Long> zoneSubIdxes);
 
     interface ZoneSubCountProjection {
         Long getZoneSubIdx();

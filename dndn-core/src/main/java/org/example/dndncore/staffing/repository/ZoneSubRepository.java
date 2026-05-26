@@ -24,8 +24,6 @@ public interface ZoneSubRepository extends JpaRepository<ZoneSub, Long> {
     @Query("SELECT zs FROM ZoneSub zs JOIN zs.zoneMain zm ORDER BY zm.displayOrder ASC, zs.displayOrder ASC, zs.idx ASC")
     List<ZoneSub> findAllOrderedWithStaffingGraph();
 
-    Optional<ZoneSub> findByWorkPlanIdx(Long workPlanIdx);
-
     /** sync 루프 전 일괄 선조회 — workPlanIdx IN (...) 1번으로 W번 개별 SELECT 대체 */
     List<ZoneSub> findAllByWorkPlanIdxIn(Collection<Long> workPlanIdxes);
 
@@ -39,13 +37,13 @@ public interface ZoneSubRepository extends JpaRepository<ZoneSub, Long> {
             """)
     List<ZoneSub> findAllScheduleSubZonesByWorkDate(@Param("workDate") LocalDate workDate);
 
+    /** STAFFING board — 수동 구역 트리 일괄 로드 (zoneMain · tradeNeeds) */
     @EntityGraph(attributePaths = {"zoneMain", "tradeNeeds"})
     @Query("""
             SELECT zs FROM ZoneSub zs
                 JOIN zs.zoneMain zm
-            WHERE zs.workDate = :workDate
-              AND zs.workPlanIdx IS NOT NULL
-            ORDER BY zs.displayOrder ASC, zs.idx ASC
+            WHERE zm.idx IN :zoneMainIdxes
+            ORDER BY zm.displayOrder ASC, zs.displayOrder ASC, zs.idx ASC
             """)
-    List<ZoneSub> findScheduleSubZonesForAutoRecommend(@Param("workDate") LocalDate workDate);
+    List<ZoneSub> findAllByZoneMainIdxInWithGraph(@Param("zoneMainIdxes") Collection<Long> zoneMainIdxes);
 }

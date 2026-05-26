@@ -120,6 +120,20 @@ public class WorkPlanDto {
     }
 
     @Getter @Setter @AllArgsConstructor @NoArgsConstructor @Builder
+    public static class UploadExtractRes {
+        private Long tradeProcessId;
+        private String tradeProcessName;
+        private String trade;
+        private String name;
+        private String location;
+        private String planType;
+        private LocalDate startDate;
+        private LocalDate endDate;
+        private String note;
+        private String issue;
+    }
+
+    @Getter @Setter @AllArgsConstructor @NoArgsConstructor @Builder
     public static class WeeklySubmitReq {
         private Long tradeProcessId;
         private Long parentWorkPlanId;
@@ -145,6 +159,7 @@ public class WorkPlanDto {
         // ── 1단계 추가 ───────────────────────────────────────────────────────
         private Long tradeProcessId;    // 연결된 공정 ID
         private String tradeProcessName; // 연결된 공정명 (표시용)
+        private String tradeProcessTradeName; // 전체 공정표에서 추출된 상위 공종명
         // ────────────────────────────────────────────────────────────────────
         private Long parentWorkPlanId;
         private String parentWorkPlanName;
@@ -191,6 +206,8 @@ public class WorkPlanDto {
                             ? entity.getTradeProcess().getIdx() : null)
                     .tradeProcessName(entity.getTradeProcess() != null
                             ? entity.getTradeProcess().getProcessName() : null)
+                    .tradeProcessTradeName(entity.getTradeProcess() != null
+                            ? entity.getTradeProcess().getTradeName() : null)
                     // ────────────────────────────────────────────────────────
                     .idx(entity.getIdx())
                     .name(entity.getName())
@@ -226,6 +243,7 @@ public class WorkPlanDto {
         // ── 1단계 추가 ───────────────────────────────────────────────────────
         private Long tradeProcessId;
         private String tradeProcessName;
+        private String tradeProcessTradeName;
         private Long parentWorkPlanId;
         private String parentWorkPlanName;
         // ────────────────────────────────────────────────────────────────────
@@ -268,6 +286,8 @@ public class WorkPlanDto {
                             ? entity.getTradeProcess().getIdx() : null)
                     .tradeProcessName(entity.getTradeProcess() != null
                             ? entity.getTradeProcess().getProcessName() : null)
+                    .tradeProcessTradeName(entity.getTradeProcess() != null
+                            ? entity.getTradeProcess().getTradeName() : null)
                     .parentWorkPlanId(entity.getParentWorkPlan() != null
                             ? entity.getParentWorkPlan().getIdx() : null)
                     .parentWorkPlanName(entity.getParentWorkPlan() != null

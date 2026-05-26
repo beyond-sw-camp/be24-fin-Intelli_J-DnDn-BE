@@ -130,18 +130,4 @@ public class Worker extends BaseEntity {
         this.fatigueCalculatedAt = calculatedAt;
     }
 
-    public void updateFromSync(Worker incoming) {
-        this.name = incoming.name;
-        this.phone = incoming.phone;
-        this.emergencyPhone = incoming.emergencyPhone;
-        this.emergencyRelation = incoming.emergencyRelation;
-        this.jobRank = incoming.jobRank;
-        this.affiliationKind = incoming.affiliationKind;
-        this.trade = incoming.trade;
-        this.employmentKind = incoming.employmentKind;
-        this.site = incoming.site;
-        this.siteCode = incoming.siteCode;
-        this.bloodType = incoming.bloodType;
-        this.profileImageUrl = incoming.profileImageUrl;
-    }
 }

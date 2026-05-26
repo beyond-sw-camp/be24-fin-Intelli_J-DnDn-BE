@@ -27,9 +27,12 @@ public class RedisDistributedLockExecutor {
         try {
             locked = lock.tryLock(waitTimeSeconds, leaseTimeSeconds, TimeUnit.SECONDS);
             if (!locked) {
+                long ttl = lock.remainTimeToLive();
+                log.info("[Redis 분산락] 락 획득 실패 - key={}, ttlMs={}", lockKey, ttl);
                 return false;
             }
 
+            log.info("[Redis 분산락] 락 획득 성공 - key={}, leaseTimeSeconds={}", lockKey, leaseTimeSeconds);
             task.run();
             return true;
         } catch (InterruptedException e) {
@@ -39,6 +42,7 @@ public class RedisDistributedLockExecutor {
         } finally {
             if (locked && lock.isHeldByCurrentThread()) {
                 lock.unlock();
+                log.debug("[Redis 분산락] 락 해제 - key={}", lockKey);
             }
         }
     }

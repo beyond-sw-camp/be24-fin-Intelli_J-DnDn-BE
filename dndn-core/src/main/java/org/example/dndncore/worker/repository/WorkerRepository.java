@@ -5,17 +5,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-public interface WorkerRepository extends JpaRepository<Worker, Long> {
-    /** sync 시 dedup key — 시연 JSON 의 externalCode 또는 향후 연동 식별자 */
-    Optional<Worker> findByExternalCode(String externalCode);
 
-    /** sync 루프 전 일괄 선조회 — IN 쿼리 1번으로 N번 개별 SELECT 대체 */
-    @Query("select w from Worker w where w.externalCode in :codes")
-    List<Worker> findAllByExternalCodeIn(@Param("codes") Collection<String> codes);
+public interface WorkerRepository extends JpaRepository<Worker, Long> {
 
     // MANAGEMENT_002 작업자 검색 — 이름·현장코드 기준 (siteCode null/빈값이면 현장 무관)
     @Query("""
@@ -27,4 +21,19 @@ public interface WorkerRepository extends JpaRepository<Worker, Long> {
     List<Worker> search(@Param("name") String name, @Param("siteCode") String siteCode);
 
     List<Worker> findAllBySiteCode(String siteCode);
+
+    /**
+     * 모바일 로그인 — 이름 + 전화번호 매칭.
+     * 전화번호는 하이픈 유무 두 가지 형태를 모두 허용한다.
+     * 더미데이터는 externalCode 기반으로 전화번호를 생성하므로 전체 현장에 걸쳐 유일하다.
+     */
+    @Query("""
+        select w from Worker w
+        where w.name = :name
+          and (w.phone = :phone or w.phone = :phoneDigits)
+    """)
+    Optional<Worker> findByNameAndPhone(
+            @Param("name") String name,
+            @Param("phone") String phone,
+            @Param("phoneDigits") String phoneDigits);
 }

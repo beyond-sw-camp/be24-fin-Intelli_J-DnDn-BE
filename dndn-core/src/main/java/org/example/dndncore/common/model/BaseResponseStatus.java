@@ -27,6 +27,10 @@ public enum BaseResponseStatus {
     ACCOUNT_REQUEST_NOT_FOUND(false, 3106, "존재하지 않는 계정 신청입니다."),
     ACCOUNT_REQUEST_ALREADY_PROCESSED(false, 3107, "이미 처리된 계정 신청입니다."),
 
+    // 3150번대 모바일 작업자 오류
+    MOBILE_WORKER_INVALID_CREDENTIALS(false, 3151, "이름 또는 전화번호가 일치하지 않습니다."),
+    MOBILE_WORKER_NOT_ROSTERED(false, 3152, "오늘 근무 명단에 등록되지 않은 작업자입니다."),
+
     // 3200번대 작업자(Worker) 오류
     WORKER_SYNC_MISSING_SITE_CODE(false, 3201, "현장 코드가 누락되었습니다."),
     WORKER_SYNC_MISSING_DATE(false, 3202, "날짜 정보가 누락되었습니다."),

@@ -28,6 +28,7 @@ import org.example.dndncore.worker.repository.AttendanceRecordRepository;
 import org.example.dndncore.worker.repository.WorkerDocumentRepository;
 import org.example.dndncore.worker.repository.WorkerRepository;
 import org.example.dndncore.worker.service.FatigueCalculationService;
+import org.example.dndncore.sse.SseEmitterRegistry;
 import org.example.dndncore.workplan.WorkPlanRepository;
 import org.example.dndncore.workplan.model.entity.WorkPlan;
 import org.example.dndncore.workplan.model.entity.WorkPlanWorker;
@@ -85,33 +86,106 @@ public class StaffingService {
     private final FatigueCalculationService fatigueCalculationService;
     private final WorkPlanRepository workPlanRepository;
     private final AuthAccessService authAccessService;
+    private final SseEmitterRegistry sseEmitterRegistry;
 
     // STAFFING_003 — 인력 배치 보드 좌측 기본 구역 트리(ZoneMain · ZoneSub 요약 및 집계)
     // 읽기 전용 — 동기화는 WorkPlan 변경 시점에만 수행 (syncZonesFromWorkPlans)
     public List<StaffingDto.ZoneMainRes> loadZoneMainTree(LocalDate rosterDate, String siteCode) {
         LocalDate date = normalizeDate(rosterDate);
-        List<ZoneSub> scheduleSubZones = zoneSubRepository.findAllScheduleSubZonesByWorkDate(date);
-        if (!scheduleSubZones.isEmpty()) {
-            if (siteCode != null && !siteCode.isBlank()) {
-                String fragment = "[" + siteCode.trim() + "]";
-                scheduleSubZones = scheduleSubZones.stream()
-                        .filter(zs -> {
-                            Project p = zs.getZoneMain().getProject();
-                            return p != null && p.getName() != null && p.getName().contains(fragment);
-                        })
-                        .toList();
-            }
-            return buildZoneMainResponses(scheduleSubZones, date);
+        return buildZoneMainResponses(resolveBoardSubZones(date, siteCode), date);
+    }
+
+    /**
+     * STAFFING board — 구역 트리 + 직종별 필요 + 구역별 배치 작업자를 1회 응답.
+     * FE의 STAFFING_003 + N×(STAFFING_004 + STAFFING_006) 호출을 대체한다.
+     */
+    public StaffingDto.BoardRes loadStaffingBoard(LocalDate rosterDate, String siteCode) {
+        LocalDate date = normalizeDate(rosterDate);
+        List<ZoneSub> subZones = resolveBoardSubZones(date, siteCode);
+        if (subZones.isEmpty()) {
+            return StaffingDto.BoardRes.builder().zoneMains(List.of()).build();
         }
 
-        List<ZoneMain> zoneMains = (siteCode != null && !siteCode.isBlank())
-                ? zoneMainRepository.findAllByProject_NameContainingOrderByDisplayOrderAsc("[" + siteCode.trim() + "]")
-                : zoneMainRepository.findAllByOrderByDisplayOrderAsc();
+        Set<Long> subIdxes = subZones.stream().map(ZoneSub::getIdx).collect(Collectors.toSet());
 
-        List<ZoneSub> subZones = zoneMains.stream()
-                .flatMap(zm -> zm.getZoneSubs().stream())
+        List<StaffingAssignment> allAssignments = subIdxes.isEmpty()
+                ? List.of()
+                : assignmentRepository.findAllWithZoneHierarchyByWorkDateAndZoneSubIdxIn(date, subIdxes);
+
+        Map<Long, List<StaffingAssignment>> assignsBySubIdx = allAssignments.stream()
+                .collect(Collectors.groupingBy(a -> a.getZoneSub().getIdx(), LinkedHashMap::new, Collectors.toList()));
+
+        List<Long> workerIds = allAssignments.stream()
+                .map(StaffingAssignment::getWorkerIdx)
+                .distinct()
                 .toList();
-        return buildZoneMainResponses(subZones, date);
+
+        Map<Long, Worker> workerMap = workerIds.isEmpty()
+                ? Map.of()
+                : workerRepository.findAllById(workerIds).stream()
+                        .filter(w -> w.getJobRank() == JobRank.WORKER)
+                        .collect(Collectors.toMap(Worker::getIdx, w -> w, (a, b) -> a));
+
+        Map<Long, EmploymentKind> rosterEkByWorkerIdx = new HashMap<>();
+        if (!workerIds.isEmpty()) {
+            for (AttendanceRecord ar :
+                    attendanceRecordRepository.findAllByWorkDateAndWorkerIdxIn(
+                            date, workerIds, STAFFING_ATTENDANCE_ONSITE)) {
+                rosterEkByWorkerIdx.put(ar.getWorker().getIdx(), ar.getEmploymentKind());
+            }
+        }
+
+        Set<Long> safetyEducationCompletedWorkerIds = findSafetyEducationCompletedWorkerIds(workerIds);
+
+        Map<Long, List<ZoneSub>> grouped = subZones.stream()
+                .collect(Collectors.groupingBy(
+                        zs -> zs.getZoneMain().getIdx(),
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+
+        List<StaffingDto.ZoneMainBoardRes> zoneMains = new ArrayList<>();
+        for (List<ZoneSub> rows : grouped.values()) {
+            if (rows.isEmpty()) continue;
+            ZoneMain main = rows.get(0).getZoneMain();
+            List<StaffingDto.ZoneSubBoardRes> subBoardRows = new ArrayList<>();
+            int totalAssigned = 0;
+            int totalRequired = 0;
+            for (ZoneSub zs : rows) {
+                List<StaffingAssignment> assigns =
+                        assignsBySubIdx.getOrDefault(zs.getIdx(), List.of());
+                EnumMap<Trade, Integer> filledByTrade = computeFilledByTrade(assigns, workerMap);
+                List<StaffingDto.AssignedWorkerRes> workers = buildAssignedWorkerRows(
+                        assigns, workerMap, rosterEkByWorkerIdx, safetyEducationCompletedWorkerIds);
+                int assignedCount = workers.size();
+                totalAssigned += assignedCount;
+                totalRequired += zs.getRequired();
+                subBoardRows.add(StaffingDto.ZoneSubBoardRes.builder()
+                        .idx(zs.getIdx())
+                        .workPlanId(zs.getWorkPlanIdx())
+                        .title(zs.getTitle())
+                        .location(zs.getLocation())
+                        .tradeName(zs.getTradeName())
+                        .workTime(zs.getWorkTime())
+                        .workDate(zs.getWorkDate())
+                        .required(zs.getRequired())
+                        .assignedCount(assignedCount)
+                        .tradeNeeds(zs.getTradeNeeds().stream()
+                                .map(tn -> StaffingDto.TradeNeedRes.from(
+                                        tn, filledByTrade.getOrDefault(tn.getTrade(), 0)))
+                                .toList())
+                        .workers(workers)
+                        .build());
+            }
+            zoneMains.add(StaffingDto.ZoneMainBoardRes.builder()
+                    .idx(main.getIdx())
+                    .title(main.getTitle())
+                    .source(main.isScheduleGenerated() ? "WORK_PLAN" : "MANUAL")
+                    .totalAssigned(totalAssigned)
+                    .totalRequired(totalRequired)
+                    .subZones(subBoardRows)
+                    .build());
+        }
+        return StaffingDto.BoardRes.builder().zoneMains(zoneMains).build();
     }
 
     /** STAFFING_004 — 상세 구역(ZoneSub) 단건 및 직종별 충원률 원천 데이터 */
@@ -339,6 +413,7 @@ public class StaffingService {
                     .workDate(date)
                     .siteCode(siteCodeByWorkerIdx.get(workerIdx))
                     .build());
+            // SSE push 없음 — 모바일 알림은 POST /staffing/save(배치 확정) 시점에만 발송
         }
     }
 
@@ -386,19 +461,72 @@ public class StaffingService {
         Map<Long, Worker> workers = workerRepository.findAllById(workerIds).stream()
                 .collect(Collectors.toMap(Worker::getIdx, w -> w, (a, b) -> a));
 
+        return computeFilledByTrade(assigns, workers);
+    }
+
+    private EnumMap<Trade, Integer> computeFilledByTrade(
+            List<StaffingAssignment> assigns,
+            Map<Long, Worker> workerMap) {
         EnumMap<Trade, Integer> out = new EnumMap<>(Trade.class);
         for (StaffingAssignment a : assigns) {
-            Worker w = workers.get(a.getWorkerIdx());
+            Worker w = workerMap.get(a.getWorkerIdx());
             Trade t = Trade.classifyWorker(w);
             if (t != null) {
-                // TradeNeed의 4-카테고리 기준으로 집계 (세분화 직종 → 카테고리로 합산)
                 out.merge(t.staffingGroup(), 1, Integer::sum);
             }
         }
         return out;
     }
 
+    private List<StaffingDto.AssignedWorkerRes> buildAssignedWorkerRows(
+            List<StaffingAssignment> assigns,
+            Map<Long, Worker> workerMap,
+            Map<Long, EmploymentKind> rosterEkByWorkerIdx,
+            Set<Long> safetyEducationCompletedWorkerIds) {
+        return assigns.stream()
+                .map(a -> {
+                    Worker worker = workerMap.get(a.getWorkerIdx());
+                    return worker != null
+                            ? StaffingDto.AssignedWorkerRes.from(
+                                    worker,
+                                    a,
+                                    rosterEkByWorkerIdx.get(worker.getIdx()),
+                                    safetyEducationCompletedWorkerIds.contains(worker.getIdx()))
+                            : null;
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private List<ZoneSub> resolveBoardSubZones(LocalDate date, String siteCode) {
+        List<ZoneSub> scheduleSubZones = zoneSubRepository.findAllScheduleSubZonesByWorkDate(date);
+        if (!scheduleSubZones.isEmpty()) {
+            if (siteCode != null && !siteCode.isBlank()) {
+                String fragment = "[" + siteCode.trim() + "]";
+                scheduleSubZones = scheduleSubZones.stream()
+                        .filter(zs -> {
+                            Project p = zs.getZoneMain().getProject();
+                            return p != null && p.getName() != null && p.getName().contains(fragment);
+                        })
+                        .toList();
+            }
+            return scheduleSubZones;
+        }
+
+        List<ZoneMain> zoneMains = (siteCode != null && !siteCode.isBlank())
+                ? zoneMainRepository.findAllByProject_NameContainingOrderByDisplayOrderAsc(
+                        "[" + siteCode.trim() + "]")
+                : zoneMainRepository.findAllByOrderByDisplayOrderAsc();
+        List<Long> mainIdxes = zoneMains.stream().map(ZoneMain::getIdx).toList();
+        if (mainIdxes.isEmpty()) {
+            return List.of();
+        }
+        return zoneSubRepository.findAllByZoneMainIdxInWithGraph(mainIdxes);
+    }
+
     // STAFFING_002 — 투입 인원 초기화 (siteCode 전달 시 해당 현장 배치만 삭제)
+    // staffing_assignment(초안)만 삭제한다. staffing_log(확정 이력)와 모바일 SSE는
+    // POST /staffing/save(배치 확정) 시점에만 갱신된다.
     @Transactional
     public void resetBoard(LocalDate rosterDate, String siteCode) {
         LocalDate date = normalizeDate(rosterDate);
@@ -461,21 +589,56 @@ public class StaffingService {
 
     /**
      * 배치 확정(최종배치): 현재 {@code staffing_assignment} 의 구역 스냅샷을 {@code staffing_log} 에 기록한다.
-     * 기록 후 배치 행은 유지된다(보드에서 계속 조회 가능).
+     * <ul>
+     *   <li>같은 날짜의 기존 {@code staffing_log} 를 먼저 삭제(덮어쓰기)한다 — 초기화 후 재배치 시 이중 기록 방지.</li>
+     *   <li>기록 후 배치 행은 유지된다(보드에서 계속 조회 가능).</li>
+     *   <li>모바일 SSE ASSIGNED 이벤트를 배치 확정 작업자 전원에게 push 한다.</li>
+     *   <li>{@code staffing_assignment} 가 비어있는 채로 저장하면 기존 {@code staffing_log} 를 삭제하고
+     *       SSE RESET 이벤트를 push 한다 — "초기화 후 저장" 시나리오 대응.</li>
+     * </ul>
      */
     @Transactional
     public StaffingDto.SaveSummaryRes finalizePlacementsToAttendance(LocalDate rosterDate, String siteCode) {
         LocalDate date = normalizeDate(rosterDate);
-        List<StaffingAssignment> all = (siteCode != null && !siteCode.isBlank())
-                ? assignmentRepository.findAllWithZoneHierarchyByWorkDateAndSiteCodeOrderByIdxAsc(date, siteCode.trim())
+        boolean hasSiteFilter = siteCode != null && !siteCode.isBlank();
+        String trimmedSite = hasSiteFilter ? siteCode.trim() : null;
+
+        List<StaffingAssignment> all = hasSiteFilter
+                ? assignmentRepository.findAllWithZoneHierarchyByWorkDateAndSiteCodeOrderByIdxAsc(date, trimmedSite)
                 : assignmentRepository.findAllWithZoneHierarchyByWorkDateOrderByIdxAsc(date);
+
+        // ── staffing_assignment 가 비어있는 채로 저장 → "초기화 확정" 처리 ──────────────
+        // 초기화 버튼만으로는 staffing_log 가 지워지지 않으므로, 저장 시점에 삭제하고
+        // 모바일에 RESET 이벤트를 push 해야 구역이 "배정 대기"로 전환된다.
         if (all.isEmpty()) {
-            return StaffingDto.SaveSummaryRes.builder().assignedCount(0).unassignedCount(0).build();
+            List<StaffingLog> prevLogs = hasSiteFilter
+                    ? staffingLogRepository.findAllBySiteCodeAndWorkDateOrderByCreatedAtDesc(trimmedSite, date)
+                    : staffingLogRepository.findAllByWorkDateOrderByCreatedAtDesc(date);
+            if (prevLogs.isEmpty()) {
+                return StaffingDto.SaveSummaryRes.builder().assignedCount(0).unassignedCount(0).build();
+            }
+            List<Long> resetWorkerIds = prevLogs.stream()
+                    .map(StaffingLog::getWorkerIdx)
+                    .distinct()
+                    .toList();
+            staffingLogRepository.deleteAllByWorkerIdxInAndWorkDateBetween(resetWorkerIds, date, date);
+            for (Long workerIdx : resetWorkerIds) {
+                pushResetEvent(workerIdx);
+            }
+            return StaffingDto.SaveSummaryRes.builder()
+                    .assignedCount(0)
+                    .unassignedCount(resetWorkerIds.size())
+                    .build();
         }
 
+        // ── 일반 배치 확정 처리 ─────────────────────────────────────────────────────────
         List<Long> workerIds = all.stream().map(StaffingAssignment::getWorkerIdx).distinct().toList();
         Map<Long, String> siteCodeByWorkerIdx = workerRepository.findAllById(workerIds).stream()
                 .collect(Collectors.toMap(Worker::getIdx, w -> w.getSiteCode() != null ? w.getSiteCode() : "", (a, b) -> a));
+
+        // 같은 날짜의 기존 확정 이력 삭제 (초기화 → 재배치 시나리오 대응)
+        staffingLogRepository.deleteAllByWorkerIdxInAndWorkDateBetween(workerIds, date, date);
+        staffingLogRepository.flush();
 
         for (StaffingAssignment a : all) {
             ZoneSub zs = a.getZoneSub();
@@ -489,6 +652,9 @@ public class StaffingService {
                     .tradeName(zs.getTradeName())
                     .siteCode(siteCodeByWorkerIdx.getOrDefault(a.getWorkerIdx(), ""))
                     .build());
+
+            // 배치 확정 시점에 모바일 SSE ASSIGNED push
+            pushAssignmentEvent(a.getWorkerIdx(), zs);
         }
         return StaffingDto.SaveSummaryRes.builder()
                 .assignedCount(all.size())
@@ -576,6 +742,7 @@ public class StaffingService {
                         .workDate(date)
                         .siteCode(w.getSiteCode())
                         .build());
+                // SSE push 없음 — 모바일 알림은 POST /staffing/save(배치 확정) 시점에만 발송
                 assignedNow++;
                 remainingSlots--;
             }
@@ -935,4 +1102,36 @@ public class StaffingService {
         }
         return null;
     }
+
+    /**
+     * 배치 확정 시 해당 작업자의 모바일 SSE 연결로 ASSIGNED 이벤트를 push 한다.
+     * 구독 중인 연결이 없으면 아무 일도 하지 않는다.
+     */
+    private void pushAssignmentEvent(Long workerIdx, ZoneSub zs) {
+        String main = (zs.getZoneMain() != null && zs.getZoneMain().getTitle() != null)
+                ? zs.getZoneMain().getTitle() : "";
+        String sub  = (zs.getTitle() != null) ? zs.getTitle() : "";
+        String placement = sub.isBlank() ? main : (main.isBlank() ? sub : main + " · " + sub);
+        sseEmitterRegistry.broadcastToWorker(workerIdx, Map.of(
+                "type",          "ASSIGNED",
+                "zoneMainTitle", main,
+                "zoneSubTitle",  sub,
+                "placement",     placement.isBlank() ? "구역 배정됨" : placement.strip()
+        ));
+    }
+
+    /**
+     * "초기화 후 저장" 시 해당 작업자의 모바일 SSE 연결로 RESET 이벤트를 push 한다.
+     * 모바일은 이 이벤트를 받으면 오늘 배정 위치를 "배정 대기"로 전환한다.
+     * 구독 중인 연결이 없으면 아무 일도 하지 않는다.
+     */
+    private void pushResetEvent(Long workerIdx) {
+        sseEmitterRegistry.broadcastToWorker(workerIdx, Map.of(
+                "type",          "RESET",
+                "zoneMainTitle", "",
+                "zoneSubTitle",  "",
+                "placement",     ""
+        ));
+    }
+
 }

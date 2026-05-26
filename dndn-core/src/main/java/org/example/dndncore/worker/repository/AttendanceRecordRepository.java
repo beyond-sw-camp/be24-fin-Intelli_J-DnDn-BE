@@ -69,13 +69,6 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("workerIdxes") Collection<Long> workerIdxes,
             @Param("attendanceStatuses") Collection<AttendanceStatus> attendanceStatuses);
 
-    // 상세 프로필 캘린더용 (workerId + 기간)
-    List<AttendanceRecord> findAllByWorkerIdxAndWorkDateBetweenOrderByWorkDateDesc(
-            Long workerIdx, LocalDate from, LocalDate to);
-
-    /** MANAGEMENT_007 — 근태 행 기준 일자 내림차순 전체(구역·공종 표에 사용) */
-    List<AttendanceRecord> findAllByWorkerIdxOrderByWorkDateDesc(Long workerIdx);
-
     // 일자별 근태 upsert
     Optional<AttendanceRecord> findByWorkerIdxAndWorkDate(Long workerIdx, LocalDate workDate);
 
@@ -92,16 +85,4 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("workerIdxes") List<Long> workerIdxes,
             @Param("workDate") LocalDate workDate);
 
-    // 더미 시딩: 특정 날짜 범위 행 일괄 삭제
-    @Modifying
-    @Query("DELETE FROM AttendanceRecord ar WHERE ar.worker.idx IN :workerIdxes AND ar.workDate BETWEEN :from AND :to")
-    int deleteAllByWorkerIdxInAndWorkDateBetween(
-            @Param("workerIdxes") List<Long> workerIdxes,
-            @Param("from") LocalDate from,
-            @Param("to") LocalDate to);
-
-    /** 당일 로스터 전용 — 과거 work_date 스냅샷 잔존 분 정리 */
-    @Modifying
-    @Query("DELETE FROM AttendanceRecord ar WHERE ar.workDate < :date")
-    int deleteAllByWorkDateBefore(@Param("date") LocalDate date);
 }

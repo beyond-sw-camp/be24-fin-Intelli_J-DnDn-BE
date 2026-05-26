@@ -86,7 +86,6 @@ public class WorkOrderService {
 
         // feat : 최종 저장
         workOrder = workOrderRepository.save(workOrder);
-        documentEventProducer.publishWorkOrderChanged("WORK_ORDER_CREATED", workOrder);
         publishEsgDashboardChanged(workOrder.getSiteIdx(), workOrder.getDueDate());
     }
 
@@ -327,7 +326,6 @@ public class WorkOrderService {
         }
 
         workOrder = workOrderRepository.save(workOrder);
-        documentEventProducer.publishWorkOrderChanged("WORK_ORDER_UPDATED", workOrder);
         publishEsgDashboardChanged(previousSiteIdx, previousDueDate);
         if (!Objects.equals(previousSiteIdx, workOrder.getSiteIdx())
                 || !Objects.equals(previousDueDate, workOrder.getDueDate())) {
@@ -416,6 +414,7 @@ public class WorkOrderService {
         }
 
         workOrder.setStatusCode("APPROVED");
+        documentEventProducer.publishWorkOrderChanged("WORK_ORDER_APPROVED", workOrder);
         publishEsgDashboardChanged(workOrder.getSiteIdx(), workOrder.getDueDate());
         // JPA 감지로 인해 weeklyPlan 변경사항이 자동 저장됩니다.
     }
