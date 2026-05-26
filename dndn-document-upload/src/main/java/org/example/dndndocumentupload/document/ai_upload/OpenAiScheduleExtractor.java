@@ -1,5 +1,6 @@
 package org.example.dndndocumentupload.document.ai_upload;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -36,22 +37,10 @@ public class OpenAiScheduleExtractor {
             .baseUrl("https://api.openai.com/v1")
             .build();
 
+    // 파일 ai한테 분석 요청하고 데이터 파싱하는 코드
     public List<TradeProcessDto.Req> extractSchedule(MultipartFile file, Long masterScheduleId) {
         MasterSchedule masterSchedule = masterScheduleRepository.findById(masterScheduleId)
                 .orElseThrow(() -> new RuntimeException("공정표 파일 정보를 찾을 수 없습니다."));
-
-        System.out.println("=== 키 길이: " + apiKey.length());
-        System.out.println("=== 첫 10자 ASCII: ");
-        for (int i = 0; i < Math.min(10, apiKey.length()); i++) {
-            System.out.print((int)apiKey.charAt(i) + " ");
-        }
-        System.out.println();
-        System.out.println("=== 마지막 10자 ASCII: ");
-        for (int i = Math.max(0, apiKey.length() - 10); i < apiKey.length(); i++) {
-            System.out.print((int)apiKey.charAt(i) + " ");
-        }
-        System.out.println();
-
 
         String originalFileName = file.getOriginalFilename();
         String fileNameToUse = (originalFileName != null) ? originalFileName : "unknown_file";
@@ -100,6 +89,7 @@ public class OpenAiScheduleExtractor {
                     AiScheduleExtractionResponse.class
             );
 
+            // AI 분석 결과 DB 저장 (AI 호출 직후에만!)
             ScheduleAiAnalysis analysis = ScheduleAiAnalysis.builder()
                     .masterScheduleIdx(masterSchedule.getIdx())
                     .rawJson(jsonText)
@@ -109,21 +99,7 @@ public class OpenAiScheduleExtractor {
 
             scheduleAiAnalysisRepository.save(analysis);
 
-            List<AiTradeProcessResult> aiResults =
-                    parsed.schedules() != null ? parsed.schedules() : List.of();
-
-            return aiResults.stream()
-                    .map(item -> TradeProcessDto.Req.builder()
-                            .masterScheduleId(masterScheduleId)
-                            .tradeName(item.tradeName())
-                            .processName(item.processName())
-                            .weightPct(item.weightPct())
-                            .plannedStart(parseDate(item.plannedStart()))
-                            .plannedEnd(parseDate(item.plannedEnd()))
-                            .isMilestone(item.isMilestone() != null ? item.isMilestone() : false)
-                            .build())
-                    .toList();
-
+            return toReqList(parsed);
 
         } catch (Exception e) {
             ScheduleAiAnalysis failedAnalysis = ScheduleAiAnalysis.builder()
@@ -139,6 +115,41 @@ public class OpenAiScheduleExtractor {
         }
     }
 
+    /**
+     * DB에 캐시되어 있는 기존 AI 분석 JSON 을 파싱만 하는 메서드.
+     * AI 재호출 X, DB 재저장 X — 그냥 가공해서 반환만 한다.
+     */
+    public List<TradeProcessDto.Req> dataParser(String jsonText, MasterSchedule masterSchedule) {
+        try {
+            AiScheduleExtractionResponse parsed = objectMapper.readValue(
+                    jsonText,
+                    AiScheduleExtractionResponse.class
+            );
+            return toReqList(parsed);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("캐시된 AI 분석 JSON 파싱 중 오류가 발생했습니다. masterScheduleIdx="
+                    + masterSchedule.getIdx(), e);
+        }
+    }
+
+    // AiScheduleExtractionResponse -> TradeProcessDto.Req 리스트 변환 (공통 로직)
+    private List<TradeProcessDto.Req> toReqList(AiScheduleExtractionResponse parsed) {
+        List<AiTradeProcessResult> aiResults =
+                (parsed != null && parsed.schedules() != null) ? parsed.schedules() : List.of();
+
+        return aiResults.stream()
+                .map(item -> TradeProcessDto.Req.builder()
+                        .tradeName(item.tradeName())
+                        .processName(item.processName())
+                        .weightPct(item.weightPct())
+                        .plannedStart(parseDate(item.plannedStart()))
+                        .plannedEnd(parseDate(item.plannedEnd()))
+                        .isMilestone(item.isMilestone() != null ? item.isMilestone() : false)
+                        .build())
+                .toList();
+    }
+
+    // ai 요청 프롬프트
     private String buildPrompt() {
         return """
             너는 건설 공정표 문서를 분석해서 DnDn 간트차트용 JSON을 만드는 AI다.
@@ -201,6 +212,7 @@ public class OpenAiScheduleExtractor {
             """;
     }
 
+    // ai 요청 시 받을 응답 형태
     private Map<String, Object> buildJsonSchema() {
         return Map.of(
                 "type", "json_schema",
@@ -251,6 +263,7 @@ public class OpenAiScheduleExtractor {
         );
     }
 
+    // ai 응답에서 필요한 데이터만 추출
     private String extractOutputText(String response) {
         try {
             JsonNode root = objectMapper.readTree(response);
@@ -271,18 +284,18 @@ public class OpenAiScheduleExtractor {
         }
     }
 
+    // 날짜 데이터 형식으로 변환
     private LocalDate parseDate(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
-
         return LocalDate.parse(value);
     }
 
+    // 파일 확장자 확인 메서드
     private String detectMimeType(MultipartFile file) {
         String fileName = file.getOriginalFilename();
 
-        // 🎯 파일명이 null이거나 비어있으면 안전하게 미리 예외를 던져버립니다.
         if (fileName == null || fileName.isBlank()) {
             throw new RuntimeException("올바르지 않은 파일명입니다.");
         }
@@ -290,19 +303,15 @@ public class OpenAiScheduleExtractor {
         if (fileName.endsWith(".pdf")) {
             return "application/pdf";
         }
-
         if (fileName.endsWith(".png")) {
             return "image/png";
         }
-
         if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) {
             return "image/jpeg";
         }
-
         if (fileName.endsWith(".xlsx")) {
             return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
         }
-
         if (fileName.endsWith(".xls")) {
             return "application/vnd.ms-excel";
         }
@@ -310,6 +319,7 @@ public class OpenAiScheduleExtractor {
         throw new RuntimeException("지원하지 않는 파일 형식입니다.");
     }
 
+    // ai에게 응답 받은 데이터 파싱할 형태
     private record AiScheduleExtractionResponse(
             List<AiTradeProcessResult> schedules
     ) {

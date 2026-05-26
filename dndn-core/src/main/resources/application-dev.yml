@@ -6,11 +6,6 @@ spring:
   application:
     name: dndn
 
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
-    key-deserializer: org.apache.kafka.common.serialization.LongDeserializer
-    value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-
   data:
     redis:
       password: ${REDIS_PASSWORD}
@@ -60,6 +55,14 @@ spring:
       retries: 3
       properties:
         enable.idempotence: true
+    consumer:
+      group-id: first-document-upload
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+
 
 management:
   endpoint:
@@ -91,6 +94,7 @@ logging:
     org.apache.kafka: warn
     org.apache.kafka.clients.NetworkClient: error
     org.apache.kafka.clients.producer.internals.Sender: error
+    org.apache.kafka.clients.consumer: info
 
 weather:
   kma:
@@ -165,3 +169,5 @@ document:
       document-uploaded: ${DOCUMENT_UPLOADED_TOPIC:document.uploaded.v1}
       work-order-changed: ${WORK_ORDER_CHANGED_TOPIC:work-order.changed.v1}
       daily-report-changed: ${DAILY_REPORT_CHANGED_TOPIC:daily-report.changed.v1}
+
+

@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
 @Component
 @Order(50)
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "dndn.seed.load-test", name = "enabled", havingValue = "true")
+// @ConditionalOnProperty(prefix = "dndn.seed.load-test", name = "enabled", havingValue = "true")
 public class LoadTestDataInitializer implements ApplicationRunner {
 
     private static final String SITE_CODE_PREFIX = "LT";

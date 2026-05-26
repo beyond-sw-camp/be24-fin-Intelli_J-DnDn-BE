@@ -1,5 +1,6 @@
 package org.example.dndndocumentupload.document.model.dto;
 
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import org.example.dndndocumentupload.document.model.entity.MasterSchedule;
@@ -9,7 +10,14 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 public class DocumentAiDto {
-    public record KafkaMessage<T>(Long id, List<TradeProcessDto.Req> body) {}
+
+    @Builder
+    public static class KafkaProducerSend{
+        public Long uploaderIdx;
+        public Long masterScheduleIdx;
+        public Long projectIdx;
+        public List<TradeProcessDto.Req> schedules;
+    }
 
     @Setter
     @Getter

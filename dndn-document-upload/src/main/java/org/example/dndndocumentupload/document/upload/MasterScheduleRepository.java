@@ -21,9 +21,11 @@ public interface MasterScheduleRepository extends JpaRepository<MasterSchedule, 
     // 추가: docType 필터 (여러 개 제외)
     Page<MasterSchedule> findAllByProjectIdxAndDocTypeNotIn(Long projectIdx, List<DocType> excludeTypes, Pageable pageable);
 
-    Optional<MasterSchedule> findFirstByProjectIdxAndDocTypeOrderByCreatedAtDesc(
-            Long projectIdx, DocType docType);
+    Optional<MasterSchedule> findFirstByProjectIdxAndDocTypeAndFileNameOrderByCreatedAtDesc(
+            Long projectIdx, DocType docType, String fileName);
 
     boolean existsByProjectIdxAndDocType(Long projectIdx, DocType docType);
+
+    Optional<MasterSchedule> findFirstByProjectIdxAndDocTypeOrderByCreatedAtDesc(Long projectId, DocType type);
 }
 

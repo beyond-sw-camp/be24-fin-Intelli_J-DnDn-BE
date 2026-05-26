@@ -16,4 +16,6 @@ public interface ScheduleAiAnalysisRepository extends JpaRepository<ScheduleAiAn
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from ScheduleAiAnalysis saa where saa.masterScheduleIdx in :masterScheduleIds")
     int deleteByMasterScheduleIds(@Param("masterScheduleIds") Collection<Long> masterScheduleIds);
+
+    ScheduleAiAnalysis findByMasterScheduleIdxOrderByCreatedAt(Long masterScheduleIdx);
 }

@@ -1,11 +1,16 @@
 package org.example.dndncore.kafka;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.example.dndncore.kafka.dto.KafkaConsumerDto;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
 @Service
 public class TestDocumentConsumerService {
+//    @KafkaListener(topics = "document.uploaded.v3", groupId = "first-document-upload", concurrency = "3")
+    public void consume(KafkaConsumerDto message){
+        System.out.println("key : " + message.getUploaderIdx() + " body : " + message.getReqList());
+    }
 
     /*
     * [핵심]

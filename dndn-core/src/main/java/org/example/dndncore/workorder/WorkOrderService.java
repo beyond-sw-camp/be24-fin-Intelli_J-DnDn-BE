@@ -192,12 +192,12 @@ public class WorkOrderService {
             }
         }
 
-        workOrderRepository.save(workOrder);
-        publishEsgDashboardChanged(previousSiteIdx, previousDueDate);
-        if (!Objects.equals(previousSiteIdx, workOrder.getSiteIdx())
-                || !Objects.equals(previousDueDate, workOrder.getDueDate())) {
-            publishEsgDashboardChanged(workOrder.getSiteIdx(), workOrder.getDueDate());
-        }
+//        workOrderRepository.save(workOrder);
+//        publishEsgDashboardChanged(previousSiteIdx, previousDueDate);
+//        if (!Objects.equals(previousSiteIdx, workOrder.getSiteIdx())
+//                || !Objects.equals(previousDueDate, workOrder.getDueDate())) {
+//            publishEsgDashboardChanged(workOrder.getSiteIdx(), workOrder.getDueDate());
+//        }
         workOrder = workOrderRepository.save(workOrder);
         documentEventProducer.publishWorkOrderChanged("WORK_ORDER_UPDATED", workOrder);
     }

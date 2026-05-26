@@ -11,7 +11,6 @@ public class TradeProcessDto {
 
     @Getter @Setter @AllArgsConstructor @NoArgsConstructor @Builder
     public static class Req {
-        private Long masterScheduleId;
         private String tradeName;
         private String processName;
         private String partnerCompany;
