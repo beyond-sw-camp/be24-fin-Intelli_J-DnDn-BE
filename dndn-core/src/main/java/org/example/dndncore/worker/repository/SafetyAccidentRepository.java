@@ -15,9 +15,6 @@ public interface SafetyAccidentRepository extends JpaRepository<SafetyAccident, 
     /** MANAGEMENT_009 안전 사고 이력 — 최근 발생 일자 우선 */
     List<SafetyAccident> findAllByWorkerIdxOrderByOccurredAtDesc(Long workerIdx);
 
-    boolean existsByWorkerIdxAndOccurredAtAndAccidentTypeAndZoneMainAndZoneSub(
-            Long workerIdx, LocalDate occurredAt, String accidentType, String zoneMain, String zoneSub);
-
     // 벌크 피로도 계산용 — 사고 이력이 있는 workerIdx만 1회 IN 쿼리로 반환
     @Query("SELECT DISTINCT a.worker.idx FROM SafetyAccident a " +
            "WHERE a.worker.idx IN :workerIdxes AND a.occurredAt BETWEEN :from AND :to")
