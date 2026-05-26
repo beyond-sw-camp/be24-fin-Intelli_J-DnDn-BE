@@ -24,15 +24,38 @@ public class JwtFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+        // Authorization 헤더 우선, 없으면 SSE용 query param 'token' 폴백
+        // (EventSource API 는 커스텀 헤더 미지원 → ?token= 으로 JWT 전달)
+        String rawToken = null;
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
+            rawToken = header.substring(7);
+        } else {
+            String queryToken = request.getParameter("token");
+            if (queryToken != null && !queryToken.isBlank()) {
+                rawToken = queryToken;
+            }
+        }
+
+        if (rawToken != null) {
             try {
-                Claims claims = jwtProvider.parse(header.substring(7));
-                Long idx = claims.get("idx", Long.class);
-                String role = claims.get("role", String.class);
-                var auth = new UsernamePasswordAuthenticationToken(
-                        idx, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
-                SecurityContextHolder.getContext().setAuthentication(auth);
+                Claims claims = jwtProvider.parse(rawToken);
+                String type = claims.get("type", String.class);
+
+                if ("WORKER".equals(type)) {
+                    // 모바일 작업자 토큰 — principal = workerIdx, authority = ROLE_WORKER
+                    Long workerIdx = claims.get("workerIdx", Long.class);
+                    var auth = new UsernamePasswordAuthenticationToken(
+                            workerIdx, null, List.of(new SimpleGrantedAuthority("ROLE_WORKER")));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                } else {
+                    // 관리자(SystemUser) 토큰 — 기존 로직 유지
+                    Long idx = claims.get("idx", Long.class);
+                    String role = claims.get("role", String.class);
+                    var auth = new UsernamePasswordAuthenticationToken(
+                            idx, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                }
             } catch (Exception ignored) {
                 // 유효하지 않은 토큰은 인증 없이 통과 — 이후 접근 제어에서 거절됨
             }

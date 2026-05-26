@@ -3,6 +3,7 @@ package org.example.dndncore.worker;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.dndncore.common.model.BaseResponse;
+import org.example.dndncore.sse.SseEmitterRegistry;
 import org.example.dndncore.worker.model.dto.WorkerDetailDto;
 import org.example.dndncore.worker.model.dto.WorkerDto;
 import org.example.dndncore.worker.model.enums.AttendanceStatus;
@@ -12,8 +13,10 @@ import org.example.dndncore.worker.service.AttendanceSeedService;
 import org.example.dndncore.worker.service.WorkerDetailService;
 import org.example.dndncore.worker.service.WorkerService;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -28,6 +31,17 @@ public class WorkerController {
     private final BatchTriggerService batchTriggerService;
     private final AttendanceSeedService attendanceSeedService;
     private final AttendanceBulkService attendanceBulkService;
+    private final SseEmitterRegistry sseEmitterRegistry;
+
+    // MANAGEMENT_SSE 출퇴근 실시간 스트림 — 관리자 웹에서 새로고침 없이 출근 반영
+    // GET /management/sse/attendance-stream?siteCode=SITE01
+    // EventSource(url, { withCredentials: true }) 로 연결; 이벤트명: attendance
+    @GetMapping(value = "/sse/attendance-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter attendanceStream(
+            @RequestParam(required = false, defaultValue = "") String siteCode
+    ) {
+        return sseEmitterRegistry.subscribe(siteCode);
+    }
 
     // MANAGEMENT_001 전체 현장 동기화 수동 트리거 — dndn-batch K8s Job 실행
     @PostMapping("/sync/all")

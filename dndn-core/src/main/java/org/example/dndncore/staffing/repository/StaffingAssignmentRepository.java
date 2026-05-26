@@ -39,6 +39,19 @@ public interface StaffingAssignmentRepository extends JpaRepository<StaffingAssi
 
     int countByZoneSub_IdxAndWorkDate(Long zoneSubIdx, LocalDate workDate);
 
+    /** 모바일 — 단일 작업자의 특정 날짜 배치 행 조회 (ZoneSub·ZoneMain 페치 조인) */
+    @Query("""
+            select a from StaffingAssignment a
+                join fetch a.zoneSub zs
+                join fetch zs.zoneMain zm
+            where a.workerIdx = :workerIdx
+              and a.workDate = :workDate
+            order by a.idx asc
+            """)
+    List<StaffingAssignment> findAllWithZonesByWorkerIdxAndWorkDate(
+            @Param("workerIdx") Long workerIdx,
+            @Param("workDate") LocalDate workDate);
+
     /** STAFFING_008 우측 패널 — 명단(workerIdx 들) 기준 최초 배치 행을 찾을 때 로드(IN 비어 있으면 호출하지 말 것). */
     @Query("""
             select a from StaffingAssignment a
