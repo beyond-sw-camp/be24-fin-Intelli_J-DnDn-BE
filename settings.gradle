@@ -1,3 +1,6 @@
 rootProject.name = 'DnDn'
 
 include 'dndn-core'
+include 'dndn-document-management'
+include 'dndn-gateway'
+include 'dndn-discovery'

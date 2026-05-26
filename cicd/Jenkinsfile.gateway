@@ -1,0 +1,170 @@
+pipeline {
+  agent {
+    kubernetes {
+      namespace 'default'
+      label "gradle-kaniko-gateway-${UUID.randomUUID().toString()}"
+      defaultContainer 'gradle'
+      yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: worker04
+  restartPolicy: Never
+  containers:
+    - name: gradle
+      image: gradle:8.9-jdk17
+      command: ['cat']
+      tty: true
+      volumeMounts:
+        - name: gradle-cache
+          mountPath: /home/gradle/.gradle
+    - name: kaniko
+      image: gcr.io/kaniko-project/executor:debug
+      command: ['/busybox/sh','-c','sleep infinity']
+      tty: true
+      volumeMounts:
+        - name: docker-config
+          mountPath: /kaniko/.docker
+        - name: workspace
+          mountPath: /workspace
+    - name: kubectl
+      image: bitnami/kubectl:latest
+      command: ['sleep', 'infinity']
+      securityContext:
+        runAsUser: 0
+  volumes:
+    - name: gradle-cache
+      emptyDir: {}
+    - name: workspace
+      emptyDir: {}
+    - name: docker-config
+      secret:
+        secretName: dockerhub-cred
+        items:
+          - key: .dockerconfigjson
+            path: config.json
+"""
+    }
+  }
+
+  options {
+    disableConcurrentBuilds()
+  }
+
+  parameters {
+    booleanParam(name: 'FORCE_DEPLOY', defaultValue: false, description: 'Deploy gateway even when no related files changed.')
+  }
+
+  environment {
+    IMAGE_NAME = 'seungwoo0128/dndn-gateway'
+    IMAGE_TAG = "${env.JOB_NAME.contains('test') ? 'test-' : ''}1.${env.BUILD_NUMBER}"
+    NAMESPACE = "${env.JOB_NAME.contains('test') ? 'test' : 'default'}"
+    SKIP_PIPELINE = 'false'
+  }
+
+  stages {
+    stage('Detect Changes') {
+      steps {
+        script {
+          if (params.FORCE_DEPLOY) {
+            echo 'FORCE_DEPLOY=true, running gateway pipeline.'
+            return
+          }
+
+          def changedText = sh(
+            script: '''
+              git config --global --add safe.directory "$WORKSPACE"
+              if git rev-parse HEAD~1 >/dev/null 2>&1; then
+                git diff --name-only HEAD~1 HEAD
+              else
+                git show --name-only --pretty=format: HEAD
+              fi
+            ''',
+            returnStdout: true
+          ).trim()
+
+          def changedFiles = changedText ? changedText.split('\\n') : []
+          def relevant = changedFiles.any { path ->
+            path == 'settings.gradle' ||
+            path == 'build.gradle' ||
+            path == 'gradlew' ||
+            path == 'gradlew.bat' ||
+            path.startsWith('gradle/') ||
+            path.startsWith('dndn-gateway/') ||
+            path == 'Dockerfile.gateway' ||
+            path.startsWith('cicd/Gateway') ||
+            path == 'cicd/Jenkinsfile.gateway'
+          }
+
+          if (!relevant) {
+            env.SKIP_PIPELINE = 'true'
+            currentBuild.result = 'NOT_BUILT'
+            echo "No gateway related changes. Changed files: ${changedFiles.join(', ')}"
+          }
+        }
+      }
+    }
+
+    stage('Gradle Build') {
+      when {
+        expression { env.SKIP_PIPELINE != 'true' }
+      }
+      steps {
+        container('gradle') {
+          sh '''
+            chmod +x ./gradlew || true
+            ./gradlew --no-daemon clean :dndn-gateway:bootJar
+          '''
+        }
+      }
+    }
+
+    stage('Kaniko Build & Push') {
+      when {
+        expression { env.SKIP_PIPELINE != 'true' }
+      }
+      steps {
+        container('kaniko') {
+          sh """
+            /kaniko/executor \
+              --context=${WORKSPACE} \
+              --dockerfile=${WORKSPACE}/Dockerfile.gateway \
+              --destination=${IMAGE_NAME}:${IMAGE_TAG} \
+              --destination=${IMAGE_NAME}:latest \
+              --single-snapshot \
+              --use-new-run \
+              --cache=true \
+              --snapshotMode=redo
+          """
+        }
+      }
+    }
+
+    stage('Deploy to Kubernetes') {
+      when {
+        expression { env.SKIP_PIPELINE != 'true' }
+      }
+      steps {
+        container('kubectl') {
+          sh "kubectl apply -f cicd/GatewayDeployment.yaml -n ${NAMESPACE}"
+          sh "kubectl set image deployment/dndn-gateway gateway=${IMAGE_NAME}:${IMAGE_TAG} -n ${NAMESPACE}"
+          sh "kubectl rollout status deployment/dndn-gateway -n ${NAMESPACE} --timeout=180s"
+          sh "kubectl apply -f cicd/GatewayService.yaml -n ${NAMESPACE}"
+          sh "kubectl apply -f cicd/GatewayIngress.yaml -n ${NAMESPACE}"
+          sh "kubectl delete deployment dndn-gateway-blue dndn-gateway-green -n ${NAMESPACE} --ignore-not-found=true"
+          echo "Gateway deployed: ${IMAGE_NAME}:${IMAGE_TAG}"
+        }
+      }
+    }
+
+    stage('Result') {
+      when {
+        expression { env.SKIP_PIPELINE != 'true' }
+      }
+      steps {
+        echo "Pushed: ${IMAGE_NAME}:${IMAGE_TAG}"
+      }
+    }
+  }
+}

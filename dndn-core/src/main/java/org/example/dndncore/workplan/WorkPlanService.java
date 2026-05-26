@@ -20,7 +20,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @Transactional(readOnly = true)
@@ -47,15 +49,47 @@ public class WorkPlanService {
     // 작업 계획 등록
     @Transactional
     public Long create(WorkPlanDto.Req dto) {
+        WorkPlan plan = savePlan(dto);
+        triggerZoneSyncIfWeekly(plan);
+        return plan.getIdx();
+    }
+
+    @Transactional
+    public List<Long> createBulk(List<WorkPlanDto.Req> dtos) {
+        if (dtos == null || dtos.isEmpty()) {
+            throw new RuntimeException("??ν븷 ?묒뾽 怨꾪쉷???놁뒿?덈떎.");
+        }
+
+        List<WorkPlan> savedPlans = new ArrayList<>();
+        for (WorkPlanDto.Req dto : dtos) {
+            savedPlans.add(savePlan(dto));
+        }
+
+        Set<LocalDate> weeklySyncDates = new LinkedHashSet<>();
+        for (WorkPlan plan : savedPlans) {
+            if (plan.getPlanType() == PlanType.WEEKLY) {
+                weeklySyncDates.add(plan.getStartDate() != null ? plan.getStartDate() : LocalDate.now());
+            }
+        }
+        weeklySyncDates.forEach(this::triggerZoneSync);
+
+        return savedPlans.stream().map(WorkPlan::getIdx).toList();
+    }
+
+    private WorkPlan savePlan(WorkPlanDto.Req dto) {
         WorkPlan plan = dto.toEntity();
 
         linkTradeProcessIfPresent(plan, dto.getTradeProcessId());
         linkParentWorkPlanIfPresent(plan, dto.getParentWorkPlanId());
         authAccessService.assertWorkPlanAccess(plan);
 
-        Long savedId = workPlanRepository.save(plan).getIdx();
-        triggerZoneSync(plan.getStartDate());
-        return savedId;
+        return workPlanRepository.save(plan);
+    }
+
+    private void triggerZoneSyncIfWeekly(WorkPlan plan) {
+        if (plan.getPlanType() == PlanType.WEEKLY) {
+            triggerZoneSync(plan.getStartDate());
+        }
     }
 
     public List<WorkPlanDto.workPlanRes> listByProject(Long projectId) {

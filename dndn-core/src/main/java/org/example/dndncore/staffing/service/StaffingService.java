@@ -623,7 +623,7 @@ public class StaffingService {
     }
 
     private List<ZoneSub> syncScheduleZonesFromWorkPlans(LocalDate date) {
-        List<WorkPlan> weeklyPlans = workPlanRepository.findAllByPlanTypeWithStaffingGraph(PlanType.WEEKLY).stream()
+        List<WorkPlan> weeklyPlans = workPlanRepository.findActiveByPlanTypeWithStaffingGraph(PlanType.WEEKLY, date).stream()
                 .filter(authAccessService::canAccessWorkPlan)
                 .filter(plan -> isActiveOnDate(plan, date))
                 .sorted(Comparator

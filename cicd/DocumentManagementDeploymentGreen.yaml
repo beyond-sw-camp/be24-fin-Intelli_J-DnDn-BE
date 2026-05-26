@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dndn-document-management-green
+  labels:
+    app: dndn-document-management
+    type: document-management
+    version: green
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dndn-document-management
+      type: document-management
+      version: green
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: dndn-document-management
+        type: document-management
+        version: green
+    spec:
+      containers:
+        - name: document-management
+          image: seungwoo0128/dndn-document-management:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8082
+          volumeMounts:
+            - name: elasticsearch-ca
+              mountPath: /etc/elasticsearch/certs
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8082
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8082
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8082
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2048Mi"
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod,elastic"
+            - name: EUREKA_DEFAULT_ZONE
+              value: "http://discovery-service:8761/eureka/"
+            - name: DEPLOYMENT_COLOR
+              value: "green"
+          envFrom:
+            - configMapRef:
+                name: backend-config
+      volumes:
+        - name: elasticsearch-ca
+          secret:
+            secretName: quickstart-eck-elasticsearch-es-http-certs-public

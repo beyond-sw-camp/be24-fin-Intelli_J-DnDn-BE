@@ -46,6 +46,16 @@ spring:
         order_inserts: true
         order_updates: true
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+
 management:
   endpoint:
     health:
@@ -67,10 +77,15 @@ management:
 
 logging:
   level:
-    org.hibernate.SQL: debug
-    org.hibernate.orm.jdbc.bind: trace
-    org.example: debug
-    net.ttddyy.observation: DEBUG
+    org.hibernate.SQL: warn
+    org.hibernate.orm.jdbc.bind: warn
+    org.example: info
+    org.example.dndncore.worker.scheduler: info
+    net.ttddyy.observation: warn
+    org.springframework.kafka: warn
+    org.apache.kafka: warn
+    org.apache.kafka.clients.NetworkClient: error
+    org.apache.kafka.clients.producer.internals.Sender: error
 
 weather:
   kma:
@@ -138,3 +153,10 @@ dndn:
       site-count: 20
       daily-reports-per-site: 2500
       work-orders-per-site: 2500
+
+document:
+  kafka:
+    topics:
+      document-uploaded: ${DOCUMENT_UPLOADED_TOPIC:document.uploaded.v1}
+      work-order-changed: ${WORK_ORDER_CHANGED_TOPIC:work-order.changed.v1}
+      daily-report-changed: ${DAILY_REPORT_CHANGED_TOPIC:daily-report.changed.v1}

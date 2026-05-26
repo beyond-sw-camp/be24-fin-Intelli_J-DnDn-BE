@@ -22,6 +22,19 @@ public interface WorkPlanRepository extends JpaRepository<WorkPlan, Long> {
     @Query("select distinct wp from WorkPlan wp where wp.planType = :planType")
     List<WorkPlan> findAllByPlanTypeWithStaffingGraph(@Param("planType") PlanType planType);
 
+    @Query("SELECT DISTINCT wp FROM WorkPlan wp " +
+            "LEFT JOIN FETCH wp.extension e " +
+            "LEFT JOIN FETCH wp.parentWorkPlan " +
+            "LEFT JOIN FETCH wp.tradeProcess " +
+            "LEFT JOIN FETCH wp.workers " +
+            "WHERE wp.planType = :planType " +
+            "AND wp.startDate <= :date " +
+            "AND (wp.endDate >= :date OR e.extendedEnd >= :date)")
+    List<WorkPlan> findActiveByPlanTypeWithStaffingGraph(
+            @Param("planType") PlanType planType,
+            @Param("date") LocalDate date
+    );
+
     List<WorkPlan> findAllByPlanTypeAndTrade(PlanType planType, WorkTrade trade);
 
     List<WorkPlan> findAllByPlanTypeAndStatus(PlanType planType, PlanStatus status);

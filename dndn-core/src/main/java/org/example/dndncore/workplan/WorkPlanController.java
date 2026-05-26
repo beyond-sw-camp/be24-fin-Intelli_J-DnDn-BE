@@ -27,6 +27,12 @@ public class WorkPlanController {
         return ResponseEntity.ok(BaseResponse.success(newIdx));
     }
 
+    @PostMapping("/bulk")
+    public ResponseEntity<?> createBulk(@RequestBody List<WorkPlanDto.Req> dtos) {
+        List<Long> savedIds = workPlanService.createBulk(dtos);
+        return ResponseEntity.ok(BaseResponse.success(savedIds));
+    }
+
     // 작업 계획 단일 조회
     @GetMapping("/{planId}")
     public ResponseEntity<?> read(@PathVariable("planId") Long planId) {
