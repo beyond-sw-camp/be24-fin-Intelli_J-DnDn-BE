@@ -116,7 +116,8 @@ public class SecurityConfig {
                 "http://192.100.200.41:8081",     // 모바일 Vite dev (팀 내부망 IP)
                 "http://localhost",               // Capacitor Android WebView
                 "capacitor://localhost",          // Capacitor iOS WebView
-                "ionic://localhost"               // Ionic 앱 내부 scheme
+                "ionic://localhost",              // Ionic 앱 내부 scheme
+                "https://www.dndn24.kro.kr"      // 배포 도메인
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
