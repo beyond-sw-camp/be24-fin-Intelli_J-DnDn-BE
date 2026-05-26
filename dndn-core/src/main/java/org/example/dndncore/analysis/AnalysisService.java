@@ -119,11 +119,11 @@ public class AnalysisService {
 
     private AnalysisContext buildAnalysisContext(Long projectId, LocalDate today) {
         List<WorkPlan> allPlans = workPlanRepository.findAllForAnalysis(projectId);
-        List<WorkPlan> rootMonthlyPlans = allPlans.stream()
-                .filter(this::isRootMonthlyPlan)
+        List<WorkPlan> monthlyPlans = allPlans.stream()
+                .filter(this::isMonthlyPlan)
                 .toList();
 
-        Map<Long, List<WorkPlan>> monthlyPlansByTradeProcessId = rootMonthlyPlans.stream()
+        Map<Long, List<WorkPlan>> monthlyPlansByTradeProcessId = monthlyPlans.stream()
                 .filter(plan -> tradeProcessId(plan) != null)
                 .collect(Collectors.groupingBy(this::tradeProcessId));
 
@@ -132,7 +132,7 @@ public class AnalysisService {
                 .filter(plan -> plan.getParentWorkPlan().getIdx() != null)
                 .collect(Collectors.groupingBy(plan -> plan.getParentWorkPlan().getIdx()));
 
-        Set<Long> monthlyPlanIds = rootMonthlyPlans.stream()
+        Set<Long> monthlyPlanIds = monthlyPlans.stream()
                 .map(WorkPlan::getIdx)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
@@ -159,7 +159,7 @@ public class AnalysisService {
                 );
 
         return new AnalysisContext(
-                rootMonthlyPlans,
+                monthlyPlans,
                 monthlyPlansByTradeProcessId,
                 childrenByParentId,
                 groupReportsByMonthlyPlanId(monthlyReports),
@@ -214,11 +214,11 @@ public class AnalysisService {
         LocalDate today = LocalDate.now(ANALYSIS_ZONE);
         AnalysisContext context = buildAnalysisContext(projectId, today);
 
-        return context.rootMonthlyPlans()
+        return context.monthlyPlans()
                 .stream()
                 // 101??湲곗큹 肄섑겕由ы듃 ???媛숈? ?몃? ?묒뾽
                 .filter(authAccessService::canAccessWorkPlan)
-                .filter(this::isRootMonthlyPlan)
+                .filter(this::isMonthlyPlan)
 
                 // ?뱀젙 怨듭젙 ?좏깮 ???대떦 怨듭젙???몃? ?묒뾽留?議고쉶
                 .filter(wp -> tradeProcessId == null
@@ -462,7 +462,25 @@ public class AnalysisService {
                 monthlyPlan.getIdx(),
                 today
         );
-        return report != null ? toActualProgressSnapshot(report) : ActualProgressSnapshot.none();
+        if (report != null) {
+            return toActualProgressSnapshot(report);
+        }
+
+        DailyReport childReport = findLatestReportFromChildPlans(monthlyPlan.getIdx(), today, context);
+        return childReport != null ? toActualProgressSnapshot(childReport) : ActualProgressSnapshot.none();
+    }
+
+    private DailyReport findLatestReportFromChildPlans(Long parentWorkPlanId, LocalDate today, AnalysisContext context) {
+        if (parentWorkPlanId == null) return null;
+
+        return context.childrenByParentId()
+                .getOrDefault(parentWorkPlanId, List.of())
+                .stream()
+                .map(child -> findLatestReport(context.workReportsByPlanId(), child.getIdx(), today))
+                .filter(Objects::nonNull)
+                .sorted(LATEST_REPORT_FIRST)
+                .findFirst()
+                .orElse(null);
     }
 
     private ActualProgressSnapshot toActualProgressSnapshot(DailyReport report) {
@@ -529,10 +547,9 @@ public class AnalysisService {
     // 5. 怨꾪쉷 吏꾩쿃瑜?/ ?덉긽 醫낅즺??
     // ?????????????????????????????????????????????
 
-    private boolean isRootMonthlyPlan(WorkPlan workPlan) {
+    private boolean isMonthlyPlan(WorkPlan workPlan) {
         return workPlan != null
-                && workPlan.getPlanType() == PlanType.MONTHLY
-                && workPlan.getParentWorkPlan() == null;
+                && workPlan.getPlanType() == PlanType.MONTHLY;
     }
 
     private double calcPlannedPct(LocalDate start, LocalDate end, LocalDate today) {
@@ -673,7 +690,7 @@ public class AnalysisService {
     }
 
     private record AnalysisContext(
-            List<WorkPlan> rootMonthlyPlans,
+            List<WorkPlan> monthlyPlans,
             Map<Long, List<WorkPlan>> monthlyPlansByTradeProcessId,
             Map<Long, List<WorkPlan>> childrenByParentId,
             Map<Long, List<DailyReport>> monthlyReportsByPlanId,

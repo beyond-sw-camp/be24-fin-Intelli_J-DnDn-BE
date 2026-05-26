@@ -162,7 +162,7 @@ spec:
 
             sh "kubectl set image deployment/dndn-document-management-${inactiveVersion} document-management=${IMAGE_NAME}:${IMAGE_TAG} -n ${NAMESPACE}"
             sh "kubectl scale deployment/dndn-document-management-${inactiveVersion} --replicas=1 -n ${NAMESPACE}"
-            sh "kubectl rollout status deployment/dndn-document-management-${inactiveVersion} -n ${NAMESPACE} --timeout=180s"
+            sh "kubectl rollout status deployment/dndn-document-management-${inactiveVersion} -n ${NAMESPACE} --timeout=420s"
             sh "kubectl get svc document-management-service -n ${NAMESPACE} >/dev/null 2>&1 || kubectl apply -f cicd/DocumentManagementService.yaml -n ${NAMESPACE}"
             sh "kubectl patch svc document-management-service -n ${NAMESPACE} -p '{\"spec\":{\"selector\":{\"app\":\"dndn-document-management\",\"type\":\"document-management\",\"version\":\"${inactiveVersion}\"}}}'"
             sh "kubectl scale deployment/dndn-document-management-${activeVersion} --replicas=0 -n ${NAMESPACE}"

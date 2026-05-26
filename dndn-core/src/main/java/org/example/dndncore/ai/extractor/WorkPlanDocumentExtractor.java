@@ -12,6 +12,7 @@ import java.util.List;
 public class WorkPlanDocumentExtractor {
 
     private final OpenAiWorkPlanExtractor openAiWorkPlanExtractor;
+    private final WorkPlanExcelFallbackParser workPlanExcelFallbackParser;
 
     public List<WorkPlanAiDto.Item> extract(
             File file,
@@ -22,13 +23,24 @@ public class WorkPlanDocumentExtractor {
     ) {
         validateFile(file);
 
-        return openAiWorkPlanExtractor.extractWorkPlan(
+        List<WorkPlanAiDto.Item> excelItems = workPlanExcelFallbackParser.extract(file, selectedTradeName);
+        if (!excelItems.isEmpty()) {
+            return excelItems;
+        }
+
+        List<WorkPlanAiDto.Item> aiItems = openAiWorkPlanExtractor.extractWorkPlan(
                 file,
                 planType,
                 year,
                 month,
                 selectedTradeName
         );
+
+        if (aiItems != null && !aiItems.isEmpty()) {
+            return aiItems;
+        }
+
+        return List.of();
     }
 
     private void validateFile(File file) {

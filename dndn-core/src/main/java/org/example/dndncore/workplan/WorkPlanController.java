@@ -3,8 +3,10 @@ package org.example.dndncore.workplan;
 import lombok.RequiredArgsConstructor;
 import org.example.dndncore.common.model.BaseResponse;
 import org.example.dndncore.workplan.model.WorkPlanDto;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +33,20 @@ public class WorkPlanController {
     public ResponseEntity<?> createBulk(@RequestBody List<WorkPlanDto.Req> dtos) {
         List<Long> savedIds = workPlanService.createBulk(dtos);
         return ResponseEntity.ok(BaseResponse.success(savedIds));
+    }
+
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadAndExtract(
+            @RequestParam("projectId") Long projectId,
+            @RequestParam("planType") String planType,
+            @RequestParam(value = "trade", required = false) String trade,
+            @RequestParam(value = "year", required = false) Integer year,
+            @RequestParam(value = "month", required = false) Integer month,
+            @RequestParam("file") MultipartFile file
+    ) {
+        List<WorkPlanDto.UploadExtractRes> rows =
+                workPlanService.extractUpload(projectId, planType, trade, year, month, file);
+        return ResponseEntity.ok(BaseResponse.success(rows));
     }
 
     // 작업 계획 단일 조회

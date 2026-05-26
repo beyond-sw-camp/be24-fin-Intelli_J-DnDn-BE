@@ -220,6 +220,7 @@ public class DocumentManagementService {
                 LEFT JOIN trade_process tp ON tp.idx = COALESCE(wp.trade_process_id, pwp.trade_process_id)
                 LEFT JOIN master_schedule ms ON ms.idx = tp.master_schedule_id
                 WHERE (wo.is_deleted = FALSE OR wo.is_deleted IS NULL)
+                  AND wo.status_code = 'APPROVED'
                   AND (ms.project_id = :projectId OR wo.site_idx = :projectId)
 
                 UNION ALL

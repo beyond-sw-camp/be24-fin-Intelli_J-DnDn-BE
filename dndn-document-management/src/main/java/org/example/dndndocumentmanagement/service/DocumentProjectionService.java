@@ -145,6 +145,9 @@ public class DocumentProjectionService {
                 previewsToSave.remove(documentId);
                 continue;
             }
+            if (!isApproved(event.statusCode())) {
+                continue;
+            }
 
             SourceLookup lookup = new SourceLookup(SOURCE_WORK_ORDER, event.sourceId());
             DocumentIndex document = documentsToSave.getOrDefault(
@@ -388,6 +391,10 @@ public class DocumentProjectionService {
 
     private boolean isDeleted(String eventType) {
         return eventType != null && eventType.toUpperCase().contains("DELETED");
+    }
+
+    private boolean isApproved(String statusCode) {
+        return "APPROVED".equalsIgnoreCase(blankToDefault(statusCode, ""));
     }
 
     private LocalDate dateFrom(java.time.LocalDateTime value) {
