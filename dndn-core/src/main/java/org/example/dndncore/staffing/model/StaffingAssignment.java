@@ -31,4 +31,9 @@ public class StaffingAssignment extends BaseEntity {
     /** 현장 코드 스냅샷 — worker.siteCode 기준, 현장별 배치 현황 조회·초기화·확정 지원 */
     @Column(name = "site_code", length = 30)
     private String siteCode;
+
+    /** 배치 확정 여부 — true: 확정됨, false(기본값): 초안 */
+    @Builder.Default
+    @Column(name = "confirmed", nullable = false)
+    private boolean confirmed = false;
 }
