@@ -2,7 +2,7 @@ pipeline {
   agent {
     kubernetes {
       namespace 'default'
-      label "gradle-kaniko-${UUID.randomUUID().toString()}"
+      label "gradle-kaniko-core-${UUID.randomUUID().toString()}"
       defaultContainer 'gradle'
       yaml """
 apiVersion: v1
@@ -54,15 +54,69 @@ spec:
 """
     }
   }
-  // main, test 분기처리
+
+  options {
+    disableConcurrentBuilds()
+  }
+
+  parameters {
+    booleanParam(name: 'FORCE_DEPLOY', defaultValue: false, description: 'Deploy core even when no related files changed.')
+  }
+
   environment {
     IMAGE_NAME = 'seungwoo0128/dndn-backend'
-    IMAGE_TAG  = "${env.JOB_NAME.contains('test') ? 'test-' : ''}1.${env.BUILD_NUMBER}"
-    NAMESPACE  = "${env.JOB_NAME.contains('test') ? 'test' : 'default'}"
+    IMAGE_TAG = "${env.JOB_NAME.contains('test') ? 'test-' : ''}1.${env.BUILD_NUMBER}"
+    NAMESPACE = "${env.JOB_NAME.contains('test') ? 'test' : 'default'}"
+    SKIP_PIPELINE = 'false'
   }
+
   stages {
+    stage('Detect Changes') {
+      steps {
+        script {
+          if (params.FORCE_DEPLOY) {
+            echo 'FORCE_DEPLOY=true, running core pipeline.'
+            return
+          }
+
+          def changedText = sh(
+            script: '''
+              git config --global --add safe.directory "$WORKSPACE"
+              if git rev-parse HEAD~1 >/dev/null 2>&1; then
+                git diff --name-only HEAD~1 HEAD
+              else
+                git show --name-only --pretty=format: HEAD
+              fi
+            ''',
+            returnStdout: true
+          ).trim()
+
+          def changedFiles = changedText ? changedText.split('\\n') : []
+          def relevant = changedFiles.any { path ->
+            path == 'settings.gradle' ||
+            path == 'build.gradle' ||
+            path == 'gradlew' ||
+            path == 'gradlew.bat' ||
+            path.startsWith('gradle/') ||
+            path.startsWith('dndn-core/') ||
+            path == 'Dockerfile' ||
+            path.startsWith('cicd/Backend') ||
+            path == 'cicd/Jenkinsfile.core'
+          }
+
+          if (!relevant) {
+            env.SKIP_PIPELINE = 'true'
+            currentBuild.result = 'NOT_BUILT'
+            echo "No core related changes. Changed files: ${changedFiles.join(', ')}"
+          }
+        }
+      }
+    }
 
     stage('Gradle Build') {
+      when {
+        expression { env.SKIP_PIPELINE != 'true' }
+      }
       steps {
         container('gradle') {
           sh '''
@@ -73,7 +127,10 @@ spec:
       }
     }
 
-    stage('Kaniko Build & Push') {
+    stage('Kaniko Build & Push Core') {
+      when {
+        expression { env.SKIP_PIPELINE != 'true' }
+      }
       steps {
         container('kaniko') {
           sh """
@@ -91,41 +148,40 @@ spec:
       }
     }
 
-    stage('Result') {
-      steps {
-        echo "Pushed: ${IMAGE_NAME}:${IMAGE_TAG}"
+    stage('Deploy Core Blue-Green') {
+      when {
+        expression { env.SKIP_PIPELINE != 'true' }
       }
-    }
-
-    stage('Deploy to Kubernetes') {
       steps {
         container('kubectl') {
           script {
             def activeService = sh(
-              script: "kubectl get ingress backend-ingress -n ${NAMESPACE} -o jsonpath='{.spec.rules[0].http.paths[0].backend.service.name}'",
+              script: "kubectl get svc backend-service -n ${NAMESPACE} -o jsonpath='{.spec.selector.version}'",
               returnStdout: true
             ).trim()
-            def activeVersion   = activeService.contains('blue') ? 'blue' : 'green'
+            def activeVersion = activeService == 'blue' ? 'blue' : 'green'
             def inactiveVersion = activeVersion == 'blue' ? 'green' : 'blue'
-            echo "Namespace: ${NAMESPACE} | Active: ${activeVersion} → Deploying to: ${inactiveVersion}"
+
+            echo "Namespace: ${NAMESPACE} | Active: ${activeVersion} | Deploying core to: ${inactiveVersion}"
 
             sh "kubectl set image deployment/dndn-backend-${inactiveVersion} backend=${IMAGE_NAME}:${IMAGE_TAG} -n ${NAMESPACE}"
             sh "kubectl scale deployment/dndn-backend-${inactiveVersion} --replicas=2 -n ${NAMESPACE}"
             sh "kubectl rollout status deployment/dndn-backend-${inactiveVersion} -n ${NAMESPACE} --timeout=180s"
-
-            // Ingress 전환 (외부 트래픽)
-            sh """
-              kubectl patch ingress backend-ingress -n ${NAMESPACE} --type=json \
-                -p='[{"op":"replace","path":"/spec/rules/0/http/paths/0/backend/service/name","value":"backend-service-${inactiveVersion}"}]'
-            """
-
-            // stable backend-service selector 전환
             sh "kubectl patch svc backend-service -n ${NAMESPACE} -p '{\"spec\":{\"selector\":{\"type\":\"backend\",\"version\":\"${inactiveVersion}\"}}}'"
-
             sh "kubectl scale deployment/dndn-backend-${activeVersion} --replicas=0 -n ${NAMESPACE}"
-            echo "Switched to: ${inactiveVersion}"
+
+            echo "Core switched to: ${inactiveVersion}"
           }
         }
+      }
+    }
+
+    stage('Result') {
+      when {
+        expression { env.SKIP_PIPELINE != 'true' }
+      }
+      steps {
+        echo "Pushed: ${IMAGE_NAME}:${IMAGE_TAG}"
       }
     }
   }

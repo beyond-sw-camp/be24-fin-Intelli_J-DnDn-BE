@@ -13,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -51,6 +52,22 @@ public class AuthAccessService {
                 || user.getRole() == UserRole.SITE_DIRECTOR
                 || user.getRole() == UserRole.SECTION_LEADER
                 || user.getRole() == UserRole.SECTION_SUPERVISOR;
+    }
+
+    public Optional<List<Long>> accessibleProjectIds(SystemUser user) {
+        if (user == null || !isSiteScoped(user)) {
+            return Optional.empty();
+        }
+
+        String assignedSiteCode = clean(user.getSiteCode());
+        if (assignedSiteCode.isBlank()) {
+            return Optional.empty();
+        }
+
+        String projectNamePrefix = "[" + assignedSiteCode + "]";
+        return Optional.of(projectRepository.findByNamePrefixIgnoreCase(projectNamePrefix).stream()
+                .map(Project::getIdx)
+                .toList());
     }
 
     public String effectiveTrade(String requestedTrade) {

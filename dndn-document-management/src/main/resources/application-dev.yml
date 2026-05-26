@@ -1,0 +1,97 @@
+server:
+  port: ${DOCUMENT_MANAGEMENT_PORT:8082}
+
+spring:
+  application:
+    name: dndn-document-management
+
+  datasource:
+    driver-class-name: org.mariadb.jdbc.Driver
+    url: ${DOCUMENT_DB_URL}
+    username: ${DOCUMENT_DB_USER}
+    password: ${DOCUMENT_DB_PASS}
+
+  jpa:
+    database-platform: org.hibernate.dialect.MariaDBDialect
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        default_batch_fetch_size: 1000
+        format_sql: true
+        jdbc:
+          batch_size: ${DOCUMENT_JPA_BATCH_SIZE:300}
+        order_inserts: true
+        order_updates: true
+
+
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://192.100.20.111:9200,http://192.100.20.112:9200,http://192.100.20.113:9200}
+    connection-timeout: ${ELASTICSEARCH_CONNECTION_TIMEOUT:2s}
+    socket-timeout: ${ELASTICSEARCH_SOCKET_TIMEOUT:3s}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    consumer:
+      group-id: ${DOCUMENT_KAFKA_CONSUMER_GROUP:document-management}
+      auto-offset-reset: earliest
+      max-poll-records: ${DOCUMENT_KAFKA_MAX_POLL_RECORDS:300}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      type: batch
+      ack-mode: batch
+      concurrency: ${DOCUMENT_KAFKA_CONCURRENCY:3}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  level:
+    org.hibernate.SQL: warn
+    org.hibernate.orm.jdbc.bind: warn
+    org.springframework.kafka: info
+    org.apache.kafka: warn
+    org.example: info
+
+document:
+  seed:
+    load-test:
+      enabled: ${DOCUMENT_LOAD_TEST_SEED_ENABLED:true}
+      site-count: ${DOCUMENT_LOAD_TEST_SITE_COUNT:20}
+      daily-reports-per-site: ${DOCUMENT_LOAD_TEST_DAILY_REPORTS_PER_SITE:2500}
+      work-orders-per-site: ${DOCUMENT_LOAD_TEST_WORK_ORDERS_PER_SITE:2500}
+      batch-size: ${DOCUMENT_LOAD_TEST_BATCH_SIZE:1000}
+      project-id-offset: ${DOCUMENT_LOAD_TEST_PROJECT_ID_OFFSET:4}
+      master-source-id-offset: ${DOCUMENT_LOAD_TEST_MASTER_SOURCE_ID_OFFSET:0}
+      daily-report-source-id-offset: ${DOCUMENT_LOAD_TEST_DAILY_REPORT_SOURCE_ID_OFFSET:0}
+      work-order-source-id-offset: ${DOCUMENT_LOAD_TEST_WORK_ORDER_SOURCE_ID_OFFSET:0}
+      refresh-existing: ${DOCUMENT_LOAD_TEST_REFRESH_EXISTING:false}
+
+  kafka:
+    topics:
+      document-uploaded: ${DOCUMENT_UPLOADED_TOPIC:document.uploaded.v1}
+      work-order-changed: ${WORK_ORDER_CHANGED_TOPIC:work-order.changed.v1}
+      daily-report-changed: ${DAILY_REPORT_CHANGED_TOPIC:daily-report.changed.v1}

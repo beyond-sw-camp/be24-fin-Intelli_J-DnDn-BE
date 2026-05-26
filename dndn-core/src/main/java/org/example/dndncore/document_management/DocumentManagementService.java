@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.dndncore.auth.security.AuthAccessService;
 import org.example.dndncore.common.exception.BaseException;
 import org.example.dndncore.common.model.BaseResponseStatus;
+import org.example.dndncore.document_event.DocumentEventProducer;
 import org.example.dndncore.document_management.model.DocumentManagementDto;
 import org.example.dndncore.project.model.entity.MasterSchedule;
 import org.example.dndncore.project.model.entity.Project;
@@ -35,6 +36,7 @@ public class DocumentManagementService {
     private final ProjectRepository projectRepository;
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final AuthAccessService authAccessService;
+    private final DocumentEventProducer documentEventProducer;
 
     private static final Set<DocType> UNIQUE_DOC_TYPES = EnumSet.of(
             DocType.MASTER, DocType.MILESTONE, DocType.WEIGHT
@@ -413,8 +415,8 @@ public class DocumentManagementService {
 
         String fileKey = storageService.store(dto.getFile(), dto.getProjectId(), dto.getDocType());
 
-        MasterSchedule entity = dto.toEntity(project, fileKey);
-        documentManagementRepository.save(entity);
+        MasterSchedule entity = documentManagementRepository.save(dto.toEntity(project, fileKey));
+        documentEventProducer.publishDocumentUploaded(entity);
     }
 
     public String download(Long idx, boolean isPreview) {

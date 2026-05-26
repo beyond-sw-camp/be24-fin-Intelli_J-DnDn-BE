@@ -6,6 +6,9 @@ WORKDIR /app
 COPY build.gradle ./
 COPY settings.gradle ./
 COPY dndn-core/build.gradle ./dndn-core/build.gradle
+COPY dndn-document-management/build.gradle ./dndn-document-management/build.gradle
+COPY dndn-gateway/build.gradle ./dndn-gateway/build.gradle
+COPY dndn-discovery/build.gradle ./dndn-discovery/build.gradle
 
 RUN gradle :dndn-core:dependencies --no-daemon
 

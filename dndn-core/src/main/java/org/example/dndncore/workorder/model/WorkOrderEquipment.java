@@ -6,6 +6,9 @@ import org.example.dndncore.common.model.BaseEntity;
 
 // [WORKORDER_002] 2단계 : 작업 지시서 장비 엔티티 추가
 @Entity
+@Table(indexes = {
+        @Index(name = "idx_work_order_equipment_order", columnList = "work_order_idx")
+})
 @Getter
 @Setter
 @NoArgsConstructor

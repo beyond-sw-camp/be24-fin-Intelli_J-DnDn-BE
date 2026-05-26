@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dndn-discovery
+  labels:
+    app: dndn-discovery
+    type: discovery
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dndn-discovery
+      type: discovery
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: dndn-discovery
+        type: discovery
+    spec:
+      containers:
+        - name: discovery
+          image: seungwoo0128/dndn-discovery:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8761
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8761
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8761
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8761
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1024Mi"
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"

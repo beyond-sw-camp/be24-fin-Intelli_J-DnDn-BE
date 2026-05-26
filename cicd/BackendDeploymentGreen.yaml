@@ -6,7 +6,7 @@ metadata:
     type: backend
     version: green
 spec:
-  replicas: 0 # Idle status
+  replicas: 1
   selector:
     matchLabels:
       type: backend

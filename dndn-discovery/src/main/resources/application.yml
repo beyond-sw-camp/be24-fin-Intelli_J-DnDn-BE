@@ -1,0 +1,30 @@
+server:
+  port: ${DISCOVERY_PORT:8761}
+
+spring:
+  application:
+    name: dndn-discovery
+
+eureka:
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka/}
+  server:
+    enable-self-preservation: ${EUREKA_SELF_PRESERVATION:false}
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  prometheus:
+    metrics:
+      export:
+        enabled: true

@@ -1,6 +1,7 @@
 package org.example.dndncore.workorder;
 
 import org.example.dndncore.workorder.model.WorkOrder;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -10,6 +11,95 @@ import java.util.List;
 
 // [WORKORDER_003] 3단계 : 작업 지시서 Repository
 public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
+
+    @Query("""
+            SELECT DISTINCT wo
+            FROM WorkOrder wo
+            LEFT JOIN FETCH wo.equipments
+            WHERE (wo.isDeleted = false OR wo.isDeleted IS NULL)
+            ORDER BY wo.dueDate DESC, wo.idx DESC
+            """)
+    List<WorkOrder> findActiveWithEquipments();
+
+    @Query("""
+            SELECT DISTINCT wo
+            FROM WorkOrder wo
+            LEFT JOIN FETCH wo.equipments
+            WHERE (wo.isDeleted = false OR wo.isDeleted IS NULL)
+              AND wo.siteIdx IN :siteIds
+            ORDER BY wo.dueDate DESC, wo.idx DESC
+            """)
+    List<WorkOrder> findActiveBySiteIdxInWithEquipments(@Param("siteIds") List<Long> siteIds);
+
+    @Query("""
+            SELECT wo.idx
+            FROM WorkOrder wo
+            WHERE (wo.isDeleted = false OR wo.isDeleted IS NULL)
+              AND (:targetDate IS NULL OR wo.dueDate = :targetDate)
+              AND (:tradeType IS NULL OR wo.tradeType = :tradeType)
+              AND (:statusCode IS NULL OR wo.statusCode = :statusCode OR (:statusCode = 'OPEN' AND wo.statusCode IS NULL))
+              AND (
+                    :keyword IS NULL
+                    OR LOWER(wo.title) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(wo.workDetail) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(wo.instructionContent) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                  )
+              AND (
+                    :cursorDueDate IS NULL
+                    OR wo.dueDate < :cursorDueDate
+                    OR (wo.dueDate = :cursorDueDate AND wo.idx < :cursorId)
+                  )
+            ORDER BY wo.dueDate DESC, wo.idx DESC
+            """)
+    List<Long> findActiveIdsBefore(
+            @Param("targetDate") LocalDate targetDate,
+            @Param("tradeType") String tradeType,
+            @Param("statusCode") String statusCode,
+            @Param("keyword") String keyword,
+            @Param("cursorDueDate") LocalDate cursorDueDate,
+            @Param("cursorId") Long cursorId,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT wo.idx
+            FROM WorkOrder wo
+            WHERE (wo.isDeleted = false OR wo.isDeleted IS NULL)
+              AND wo.siteIdx IN :siteIds
+              AND (:targetDate IS NULL OR wo.dueDate = :targetDate)
+              AND (:tradeType IS NULL OR wo.tradeType = :tradeType)
+              AND (:statusCode IS NULL OR wo.statusCode = :statusCode OR (:statusCode = 'OPEN' AND wo.statusCode IS NULL))
+              AND (
+                    :keyword IS NULL
+                    OR LOWER(wo.title) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(wo.workDetail) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                    OR LOWER(wo.instructionContent) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                  )
+              AND (
+                    :cursorDueDate IS NULL
+                    OR wo.dueDate < :cursorDueDate
+                    OR (wo.dueDate = :cursorDueDate AND wo.idx < :cursorId)
+                  )
+            ORDER BY wo.dueDate DESC, wo.idx DESC
+            """)
+    List<Long> findActiveIdsBySiteIdxInBefore(
+            @Param("siteIds") List<Long> siteIds,
+            @Param("targetDate") LocalDate targetDate,
+            @Param("tradeType") String tradeType,
+            @Param("statusCode") String statusCode,
+            @Param("keyword") String keyword,
+            @Param("cursorDueDate") LocalDate cursorDueDate,
+            @Param("cursorId") Long cursorId,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT DISTINCT wo
+            FROM WorkOrder wo
+            LEFT JOIN FETCH wo.equipments
+            WHERE wo.idx IN :ids
+            """)
+    List<WorkOrder> findByIdxInWithEquipments(@Param("ids") List<Long> ids);
 
     // [WORKORDER_006] 6단계 : 주간계획 연동 초안 장비 불러오기 기능 쿼리
     // feat : WorkPlan 도메인 수정 없이 DB에서 장비 정보 조회

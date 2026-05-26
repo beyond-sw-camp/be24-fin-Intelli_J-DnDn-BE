@@ -46,6 +46,7 @@ public class SecurityConfig {
                         .requestMatchers("/auth/**","/project/**").permitAll()
                         .requestMatchers("/document-management/local-files/**").permitAll()
                         .requestMatchers("/document-management/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/work-order", "/work-order/slice").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/account-requests").authenticated()
                         .requestMatchers(
