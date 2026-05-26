@@ -151,7 +151,6 @@ spec:
           sh "kubectl set image deployment/dndn-gateway gateway=${IMAGE_NAME}:${IMAGE_TAG} -n ${NAMESPACE}"
           sh "kubectl rollout status deployment/dndn-gateway -n ${NAMESPACE} --timeout=180s"
           sh "kubectl apply -f cicd/GatewayService.yaml -n ${NAMESPACE}"
-          sh "kubectl apply -f cicd/GatewayIngress.yaml -n ${NAMESPACE}"
           sh "kubectl delete deployment dndn-gateway-blue dndn-gateway-green -n ${NAMESPACE} --ignore-not-found=true"
           echo "Gateway deployed: ${IMAGE_NAME}:${IMAGE_TAG}"
         }

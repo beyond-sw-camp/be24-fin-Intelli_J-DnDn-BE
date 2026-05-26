@@ -1,8 +1,13 @@
 package org.example.dndncore.workplan;
 
 import org.example.dndncore.auth.security.AuthAccessService;
+import org.example.dndncore.ai.dto.WorkPlanAiDto;
+import org.example.dndncore.ai.extractor.WorkPlanDocumentExtractor;
+import org.example.dndncore.document_management.DocumentManagementService;
+import org.example.dndncore.document_management.model.DocumentManagementDto;
 import org.example.dndncore.project.repository.TradeProcessRepository;
 import org.example.dndncore.project.model.entity.TradeProcess;
+import org.example.dndncore.project.model.enums.DocType;
 import org.example.dndncore.report.DailyReportRepository;
 import org.example.dndncore.report.model.DailyReport;
 import org.example.dndncore.staffing.service.StaffingService;
@@ -15,14 +20,25 @@ import org.example.dndncore.workplan.model.enums.WorkTrade;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -33,17 +49,23 @@ public class WorkPlanService {
     private final AuthAccessService authAccessService;
     private final TradeProcessRepository tradeProcessRepository;
     private final StaffingService staffingService;
+    private final WorkPlanDocumentExtractor workPlanDocumentExtractor;
+    private final DocumentManagementService documentManagementService;
 
     public WorkPlanService(WorkPlanRepository workPlanRepository,
                            DailyReportRepository dailyReportRepository,
                            AuthAccessService authAccessService,
                            TradeProcessRepository tradeProcessRepository,
-                           @Lazy StaffingService staffingService) {
+                           @Lazy StaffingService staffingService,
+                           WorkPlanDocumentExtractor workPlanDocumentExtractor,
+                           DocumentManagementService documentManagementService) {
         this.workPlanRepository = workPlanRepository;
         this.dailyReportRepository = dailyReportRepository;
         this.authAccessService = authAccessService;
         this.tradeProcessRepository = tradeProcessRepository;
         this.staffingService = staffingService;
+        this.workPlanDocumentExtractor = workPlanDocumentExtractor;
+        this.documentManagementService = documentManagementService;
     }
 
     // 작업 계획 등록
@@ -74,6 +96,46 @@ public class WorkPlanService {
         weeklySyncDates.forEach(this::triggerZoneSync);
 
         return savedPlans.stream().map(WorkPlan::getIdx).toList();
+    }
+
+    @Transactional
+    public List<WorkPlanDto.UploadExtractRes> extractUpload(
+            Long projectId,
+            String planType,
+            String trade,
+            Integer year,
+            Integer month,
+            MultipartFile file
+    ) {
+        if (projectId == null) {
+            throw new RuntimeException("현장 ID는 필수입니다.");
+        }
+        authAccessService.assertProjectAccess(projectId);
+
+        PlanType uploadPlanType = resolveUploadPlanType(planType);
+        File storedFile = storeUploadFile(file);
+
+        try {
+            List<WorkPlanAiDto.Item> items = workPlanDocumentExtractor.extract(
+                    storedFile,
+                    uploadPlanType.getLabel(),
+                    year,
+                    month,
+                    trade
+            );
+            List<TradeProcess> tradeProcesses =
+                    tradeProcessRepository.findAllByMasterSchedule_Project_Idx(projectId);
+
+            List<WorkPlanDto.UploadExtractRes> rows = items.stream()
+                    .map(item -> toUploadExtractRes(item, tradeProcesses, uploadPlanType, trade))
+                    .toList();
+            saveUploadedPlanDocument(projectId, file);
+            return rows;
+        } finally {
+            if (storedFile.exists() && !storedFile.delete()) {
+                storedFile.deleteOnExit();
+            }
+        }
     }
 
     private WorkPlan savePlan(WorkPlanDto.Req dto) {
@@ -123,8 +185,8 @@ public class WorkPlanService {
             authAccessService.assertProjectAccess(projectId);
 
             // 프론트엔드가 날짜를 안 보냈을 때만 방어하고, 보냈으면 그 날짜를 씁니다.
-            LocalDate finalStartDate = (startDate != null) ? startDate : LocalDate.now().minusMonths(6);
-            LocalDate finalEndDate = (endDate != null) ? endDate : LocalDate.now().plusMonths(6);
+            LocalDate finalStartDate = (startDate != null) ? startDate : LocalDate.of(1900, 1, 1);
+            LocalDate finalEndDate = (endDate != null) ? endDate : LocalDate.of(9999, 12, 31);
 
             // 파라미터로 받은 진짜 날짜를 DB에 넘겨줍니다.
             plans = workPlanRepository.findAllOptimized(projectId, type, finalStartDate, finalEndDate);
@@ -282,6 +344,222 @@ public class WorkPlanService {
         LocalDate planDate = plan.getStartDate();
         workPlanRepository.delete(plan);
         triggerZoneSync(planDate);
+    }
+
+    private WorkPlanDto.UploadExtractRes toUploadExtractRes(
+            WorkPlanAiDto.Item item,
+            List<TradeProcess> tradeProcesses,
+            PlanType planType,
+            String selectedTradeName
+    ) {
+        TradeProcess matched = matchTradeProcess(item, tradeProcesses, selectedTradeName);
+        LocalDate startDate = item.getStartDate() != null
+                ? item.getStartDate()
+                : matched != null ? matched.getPlannedStart() : null;
+        LocalDate endDate = item.getEndDate() != null
+                ? item.getEndDate()
+                : matched != null ? matched.getPlannedEnd() : null;
+        String name = firstNonBlank(
+                item.getName(),
+                item.getTradeProcessName(),
+                matched != null ? matched.getProcessName() : null
+        );
+
+        String issue = null;
+        if (matched == null || name == null || startDate == null || endDate == null) {
+            issue = "error";
+        }
+
+        return WorkPlanDto.UploadExtractRes.builder()
+                .tradeProcessId(matched != null ? matched.getIdx() : null)
+                .tradeProcessName(matched != null
+                        ? matched.getProcessName()
+                        : item.getTradeProcessName())
+                .trade(resolveWorkTradeLabel(
+                        item.getTradeName(),
+                        matched != null ? matched.getTradeName() : null,
+                        selectedTradeName
+                ))
+                .name(name)
+                .location(item.getLocation())
+                .planType(planType.getLabel())
+                .startDate(startDate)
+                .endDate(endDate)
+                .note(item.getNote())
+                .issue(issue)
+                .build();
+    }
+
+    private TradeProcess matchTradeProcess(
+            WorkPlanAiDto.Item item,
+            List<TradeProcess> tradeProcesses,
+            String selectedTradeName
+    ) {
+        if (tradeProcesses == null || tradeProcesses.isEmpty()) {
+            return null;
+        }
+
+        TradeProcess bestMatch = tradeProcesses.stream()
+                .max(Comparator.comparingInt(process ->
+                        tradeProcessMatchScore(process, item, selectedTradeName)))
+                .orElse(null);
+
+        int bestScore = bestMatch != null
+                ? tradeProcessMatchScore(bestMatch, item, selectedTradeName)
+                : 0;
+        if (bestScore > 0) {
+            return bestMatch;
+        }
+
+        return tradeProcesses.stream()
+                .filter(process -> matchScore(selectedTradeName, process.getTradeName(), 1, 1) > 0)
+                .findFirst()
+                .orElse(tradeProcesses.get(0));
+    }
+
+    private int tradeProcessMatchScore(
+            TradeProcess process,
+            WorkPlanAiDto.Item item,
+            String selectedTradeName
+    ) {
+        int score = 0;
+        score += matchScore(item.getTradeProcessName(), process.getProcessName(), 100, 70);
+        score += matchScore(item.getName(), process.getProcessName(), 80, 50);
+        score += matchScore(item.getTradeName(), process.getTradeName(), 40, 25);
+        score += matchScore(selectedTradeName, process.getTradeName(), 20, 10);
+        if (Boolean.TRUE.equals(process.getIsMilestone())) {
+            score -= 5;
+        }
+        return Math.max(score, 0);
+    }
+
+    private int matchScore(String candidate, String target, int exactScore, int containsScore) {
+        String normalizedCandidate = normalizeForMatch(candidate);
+        String normalizedTarget = normalizeForMatch(target);
+
+        if (normalizedCandidate.isBlank() || normalizedTarget.isBlank()) {
+            return 0;
+        }
+        if (normalizedCandidate.equals(normalizedTarget)) {
+            return exactScore;
+        }
+        if (normalizedCandidate.contains(normalizedTarget) || normalizedTarget.contains(normalizedCandidate)) {
+            return containsScore;
+        }
+        return 0;
+    }
+
+    private String resolveWorkTradeLabel(String... candidates) {
+        for (String candidate : candidates) {
+            WorkTrade exact = WorkTrade.fromLabel(candidate);
+            if (exact != null) {
+                return exact.getLabel();
+            }
+        }
+
+        for (String candidate : candidates) {
+            String normalizedCandidate = normalizeForMatch(candidate);
+            if (normalizedCandidate.isBlank()) {
+                continue;
+            }
+            for (WorkTrade trade : WorkTrade.values()) {
+                if (matchScore(normalizedCandidate, trade.getLabel(), 1, 1) > 0
+                        || matchScore(normalizedCandidate, trade.getCategory(), 1, 1) > 0
+                        || matchScore(normalizedCandidate, trade.name(), 1, 1) > 0) {
+                    return trade.getLabel();
+                }
+            }
+        }
+
+        return WorkTrade.ETC.getLabel();
+    }
+
+    private String normalizeForMatch(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", "")
+                .replaceAll("[^가-힣a-z0-9]", "");
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private PlanType resolveUploadPlanType(String planType) {
+        if (planType == null || planType.isBlank()) {
+            throw new RuntimeException("계획 유형은 필수입니다.");
+        }
+
+        for (PlanType type : List.of(PlanType.YEARLY, PlanType.MONTHLY)) {
+            if (type.getLabel().equals(planType) || type.name().equalsIgnoreCase(planType)) {
+                return type;
+            }
+        }
+
+        throw new RuntimeException("연간 또는 월간 계획서만 업로드할 수 있습니다.");
+    }
+
+    private void saveUploadedPlanDocument(Long projectId, MultipartFile file) {
+        DocumentManagementDto.UploadReq dto = new DocumentManagementDto.UploadReq();
+        dto.setProjectId(projectId);
+        dto.setFile(file);
+        dto.setDocType(DocType.TRADE_PLAN);
+        dto.setIsPartner(false);
+        dto.setAffiliationName("본사");
+        dto.setName(currentUploaderName());
+        documentManagementService.upload(dto);
+    }
+
+    private String currentUploaderName() {
+        return authAccessService.currentUser()
+                .map(user -> firstNonBlank(user.getName(), user.getLoginId()))
+                .orElse("system");
+    }
+
+    private File storeUploadFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("업로드할 파일이 없습니다.");
+        }
+
+        try {
+            Path uploadDir = Paths.get(System.getProperty("user.dir"), "uploads", "work-plan")
+                    .toAbsolutePath()
+                    .normalize();
+            Files.createDirectories(uploadDir);
+
+            String originalFileName = sanitizeFileName(file.getOriginalFilename());
+            Path target = uploadDir.resolve(UUID.randomUUID() + "_" + originalFileName).normalize();
+            if (!target.startsWith(uploadDir)) {
+                throw new RuntimeException("잘못된 파일명입니다.");
+            }
+
+            try (InputStream inputStream = file.getInputStream()) {
+                Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+            return target.toFile();
+        } catch (IOException e) {
+            throw new RuntimeException("계획서 파일 저장 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    private String sanitizeFileName(String originalFileName) {
+        if (originalFileName == null || originalFileName.isBlank()) {
+            return "work-plan-upload";
+        }
+
+        String sanitized = Paths.get(originalFileName).getFileName().toString()
+                .replaceAll("[\\\\/:*?\"<>|]", "_");
+        return sanitized.isBlank() ? "work-plan-upload" : sanitized;
     }
 
 
