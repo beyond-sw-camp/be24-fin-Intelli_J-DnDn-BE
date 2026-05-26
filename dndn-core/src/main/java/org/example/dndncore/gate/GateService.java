@@ -1,9 +1,13 @@
 package org.example.dndncore.gate;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dndncore.auth.security.AuthAccessService;
 import org.example.dndncore.gate.model.Gate;
+import org.example.dndncore.gate.model.GateBlueprint;
 import org.example.dndncore.gate.model.GateDto;
 import org.example.dndncore.gate.model.GateMachine;
+import org.example.dndncore.project.model.entity.Project;
+import org.example.dndncore.project.repository.ProjectRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +20,9 @@ public class GateService {
 
     private final GateRepository gateRepository;
     private final GateMachineRepository gateMachineRepository;
+    private final GateBlueprintRepository gateBlueprintRepository;
+    private final ProjectRepository projectRepository;
+    private final AuthAccessService authAccessService;
 
     // 게이트 등록
     @Transactional
@@ -40,6 +47,33 @@ public class GateService {
         return gateRepository.findAll().stream()
                 .map(GateDto.Res::from)
                 .toList();
+    }
+
+    // 공사현장별 도면 조회
+    public GateDto.BlueprintRes readBlueprint(Long projectId) {
+        Project project = findProject(projectId);
+        authAccessService.assertProjectAccess(project.getIdx());
+
+        return gateBlueprintRepository.findByProject_Idx(project.getIdx())
+                .map(GateDto.BlueprintRes::from)
+                .orElseGet(() -> GateDto.BlueprintRes.empty(project.getIdx()));
+    }
+
+    // 공사현장별 도면 저장
+    @Transactional
+    public GateDto.BlueprintRes saveBlueprint(Long projectId, GateDto.BlueprintReq dto) {
+        Project project = findProject(projectId);
+        authAccessService.assertProjectAccess(project.getIdx());
+
+        GateBlueprint blueprint = gateBlueprintRepository.findByProject_Idx(project.getIdx())
+                .map(existing -> {
+                    existing.updateDataUrl(dto.getDataUrl(), dto.getOriginalFileName());
+                    return existing;
+                })
+                .orElseGet(() -> GateBlueprint.create(project, dto.getDataUrl(), dto.getOriginalFileName()));
+
+        GateBlueprint saved = gateBlueprintRepository.save(blueprint);
+        return GateDto.BlueprintRes.from(saved);
     }
 
     // 게이트 정보 수정
@@ -86,7 +120,6 @@ public class GateService {
         Gate gate = findGate(gateId);
 
         GateMachine machine = gate.attachMachine();
-        // cascade 의존하지 않고 즉시 idx 할당받기 위해 명시적 save
         GateMachine savedMachine = gateMachineRepository.save(machine);
 
         return savedMachine.getIdx();
@@ -116,6 +149,15 @@ public class GateService {
         Gate gate = findGate(gateId);
 
         gateRepository.delete(gate);
+    }
+
+    private Project findProject(Long projectId) {
+        if (projectId == null) {
+            throw new RuntimeException("현장 ID는 필수입니다.");
+        }
+
+        return projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("현장을 찾을 수 없습니다."));
     }
 
     private Gate findGate(Long gateId) {

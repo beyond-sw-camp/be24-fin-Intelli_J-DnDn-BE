@@ -1,5 +1,6 @@
 package org.example.dndncore.gate;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.dndncore.common.model.BaseResponse;
 import org.example.dndncore.gate.model.GateDto;
@@ -34,6 +35,22 @@ public class GateController {
     public ResponseEntity<?> list() {
         List<GateDto.Res> dtos = gateService.list();
         return ResponseEntity.ok(BaseResponse.success(dtos));
+    }
+
+    // 공사현장별 도면 조회
+    @GetMapping("/blueprint")
+    public ResponseEntity<?> readBlueprint(@RequestParam("projectId") Long projectId) {
+        GateDto.BlueprintRes dto = gateService.readBlueprint(projectId);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
+
+    // 공사현장별 도면 저장
+    @PutMapping("/blueprint")
+    public ResponseEntity<?> saveBlueprint(
+            @RequestParam("projectId") Long projectId,
+            @Valid @RequestBody GateDto.BlueprintReq dto) {
+        GateDto.BlueprintRes saved = gateService.saveBlueprint(projectId, dto);
+        return ResponseEntity.ok(BaseResponse.success(saved));
     }
 
     // 게이트 정보 수정 (전체 필드)

@@ -109,7 +109,7 @@ weather:
 
   scheduler:
     enabled: true
-    cron: "0 0 * * * *"
+    cron: "10 0 * * * *"
     warmup-on-startup: true
     startup-past-days: 15
     startup-future-days: 15

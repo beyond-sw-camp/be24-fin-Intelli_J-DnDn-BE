@@ -1,7 +1,9 @@
 package org.example.dndncore.gate.model;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class GateDto {
@@ -126,6 +128,49 @@ public class GateDto {
                     .noticeType(noticeCode)
                     .noticeMessage(noticeMessage)
                     .machines(machineDtos)
+                    .build();
+        }
+    }
+
+
+    @Getter
+    @Setter
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @Builder
+    public static class BlueprintReq {
+        @NotBlank(message = "도면 데이터는 필수입니다.")
+        private String dataUrl;
+        private String originalFileName;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class BlueprintRes {
+        private Long projectId;
+        private String dataUrl;
+        private String originalFileName;
+        private LocalDateTime updatedAt;
+        private boolean exists;
+
+        public static BlueprintRes empty(Long projectId) {
+            return BlueprintRes.builder()
+                    .projectId(projectId)
+                    .exists(false)
+                    .build();
+        }
+
+        public static BlueprintRes from(GateBlueprint entity) {
+            Long projectId = entity.getProject() == null ? null : entity.getProject().getIdx();
+
+            return BlueprintRes.builder()
+                    .projectId(projectId)
+                    .dataUrl(entity.getDataUrl())
+                    .originalFileName(entity.getOriginalFileName())
+                    .updatedAt(entity.getUpdatedAt())
+                    .exists(true)
                     .build();
         }
     }

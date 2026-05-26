@@ -162,7 +162,7 @@ public class WeatherInfoDto {
                     .avgAmTemperature(null)
                     .avgPmTemperature(null)
                     .precipitationProbability(0)
-                    .maxWindSpeed(0.0)
+                    .maxWindSpeed(null)
                     .fineDustValue(null)
                     .fineDustRisk(false)
                     .hasRain(false)
