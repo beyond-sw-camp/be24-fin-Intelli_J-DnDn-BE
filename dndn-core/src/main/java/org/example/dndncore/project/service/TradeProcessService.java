@@ -132,6 +132,7 @@ public class TradeProcessService {
     public List<String> listMilestoneTradeNamesByProject(Long projectId) {
         authAccessService.assertProjectAccess(projectId);
         return tradeProcessRepository.findMilestoneTradeNamesByProjectId(projectId).stream()
+                .filter(name -> !org.example.dndncore.staffing.model.StaffingTradeMatcher.isExcludedAccountTradeName(name))
                 .filter(authAccessService::canAccessTradeName)
                 .toList();
     }

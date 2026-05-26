@@ -6,7 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 
 public interface ZoneMainRepository extends JpaRepository<ZoneMain, Long> {
 
@@ -17,8 +16,6 @@ public interface ZoneMainRepository extends JpaRepository<ZoneMain, Long> {
     // STAFFING_003 — 현장 코드(project.name LIKE %[siteCode]%) 기준 필터
     @EntityGraph(attributePaths = {"zoneSubs"})
     List<ZoneMain> findAllByProject_NameContainingOrderByDisplayOrderAsc(String siteCodeFragment);
-
-    Optional<ZoneMain> findBySourceKey(String sourceKey);
 
     /** sync 루프 전 일괄 선조회 — sourceKey IN (...) 1번으로 K번 개별 SELECT 대체 */
     List<ZoneMain> findAllBySourceKeyIn(Collection<String> sourceKeys);

@@ -92,28 +92,100 @@ public class StaffingService {
     // 읽기 전용 — 동기화는 WorkPlan 변경 시점에만 수행 (syncZonesFromWorkPlans)
     public List<StaffingDto.ZoneMainRes> loadZoneMainTree(LocalDate rosterDate, String siteCode) {
         LocalDate date = normalizeDate(rosterDate);
-        List<ZoneSub> scheduleSubZones = zoneSubRepository.findAllScheduleSubZonesByWorkDate(date);
-        if (!scheduleSubZones.isEmpty()) {
-            if (siteCode != null && !siteCode.isBlank()) {
-                String fragment = "[" + siteCode.trim() + "]";
-                scheduleSubZones = scheduleSubZones.stream()
-                        .filter(zs -> {
-                            Project p = zs.getZoneMain().getProject();
-                            return p != null && p.getName() != null && p.getName().contains(fragment);
-                        })
-                        .toList();
-            }
-            return buildZoneMainResponses(scheduleSubZones, date);
+        return buildZoneMainResponses(resolveBoardSubZones(date, siteCode), date);
+    }
+
+    /**
+     * STAFFING board — 구역 트리 + 직종별 필요 + 구역별 배치 작업자를 1회 응답.
+     * FE의 STAFFING_003 + N×(STAFFING_004 + STAFFING_006) 호출을 대체한다.
+     */
+    public StaffingDto.BoardRes loadStaffingBoard(LocalDate rosterDate, String siteCode) {
+        LocalDate date = normalizeDate(rosterDate);
+        List<ZoneSub> subZones = resolveBoardSubZones(date, siteCode);
+        if (subZones.isEmpty()) {
+            return StaffingDto.BoardRes.builder().zoneMains(List.of()).build();
         }
 
-        List<ZoneMain> zoneMains = (siteCode != null && !siteCode.isBlank())
-                ? zoneMainRepository.findAllByProject_NameContainingOrderByDisplayOrderAsc("[" + siteCode.trim() + "]")
-                : zoneMainRepository.findAllByOrderByDisplayOrderAsc();
+        Set<Long> subIdxes = subZones.stream().map(ZoneSub::getIdx).collect(Collectors.toSet());
 
-        List<ZoneSub> subZones = zoneMains.stream()
-                .flatMap(zm -> zm.getZoneSubs().stream())
+        List<StaffingAssignment> allAssignments = subIdxes.isEmpty()
+                ? List.of()
+                : assignmentRepository.findAllWithZoneHierarchyByWorkDateAndZoneSubIdxIn(date, subIdxes);
+
+        Map<Long, List<StaffingAssignment>> assignsBySubIdx = allAssignments.stream()
+                .collect(Collectors.groupingBy(a -> a.getZoneSub().getIdx(), LinkedHashMap::new, Collectors.toList()));
+
+        List<Long> workerIds = allAssignments.stream()
+                .map(StaffingAssignment::getWorkerIdx)
+                .distinct()
                 .toList();
-        return buildZoneMainResponses(subZones, date);
+
+        Map<Long, Worker> workerMap = workerIds.isEmpty()
+                ? Map.of()
+                : workerRepository.findAllById(workerIds).stream()
+                        .filter(w -> w.getJobRank() == JobRank.WORKER)
+                        .collect(Collectors.toMap(Worker::getIdx, w -> w, (a, b) -> a));
+
+        Map<Long, EmploymentKind> rosterEkByWorkerIdx = new HashMap<>();
+        if (!workerIds.isEmpty()) {
+            for (AttendanceRecord ar :
+                    attendanceRecordRepository.findAllByWorkDateAndWorkerIdxIn(
+                            date, workerIds, STAFFING_ATTENDANCE_ONSITE)) {
+                rosterEkByWorkerIdx.put(ar.getWorker().getIdx(), ar.getEmploymentKind());
+            }
+        }
+
+        Set<Long> safetyEducationCompletedWorkerIds = findSafetyEducationCompletedWorkerIds(workerIds);
+
+        Map<Long, List<ZoneSub>> grouped = subZones.stream()
+                .collect(Collectors.groupingBy(
+                        zs -> zs.getZoneMain().getIdx(),
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+
+        List<StaffingDto.ZoneMainBoardRes> zoneMains = new ArrayList<>();
+        for (List<ZoneSub> rows : grouped.values()) {
+            if (rows.isEmpty()) continue;
+            ZoneMain main = rows.get(0).getZoneMain();
+            List<StaffingDto.ZoneSubBoardRes> subBoardRows = new ArrayList<>();
+            int totalAssigned = 0;
+            int totalRequired = 0;
+            for (ZoneSub zs : rows) {
+                List<StaffingAssignment> assigns =
+                        assignsBySubIdx.getOrDefault(zs.getIdx(), List.of());
+                EnumMap<Trade, Integer> filledByTrade = computeFilledByTrade(assigns, workerMap);
+                List<StaffingDto.AssignedWorkerRes> workers = buildAssignedWorkerRows(
+                        assigns, workerMap, rosterEkByWorkerIdx, safetyEducationCompletedWorkerIds);
+                int assignedCount = workers.size();
+                totalAssigned += assignedCount;
+                totalRequired += zs.getRequired();
+                subBoardRows.add(StaffingDto.ZoneSubBoardRes.builder()
+                        .idx(zs.getIdx())
+                        .workPlanId(zs.getWorkPlanIdx())
+                        .title(zs.getTitle())
+                        .location(zs.getLocation())
+                        .tradeName(zs.getTradeName())
+                        .workTime(zs.getWorkTime())
+                        .workDate(zs.getWorkDate())
+                        .required(zs.getRequired())
+                        .assignedCount(assignedCount)
+                        .tradeNeeds(zs.getTradeNeeds().stream()
+                                .map(tn -> StaffingDto.TradeNeedRes.from(
+                                        tn, filledByTrade.getOrDefault(tn.getTrade(), 0)))
+                                .toList())
+                        .workers(workers)
+                        .build());
+            }
+            zoneMains.add(StaffingDto.ZoneMainBoardRes.builder()
+                    .idx(main.getIdx())
+                    .title(main.getTitle())
+                    .source(main.isScheduleGenerated() ? "WORK_PLAN" : "MANUAL")
+                    .totalAssigned(totalAssigned)
+                    .totalRequired(totalRequired)
+                    .subZones(subBoardRows)
+                    .build());
+        }
+        return StaffingDto.BoardRes.builder().zoneMains(zoneMains).build();
     }
 
     /** STAFFING_004 — 상세 구역(ZoneSub) 단건 및 직종별 충원률 원천 데이터 */
@@ -389,16 +461,67 @@ public class StaffingService {
         Map<Long, Worker> workers = workerRepository.findAllById(workerIds).stream()
                 .collect(Collectors.toMap(Worker::getIdx, w -> w, (a, b) -> a));
 
+        return computeFilledByTrade(assigns, workers);
+    }
+
+    private EnumMap<Trade, Integer> computeFilledByTrade(
+            List<StaffingAssignment> assigns,
+            Map<Long, Worker> workerMap) {
         EnumMap<Trade, Integer> out = new EnumMap<>(Trade.class);
         for (StaffingAssignment a : assigns) {
-            Worker w = workers.get(a.getWorkerIdx());
+            Worker w = workerMap.get(a.getWorkerIdx());
             Trade t = Trade.classifyWorker(w);
             if (t != null) {
-                // TradeNeed의 4-카테고리 기준으로 집계 (세분화 직종 → 카테고리로 합산)
                 out.merge(t.staffingGroup(), 1, Integer::sum);
             }
         }
         return out;
+    }
+
+    private List<StaffingDto.AssignedWorkerRes> buildAssignedWorkerRows(
+            List<StaffingAssignment> assigns,
+            Map<Long, Worker> workerMap,
+            Map<Long, EmploymentKind> rosterEkByWorkerIdx,
+            Set<Long> safetyEducationCompletedWorkerIds) {
+        return assigns.stream()
+                .map(a -> {
+                    Worker worker = workerMap.get(a.getWorkerIdx());
+                    return worker != null
+                            ? StaffingDto.AssignedWorkerRes.from(
+                                    worker,
+                                    a,
+                                    rosterEkByWorkerIdx.get(worker.getIdx()),
+                                    safetyEducationCompletedWorkerIds.contains(worker.getIdx()))
+                            : null;
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private List<ZoneSub> resolveBoardSubZones(LocalDate date, String siteCode) {
+        List<ZoneSub> scheduleSubZones = zoneSubRepository.findAllScheduleSubZonesByWorkDate(date);
+        if (!scheduleSubZones.isEmpty()) {
+            if (siteCode != null && !siteCode.isBlank()) {
+                String fragment = "[" + siteCode.trim() + "]";
+                scheduleSubZones = scheduleSubZones.stream()
+                        .filter(zs -> {
+                            Project p = zs.getZoneMain().getProject();
+                            return p != null && p.getName() != null && p.getName().contains(fragment);
+                        })
+                        .toList();
+            }
+            return scheduleSubZones;
+        }
+
+        List<ZoneMain> zoneMains = (siteCode != null && !siteCode.isBlank())
+                ? zoneMainRepository.findAllByProject_NameContainingOrderByDisplayOrderAsc(
+                        "[" + siteCode.trim() + "]")
+                : zoneMainRepository.findAllByOrderByDisplayOrderAsc();
+        List<Long> mainIdxes = zoneMains.stream().map(ZoneMain::getIdx).toList();
+        if (mainIdxes.isEmpty()) {
+            return List.of();
+        }
+        return zoneSubRepository.findAllByZoneMainIdxInWithGraph(mainIdxes);
     }
 
     // STAFFING_002 — 투입 인원 초기화 (siteCode 전달 시 해당 현장 배치만 삭제)

@@ -46,7 +46,7 @@ public class AuthAccessService {
                 || user.getRole() == UserRole.SECTION_SUPERVISOR;
     }
 
-    public boolean isSiteScoped(SystemUser user) {
+    private boolean isSiteScoped(SystemUser user) {
         if (user == null) return false;
         return user.getRole() == UserRole.SITE_MANAGER
                 || user.getRole() == UserRole.SITE_DIRECTOR
@@ -148,11 +148,7 @@ public class AuthAccessService {
     }
 
     public boolean tradeMatches(String recordTrade, String assignedTrade) {
-        String left = clean(recordTrade);
-        String right = clean(assignedTrade);
-        if (right.isBlank()) return true;
-        if (left.isBlank()) return false;
-        return left.equals(right) || left.contains(right) || right.contains(left);
+        return org.example.dndncore.staffing.model.StaffingTradeMatcher.matches(recordTrade, assignedTrade);
     }
 
     private boolean canAccessWorkPlan(SystemUser user, WorkPlan plan) {
