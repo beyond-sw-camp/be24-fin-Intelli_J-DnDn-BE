@@ -8,6 +8,8 @@ import org.example.dndncore.kafka.dto.KafkaConsumerDto;
 import org.example.dndncore.kafka.dto.KafkaProject;
 import org.example.dndncore.kafka.dto.KafkaTradeProcess;
 import org.example.dndncore.project.model.dto.TradeProcessDto;
+import org.example.dndncore.project.model.entity.Project;
+import org.example.dndncore.project.repository.ProjectRepository;
 import org.example.dndncore.project.repository.ScheduleAiAnalysisRepository;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
@@ -17,12 +19,14 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.awt.SystemColor.text;
+
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class DocumentAiKafkaListenerService {
     private final KafkaTradeProcessRepository kafkaTradeProcessRepository;
-    private final KafkaProjectRepository kafkaProjectRepository;
+    private final ProjectRepository projectRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -77,9 +81,9 @@ public class DocumentAiKafkaListenerService {
                 return;
             }
 
-            KafkaProject project = kafkaProjectRepository.findById(projectIdx)
+            Project project = projectRepository.findById(projectIdx)
                     .orElseThrow(() -> new RuntimeException(
-                            "KafkaProject 를 찾을 수 없습니다. projectIdx=" + projectIdx));
+                            "Project 를 찾을 수 없습니다. projectIdx=" + projectIdx));
 
             List<KafkaTradeProcess> toSave = new ArrayList<>();
             for (JsonNode item : schedules) {
@@ -94,11 +98,13 @@ public class DocumentAiKafkaListenerService {
 
                 Float weightPct      = asFloat(item.get("weightPct"));
                 LocalDate plannedStart = asDate(item.get("plannedStart"));
+                System.out.println(plannedStart);
                 LocalDate plannedEnd   = asDate(item.get("plannedEnd"));
+                System.out.println(plannedEnd);
                 Boolean isMilestone  = asBoolean(item.get("isMilestone"));
 
                 KafkaTradeProcess tp = KafkaTradeProcess.builder()
-                        .kafkaProject(project)
+                        .project(project)
                         .tradeName(tradeName != null ? tradeName : "")
                         .processName(processName != null ? processName : "")
                         .partnerCompany(asText(item.get("partnerCompany")))
@@ -166,6 +172,20 @@ public class DocumentAiKafkaListenerService {
     }
 
     private LocalDate asDate(JsonNode node) {
+        // 1. 노드가 아예 없거나 null인 경우
+        if (node == null || node.isNull()) return null;
+        // 2. 배열 형태인 경우 [2024, 3, 1] 처리
+        if (node.isArray()) {
+            try {
+                int year = node.get(0).asInt();
+                int month = node.get(1).asInt();
+                int day = node.get(2).asInt();
+                return LocalDate.of(year, month, day);
+            } catch (Exception e) {
+                log.warn("[Kafka] 날짜 배열 파싱 실패: {}", node.toString());
+                return null;
+            }
+        }
         String text = asText(node);
         if (text == null || text.isBlank()) return null;
         try {

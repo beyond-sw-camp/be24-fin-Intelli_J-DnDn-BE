@@ -11,12 +11,12 @@ import java.util.List;
 
 public interface KafkaTradeProcessRepository extends JpaRepository<KafkaTradeProcess, Long> {
 
-    List<KafkaTradeProcess> findAllByKafkaProject_Idx(Long projectId);
+    List<KafkaTradeProcess> findAllByProjectIdx(Long projectId);
 
-    List<KafkaTradeProcess> findAllByKafkaProject_IdxAndTradeName(Long projectId, String tradeName);
+    List<KafkaTradeProcess> findAllByProjectIdxAndTradeName(Long projectId, String tradeName);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("delete from KafkaTradeProcess tp where tp.kafkaProject.idx in :projectIdx")
+    @Query("delete from KafkaTradeProcess tp where tp.project.idx in :projectIdx")
     int deleteByMasterScheduleIdx(@Param("projectId") Collection<Long> projectId);
 
     /**
@@ -25,7 +25,7 @@ public interface KafkaTradeProcessRepository extends JpaRepository<KafkaTradePro
      * 계정 생성 시 공종 드롭다운 목록 전용.
      */
     @Query("SELECT DISTINCT t.tradeName FROM KafkaTradeProcess t " +
-           "WHERE t.kafkaProject.idx = :projectId " +
+           "WHERE t.project.idx = :projectId " +
            "AND t.isMilestone = true " +
            "AND t.tradeName NOT IN ('준공', '착공') " +
            "ORDER BY t.tradeName")

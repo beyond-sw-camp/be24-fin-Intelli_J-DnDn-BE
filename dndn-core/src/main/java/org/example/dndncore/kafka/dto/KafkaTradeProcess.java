@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.example.dndncore.common.model.BaseEntity;
+import org.example.dndncore.project.model.entity.Project;
 
 import java.time.LocalDate;
 
@@ -23,7 +24,7 @@ public class KafkaTradeProcess extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_idx", nullable = false)
-    private KafkaProject kafkaProject;
+    private Project project;
 
     @Column(nullable = false)
     private String tradeName;       // 공종명 (예: 전기, 철근, 골조)
@@ -33,7 +34,10 @@ public class KafkaTradeProcess extends BaseEntity {
 
     private String partnerCompany;  // 시공계획서에서 추출된 협력사명
 
+    @Column(name = "planned_start") // 명시적 매핑
     private LocalDate plannedStart; // 계획 시작일 → 간트차트 보라색 선 시작
+
+    @Column(name = "planned_end")   // 명시적 매핑
     private LocalDate plannedEnd;   // 계획 종료일 → 간트차트 보라색 선 종료
 
     private Float weightPct;        // 보할율 (전체 공사 대비 비중)
