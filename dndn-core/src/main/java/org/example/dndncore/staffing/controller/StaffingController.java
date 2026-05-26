@@ -30,6 +30,16 @@ public class StaffingController {
         return ResponseEntity.ok(BaseResponse.success(dto));
     }
 
+    /** STAFFING board — 구역 트리 + 직종별 필요 + 배치 작업자 일괄 조회 */
+    @GetMapping("/board")
+    public ResponseEntity<BaseResponse<StaffingDto.BoardRes>> getBoard(
+            @RequestParam(required = false) String siteCode,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rosterDate
+    ) {
+        StaffingDto.BoardRes dto = staffingService.loadStaffingBoard(rosterDate, siteCode);
+        return ResponseEntity.ok(BaseResponse.success(dto));
+    }
+
     // STAFFING_004 — 상세 구역(ZoneSub) 정보 조회
     @GetMapping("/zones/{zoneSubIdx}")
     public ResponseEntity<BaseResponse<StaffingDto.ZoneSubRes>> getZoneSub(

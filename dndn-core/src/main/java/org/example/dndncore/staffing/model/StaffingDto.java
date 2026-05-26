@@ -68,6 +68,48 @@ public class StaffingDto {
         private boolean unassignedOnly;
     }
 
+    /** STAFFING board — 상세 구역 1건 (요약 + 직종별 필요 + 배치 작업자) */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ZoneSubBoardRes {
+        private Long idx;
+        private Long workPlanId;
+        private String title;
+        private String location;
+        private String tradeName;
+        private String workTime;
+        private LocalDate workDate;
+        private int required;
+        private int assignedCount;
+        private List<TradeNeedRes> tradeNeeds;
+        private List<AssignedWorkerRes> workers;
+    }
+
+    /** STAFFING board — 기본 구역 + 상세 구역 전체 */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ZoneMainBoardRes {
+        private Long idx;
+        private String title;
+        private String source;
+        private int totalAssigned;
+        private int totalRequired;
+        private List<ZoneSubBoardRes> subZones;
+    }
+
+    /** STAFFING board — 인력 배치 보드 좌측 구역 트리 일괄 응답 */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class BoardRes {
+        private List<ZoneMainBoardRes> zoneMains;
+    }
+
     // STAFFING_003 — 기본 구역 정보 조회 응답
     @Getter
     @NoArgsConstructor

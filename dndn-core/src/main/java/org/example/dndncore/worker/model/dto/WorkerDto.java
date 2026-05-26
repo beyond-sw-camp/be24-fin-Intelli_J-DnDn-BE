@@ -110,10 +110,6 @@ public class WorkerDto {
         private AttendanceStatus attendanceStatus;
         private boolean safetyEducationCompleted;
 
-        public static WorkerRes from(Worker w, AttendanceRecord a) {
-            return from(w, a, false);
-        }
-
         public static WorkerRes from(Worker w, AttendanceRecord a, boolean safetyEducationCompleted) {
             return WorkerRes.builder()
                     .idx(w.getIdx())
