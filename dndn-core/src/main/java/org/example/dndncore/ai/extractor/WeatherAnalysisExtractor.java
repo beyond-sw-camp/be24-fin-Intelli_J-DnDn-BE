@@ -29,8 +29,12 @@ public class WeatherAnalysisExtractor {
     private final WeatherAiAnalysisRepository weatherAiAnalysisRepository;
     private final ObjectMapper objectMapper;
 
-    // 화면 조회용 API.
-
+    /**
+     * 화면 조회용 API.
+     * - 과거/미래/당일 모두 저장된 AI 분석 결과가 있으면 DB 결과만 반환한다.
+     * - 저장 결과가 없으면 사용자 안내용 문구만 반환하며, OpenAI 신규 호출은 하지 않는다.
+     * - 실제 OpenAI 분석은 1시간 기상 갱신 직후 refreshTodayAnalysis()에서만 수행한다.
+     */
     public WeatherAiDto.AnalysisResult analyze(LocalDate analysisDate) {
         LocalDate targetDate = analysisDate != null ? analysisDate : LocalDate.now();
         LocalDate today = LocalDate.now();
@@ -63,8 +67,13 @@ public class WeatherAnalysisExtractor {
         return createInfoResult("최신 기상 갱신 이후 AI 분석 결과가 제공됩니다.");
     }
 
-    // 정기 기상 갱신 완료 직후 실행되는 당일 AI 갱신.
-
+    /**
+     * 정기 기상 갱신 완료 직후 실행되는 당일 AI 갱신.
+     * - 오늘 날짜에만 동작한다.
+     * - 작업지시가 없어도 최신 weather_info snapshot 기준 조치추천(actions)은 생성·저장한다.
+     * - 작업지시가 없으면 작업지시 기반 위험항목(risks)은 비워두고, 안내 문구는 유지한다.
+     * - 작업지시가 있으면 최신 weather_info snapshot과 작업지시를 기준으로 OpenAI 분석을 다시 수행하고 DB에 update한다.
+     */
     public WeatherAiDto.AnalysisResult refreshTodayAnalysis(LocalDate analysisDate) {
         LocalDate today = LocalDate.now();
         LocalDate targetDate = analysisDate != null ? analysisDate : today;
@@ -145,7 +154,7 @@ public class WeatherAnalysisExtractor {
         return WeatherAiDto.AnalysisRequest.builder()
                 .temperature(resolveTemperature(weather))
                 .humidity(null)
-                .windSpeed(weather != null ? weather.getMaxWindSpeed() : 0.0)
+                .windSpeed(weather != null ? weather.getMaxWindSpeed() : null)
                 .precipitationProbability(weather != null ? weather.getPrecipitationProbability() : 0)
                 .pm10(weather != null ? weather.getFineDustValue() : null)
                 .pm25(null)

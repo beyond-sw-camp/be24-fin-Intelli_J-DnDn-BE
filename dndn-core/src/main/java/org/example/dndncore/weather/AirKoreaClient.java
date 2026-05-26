@@ -32,8 +32,8 @@ public class AirKoreaClient {
 
     private RestTemplate createRestTemplate() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(10_000);
-        factory.setReadTimeout(20_000);
+        factory.setConnectTimeout(5_000);
+        factory.setReadTimeout(10_000);
         return new RestTemplate(factory);
     }
 
@@ -57,7 +57,7 @@ public class AirKoreaClient {
                     .build(false)
                     .toUriString();
 
-            log.debug("[AirKorea] 호출 URL: {}", url);
+            log.debug("[AirKorea] 호출 시작 - sidoName={}", sidoName);
 
             String rawResponse = restTemplate.getForObject(url, String.class);
             if (rawResponse == null || rawResponse.isBlank()) {
@@ -117,7 +117,7 @@ public class AirKoreaClient {
                     e.getStatusCode(), e.getResponseBodyAsString());
             return WeatherInfoDto.AirQualityCard.empty();
         } catch (Exception e) {
-            log.error("[AirKorea] API 호출 실패", e);
+            log.warn("[AirKorea] API 호출 실패 - reason={}", summarizeException(e));
             return WeatherInfoDto.AirQualityCard.empty();
         }
     }
@@ -186,6 +186,17 @@ public class AirKoreaClient {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private String summarizeException(Exception e) {
+        if (e == null) {
+            return "unknown";
+        }
+
+        Throwable target = e.getCause() != null ? e.getCause() : e;
+        String message = target.getMessage();
+        String simpleMessage = message == null || message.isBlank() ? "no message" : message;
+        return target.getClass().getSimpleName() + ": " + simpleMessage;
     }
 
     private String firstNonBlank(String... values) {
