@@ -2,6 +2,16 @@ openai:
   api-key: ${OPENAI_API_KEY}
   model: gpt-5.5
 
+server:
+  forward-headers-strategy: framework
+
+springdoc:
+  swagger-ui:
+    config-url: /api/v3/api-docs/swagger-config
+    url: /api/v3/api-docs
+  api-docs:
+    path: /api/v3/api-docs
+
 spring:
   application:
     name: dndn
