@@ -2,20 +2,8 @@ openai:
   api-key: ${OPENAI_API_KEY}
   model: gpt-5.5
 
-server:
-  forward-headers-strategy: framework
-
-springdoc:
-  api-docs:
-    path: /api/v3/api-docs
-  swagger-ui:
-    # 여러 서비스의 API 스펙을 드롭다운으로 전환하며 볼 수 있음
-    urls:
-      - name: dndn-core
-        url: /api/v3/api-docs
-      - name: document-management
-        url: /api/msa/document-management/v3/api-docs
-    urls-primary-name: dndn-core
+# springdoc, server.forward-headers-strategy 는 application.yml(기본)에 위치
+# → 어떤 프로파일이 활성화되어도 항상 적용됨
 
 spring:
   application:
