@@ -11,11 +11,13 @@ server:
 
 springdoc:
   api-docs:
-    path: /api/v3/api-docs               # Nginx /api/** 라우팅 범위 내 경로
+    path: /v3/api-docs                   # Nginx rewrite-target:/$2 가 /api 를 strip → Spring Boot는 /v3/api-docs 수신
   swagger-ui:
+    # config-url: 브라우저가 /api/ 포함해서 요청 → Nginx strip → Spring Boot /v3/api-docs/swagger-config 수신
+    config-url: /api/v3/api-docs/swagger-config
     urls:
       - name: dndn-core
-        url: /api/v3/api-docs
+        url: /api/v3/api-docs            # 브라우저 /api/ prefix → Nginx strip → Spring Boot /v3/api-docs
       - name: document-management
         url: /api/msa/document-management/v3/api-docs
     urls-primary-name: dndn-core
