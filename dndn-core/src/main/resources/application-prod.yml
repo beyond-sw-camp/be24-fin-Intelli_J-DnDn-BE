@@ -6,11 +6,16 @@ server:
   forward-headers-strategy: framework
 
 springdoc:
-  swagger-ui:
-    config-url: /api/v3/api-docs/swagger-config
-    url: /api/v3/api-docs
   api-docs:
     path: /api/v3/api-docs
+  swagger-ui:
+    # 여러 서비스의 API 스펙을 드롭다운으로 전환하며 볼 수 있음
+    urls:
+      - name: dndn-core
+        url: /api/v3/api-docs
+      - name: document-management
+        url: /api/msa/document-management/v3/api-docs
+    urls-primary-name: dndn-core
 
 spring:
   application:

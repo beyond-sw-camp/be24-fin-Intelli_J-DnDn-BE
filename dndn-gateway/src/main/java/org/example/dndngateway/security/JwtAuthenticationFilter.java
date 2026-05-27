@@ -72,7 +72,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return true;
         }
         return path.startsWith("/actuator/")
-                || path.equals("/api/msa/document-management/health");
+                || path.equals("/api/msa/document-management/health")
+                // document-management Swagger UI 경로 — JWT 없이 접근 가능
+                || path.startsWith("/api/msa/document-management/swagger-ui")
+                || path.startsWith("/api/msa/document-management/v3/api-docs");
     }
 
     private boolean requiresAuthentication(ServerHttpRequest request, String path) {
