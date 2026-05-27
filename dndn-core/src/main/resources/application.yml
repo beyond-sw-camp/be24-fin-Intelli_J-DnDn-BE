@@ -2,6 +2,24 @@ spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
+# ──────────────────────────────────────────────────
+# springdoc 설정은 어떤 프로파일에서도 동작해야 하므로
+# application.yml(기본)에 위치시킴
+# ──────────────────────────────────────────────────
+server:
+  forward-headers-strategy: framework   # Nginx proxy 뒤에서 https 스킴/호스트 정보 복원
+
+springdoc:
+  api-docs:
+    path: /api/v3/api-docs               # Nginx /api/** 라우팅 범위 내 경로
+  swagger-ui:
+    urls:
+      - name: dndn-core
+        url: /api/v3/api-docs
+      - name: document-management
+        url: /api/msa/document-management/v3/api-docs
+    urls-primary-name: dndn-core
+
 dndn:
   seed:
     load-test:

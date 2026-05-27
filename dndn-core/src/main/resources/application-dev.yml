@@ -2,8 +2,7 @@ openai:
   api-key: ${OPENAI_API_KEY}
   model: gpt-5.5
 
-server:
-  forward-headers-strategy: framework
+# forward-headers-strategy, springdoc 설정은 application.yml(기본)에 위치
 
 spring:
   application:
