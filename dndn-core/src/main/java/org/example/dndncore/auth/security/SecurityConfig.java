@@ -49,9 +49,12 @@ public class SecurityConfig {
                         .requestMatchers("/mobile/sse/**").hasRole("WORKER")
 
                         // 1. 스웨거 경로는 인증 없이 누구나 접근 가능
+                        //    Nginx가 /api prefix를 그대로 전달하는 경우를 대비해 양쪽 경로 모두 허용
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
+                                "/api/swagger-ui/**",
+                                "/api/v3/api-docs/**",
                                 "/swagger-resources/**",
                                 "/swagger-ui.html"
                         ).permitAll()

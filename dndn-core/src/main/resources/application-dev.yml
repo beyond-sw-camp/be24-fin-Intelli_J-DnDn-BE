@@ -2,6 +2,9 @@ openai:
   api-key: ${OPENAI_API_KEY}
   model: gpt-5.5
 
+server:
+  forward-headers-strategy: framework
+
 spring:
   application:
     name: dndn
