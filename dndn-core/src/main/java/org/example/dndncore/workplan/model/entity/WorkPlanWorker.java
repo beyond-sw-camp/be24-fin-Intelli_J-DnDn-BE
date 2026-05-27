@@ -1,5 +1,6 @@
 package org.example.dndncore.workplan.model.entity;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndncore.common.model.BaseEntity;
@@ -11,33 +12,34 @@ import org.example.dndncore.workplan.model.enums.WorkerTrade;
 @Builder
 @Entity
 @Table(name = "work_plan_worker")
+@Schema(description = "feat : 작업 계획 인력 엔티티")
 public class WorkPlanWorker extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Schema(description = "인력 항목 ID")
     private Long idx;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "work_plan_idx")
+    @Schema(description = "feat : 연관된 작업 계획")
     private WorkPlan workPlan;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private WorkerTrade trade;   // 직종 (전공/보통공/...)
+    @Schema(description = "직종", example = "SKILLED")
+    private WorkerTrade trade;
 
     @Column(nullable = false)
-    private Integer count;        // 인원수
+    @Schema(description = "인원수", example = "4")
+    private Integer count;
 
-    /**
-     * 양방향 연관관계 - WorkPlan에서 호출
-     */
+    // feat : 양방향 연관관계 - WorkPlan에서 호출
     public void bindWorkPlan(WorkPlan workPlan) {
         this.workPlan = workPlan;
     }
 
-    /**
-     * 표시용 문자열 - "전공 4명"
-     */
+    // feat : 표시용 문자열 생성
     public String toDisplay() {
         if (trade == null || count == null) {
             return "";

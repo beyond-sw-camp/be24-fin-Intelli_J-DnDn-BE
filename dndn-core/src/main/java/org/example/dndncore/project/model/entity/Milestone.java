@@ -1,5 +1,6 @@
 package org.example.dndncore.project.model.entity;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndncore.common.model.BaseEntity;
@@ -13,25 +14,32 @@ import java.time.LocalDate;
 @Builder
 @Entity
 @Table(name = "milestone")
+@Schema(description = "마일스톤 엔티티")
 public class Milestone extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Schema(description = "마일스톤 ID", example = "1")
     private Long idx;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "trade_process_id", nullable = false)
+    @Schema(description = "공정")
     private TradeProcess tradeProcess;
 
     @Column(nullable = false)
-    private String name;            // 마일스톤명 (예: "지하층 골조 완료")
+    @Schema(description = "마일스톤명", example = "지하층 골조 완료")
+    private String name;
 
-    private LocalDate plannedDate;  // 계획 일자
-    private LocalDate actualDate;   // 실제 완료 일자
+    @Schema(description = "계획 일자", example = "2026-05-10")
+    private LocalDate plannedDate;
+    @Schema(description = "실제 완료 일자", example = "2026-05-12")
+    private LocalDate actualDate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private MilestoneStatus status; // 예정/완료/지연
+    @Schema(description = "상태", example = "PLANNED")
+    private MilestoneStatus status;
 
     public void complete(LocalDate actualDate) {
         this.actualDate = actualDate;

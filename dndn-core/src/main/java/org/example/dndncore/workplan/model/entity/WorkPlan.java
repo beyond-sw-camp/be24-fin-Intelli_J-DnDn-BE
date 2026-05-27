@@ -1,5 +1,6 @@
 package org.example.dndncore.workplan.model.entity;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndncore.common.model.BaseEntity;
@@ -20,86 +21,109 @@ import java.util.stream.Collectors;
 @Builder
 @Entity
 @Table(name = "work_plan")
+@Schema(description = "feat : 작업 계획 엔티티")
 public class WorkPlan extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Schema(description = "작업 계획 ID")
     private Long idx;
 
-    // 상위 공정(마스터 공정표)과 연결
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "trade_process_id")
+    @Schema(description = "feat : 상위 공정 관계")
     private TradeProcess tradeProcess;
 
-    // 상위 작업 계획과 연결
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_work_plan_id")
+    @Schema(description = "feat : 상위 작업 계획 관계")
     private WorkPlan parentWorkPlan;
 
     @OneToMany(mappedBy = "parentWorkPlan", fetch = FetchType.LAZY)
     @Builder.Default
+    @Schema(description = "feat : 하위 작업 계획 목록")
     private List<WorkPlan> childWorkPlans = new ArrayList<>();
 
-    private String name;        // 작업명 (공정명)
-    private String location;    // 작업 위치/구역
+    @Schema(description = "작업명", example = "기초 공사")
+    private String name;
+
+    @Schema(description = "작업 위치/구역", example = "A동 1층")
+    private String location;
 
     @Enumerated(EnumType.STRING)
-    private WorkTrade trade;    // 공종
+    @Schema(description = "공종", example = "EARTHWORK")
+    private WorkTrade trade;
 
     @Enumerated(EnumType.STRING)
-    private PlanType planType;  // 연간/월간/주간
+    @Schema(description = "계획 유형", example = "MONTHLY")
+    private PlanType planType;
 
     @Enumerated(EnumType.STRING)
-    private PlanStatus status;  // 진행 예정/진행 중
+    @Schema(description = "상태", example = "PLANNED")
+    private PlanStatus status;
 
-    private LocalDate startDate;   // 계획 시작일
-    private LocalDate endDate;     // 계획 종료일
-    private LocalDate actualStart; // 실제 시작일
+    @Schema(description = "계획 시작일", example = "2026-05-27")
+    private LocalDate startDate;
 
+    @Schema(description = "계획 종료일", example = "2026-06-27")
+    private LocalDate endDate;
+
+    @Schema(description = "실제 시작일", example = "2026-05-28")
+    private LocalDate actualStart;
+
+    @Schema(description = "필요 인원 수", example = "6")
     private Integer requiredCount;
 
-    private String partner; // 협력사명
-    private String manager; // 담당자명
-    private String contact; // 담당자 연락처
+    @Schema(description = "협력사명", example = "ABC 건설")
+    private String partner;
+
+    @Schema(description = "담당자명", example = "홍길동")
+    private String manager;
+
+    @Schema(description = "담당자 연락처", example = "010-1234-5678")
+    private String contact;
+
     @Column(columnDefinition = "TEXT")
-    private String note;    // 비고
+    @Schema(description = "비고", example = "날씨에 따라 조정 가능")
+    private String note;
 
     @Column(name = "actual_progress_pct")
+    @Schema(description = "실제 진행률", example = "75.5")
     private BigDecimal actualProgressPct = BigDecimal.ZERO;
 
     @OneToMany(mappedBy = "workPlan", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
+    @Schema(description = "feat : 작업 인력 목록")
     private List<WorkPlanWorker> workers = new ArrayList<>();
 
     @OneToMany(mappedBy = "workPlan", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
+    @Schema(description = "feat : 작업 장비 목록")
     private List<WorkPlanEquipment> equipment = new ArrayList<>();
 
     @OneToOne(mappedBy = "workPlan", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Schema(description = "feat : 일정 연장 정보")
     private WorkPlanExtension extension;
 
-    /**
-     * 화면에 보일 최종 종료일 — 연장이 있으면 연장 종료일, 없으면 원래 종료일
-     */
+    // feat : 유효한 종료일 계산 (연장이 있으면 연장 종료일 반환)
     public LocalDate effectiveEndDate() {
         if (extension != null && extension.getExtendedEnd() != null) {
             return extension.getExtendedEnd();
         }
         return endDate;
     }
+
+    // feat : 상위 작업 계획 연결
     public void linkParentWorkPlan(WorkPlan parentWorkPlan) {
         this.parentWorkPlan = parentWorkPlan;
     }
-    /**
-     * 상위 공정 연결 (공정표 업로드 후 매핑 시 사용)
-     */
+
+    // feat : 상위 공정 연결
     public void linkTradeProcess(TradeProcess tradeProcess) {
         this.tradeProcess = tradeProcess;
     }
 
-    /**
-     * 작업 계획 기본 정보 수정
-     */
+    // feat : 작업 계획 기본 정보 수정
     public void updateInfo(String name, WorkTrade trade, String location,
                            LocalDate startDate, LocalDate endDate,
                            PlanStatus status,
@@ -116,9 +140,7 @@ public class WorkPlan extends BaseEntity {
         this.note = note;
     }
 
-    /**
-     * 인력 목록 일괄 교체 + requiredCount 자동 동기화
-     */
+    // feat : 인력 목록 일괄 교체 및 필요 인원 자동 동기화
     public void replaceWorkers(List<WorkPlanWorker> newWorkers) {
         this.workers.clear();
         if (newWorkers != null) {
@@ -130,9 +152,7 @@ public class WorkPlan extends BaseEntity {
         recalculateRequiredCount();
     }
 
-    /**
-     * 장비 목록 일괄 교체
-     */
+    // feat : 장비 목록 일괄 교체
     public void replaceEquipment(List<WorkPlanEquipment> newEquipment) {
         this.equipment.clear();
         if (newEquipment != null) {
@@ -143,17 +163,13 @@ public class WorkPlan extends BaseEntity {
         }
     }
 
-    /**
-     * 일정 연장 등록/연결
-     */
+    // feat : 일정 연장 등록 및 연결
     public void attachExtension(WorkPlanExtension extension) {
         this.extension = extension;
         extension.bindWorkPlan(this);
     }
 
-    /**
-     * 실제 시작일 기록 (착수 처리)
-     */
+    // feat : 실제 시작일 기록 및 상태 변경
     public void markStarted(LocalDate actualStart) {
         if (actualStart == null) {
             throw new IllegalArgumentException("실제 시작일은 필수입니다.");
@@ -165,9 +181,7 @@ public class WorkPlan extends BaseEntity {
         this.status = PlanStatus.IN_PROGRESS;
     }
 
-    /**
-     * "전공 4명, 보통공 2명" 형태의 표시용 문자열
-     */
+    // feat : 인력 표시용 문자열 생성
     public String workersDisplay() {
         if (workers == null || workers.isEmpty()) return "";
         return workers.stream()
@@ -176,9 +190,7 @@ public class WorkPlan extends BaseEntity {
                 .collect(Collectors.joining(", "));
     }
 
-    /**
-     * "타워크레인 1대, 펌프카 1대" 형태의 표시용 문자열
-     */
+    // feat : 장비 표시용 문자열 생성
     public String equipmentDisplay() {
         if (equipment == null || equipment.isEmpty()) return "";
         return equipment.stream()
@@ -187,6 +199,7 @@ public class WorkPlan extends BaseEntity {
                 .collect(Collectors.joining(", "));
     }
 
+    // feat : 필요 인원 자동 계산
     private void recalculateRequiredCount() {
         if (workers == null || workers.isEmpty()) {
             this.requiredCount = 0;
@@ -198,6 +211,8 @@ public class WorkPlan extends BaseEntity {
                 .mapToInt(Integer::intValue)
                 .sum();
     }
+
+    // feat : 실제 진행률 업데이트
     public void updateActualProgressPct(Double actualProgressPct) {
         double value = actualProgressPct == null
                 ? 0.0

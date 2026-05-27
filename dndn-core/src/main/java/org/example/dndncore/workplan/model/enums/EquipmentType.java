@@ -1,5 +1,6 @@
 package org.example.dndncore.workplan.model.enums;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -7,6 +8,7 @@ import java.util.Arrays;
 
 @Getter
 @AllArgsConstructor
+@Schema(description = "feat : 작업 장비 종류")
 public enum EquipmentType {
 
     // 굴착·토공
@@ -62,6 +64,7 @@ public enum EquipmentType {
     // 기타
     OTHER("기타");
 
+    @Schema(description = "장비 레이블", example = "타워크레인")
     private final String label;
 
     public static EquipmentType fromLabel(String label) {

@@ -1,5 +1,6 @@
 package org.example.dndncore.analysis.model;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndncore.common.model.BaseEntity;
@@ -25,16 +26,19 @@ import java.time.LocalDate;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Schema(description = "일정 변경 요청 엔티티")
 public class ScheduleChange extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Schema(description = "요청 ID", example = "1")
     private Long idx;
 
     // ── 연관 관계 ──────────────────────────────────────────────────────────
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
+    @Schema(description = "프로젝트")
     private Project project;
 
     /**
@@ -43,44 +47,58 @@ public class ScheduleChange extends BaseEntity {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "trade_process_id")
+    @Schema(description = "공정 단계")
     private TradeProcess tradeProcess;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "work_plan_id")
+    @Schema(description = "작업 계획")
     private WorkPlan workPlan;
 
     // ── 요청 내용 ──────────────────────────────────────────────────────────
 
     @Column(nullable = false)
+    @Schema(description = "작업명", example = "기초 철근 배근")
     private String taskName;    // 작업명 (예: "기초 철근 배근")
 
     @Column(nullable = false)
+    @Schema(description = "요청자", example = "김철수 (철근 책임자)")
     private String requester;   // 요청자 표시명 (예: "김철수 (철근 책임자)")
 
     @Column(nullable = false)
+    @Schema(description = "공정/공종", example = "철근콘크리트공사")
     private String process;     // 공종명 — 필터 조회용 denormalized 컬럼
 
+    @Schema(description = "기존 시작일", example = "2026-05-01")
     private LocalDate oldStart;
+    @Schema(description = "기존 종료일", example = "2026-05-10")
     private LocalDate oldEnd;
 
     @Column(nullable = false)
+    @Schema(description = "변경 시작일", example = "2026-05-03")
     private LocalDate newStart;
 
     @Column(nullable = false)
+    @Schema(description = "변경 종료일", example = "2026-05-12")
     private LocalDate newEnd;
 
     @Column(nullable = false, columnDefinition = "TEXT")
+    @Schema(description = "변경 사유")
     private String reason;      // 변경 사유
 
+    @Schema(description = "지연 원인")
     private String cause;       // 지연 원인 (기상/인력/자재 등)
 
     @Column(columnDefinition = "TEXT")
+    @Schema(description = "변경 요약 JSON")
     private String changeSummaryJson;   // 승인 화면 요약 데이터(JSON)
 
     @Column(columnDefinition = "TEXT")
+    @Schema(description = "세부 변경 JSON")
     private String detailChangesJson;   // 세부일정별 변경 데이터(JSON 배열)
 
     @Builder.Default
+    @Schema(description = "AI 반영 여부", example = "false")
     private Boolean aiApplied = false;  // AI 추천안 반영 여부
 
     // ── 첨부파일 ──────────────────────────────────────────────────────────
@@ -96,10 +114,14 @@ public class ScheduleChange extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
+    @Schema(description = "상태", example = "PENDING")
     private ScheduleChangeStatus status = ScheduleChangeStatus.PENDING;
 
+    @Schema(description = "반려 사유")
     private String rejectReason;    // 반려 사유
+    @Schema(description = "처리자")
     private String approver;        // 처리자 표시명 (예: "이감독 (현장 총 책임자)")
+    @Schema(description = "처리일", example = "2026-05-28")
     private LocalDate processedAt;  // 승인/반려/반영 처리일
 
     // ── 도메인 메서드 ──────────────────────────────────────────────────────

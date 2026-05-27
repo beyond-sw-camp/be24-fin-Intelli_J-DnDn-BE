@@ -1,9 +1,12 @@
 package org.example.dndncore.workplan.model.enums;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+
 @Getter
 @AllArgsConstructor
+@Schema(description = "feat : 작업 공종")
 public enum WorkTrade {
     EARTHWORK("토공",   "토공사"),
     FORM     ("형틀",   "골조공사"),
@@ -20,8 +23,9 @@ public enum WorkTrade {
     PAVEMENT ("포장",   "포장공사"),
     ETC      ("기타",   "기타");
 
+    @Schema(description = "공종 레이블", example = "토공")
     private final String label;
-    /** 상위 공종 분류명 (골조공사·마감공사 등) */
+    @Schema(description = "상위 공종 분류명", example = "토공사")
     private final String category;
 
     public static WorkTrade fromLabel(String label) {

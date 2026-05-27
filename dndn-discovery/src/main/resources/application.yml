@@ -6,13 +6,20 @@ spring:
     name: dndn-discovery
 
 eureka:
+  instance:
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:localhost}
+    status-page-url: http://${EUREKA_INSTANCE_HOSTNAME:localhost}:${DISCOVERY_PORT:8761}/actuator/info
+    health-check-url: http://${EUREKA_INSTANCE_HOSTNAME:localhost}:${DISCOVERY_PORT:8761}/actuator/health
+    home-page-url: http://${EUREKA_INSTANCE_HOSTNAME:localhost}:${DISCOVERY_PORT:8761}/
+
   client:
     register-with-eureka: false
     fetch-registry: false
     service-url:
-      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka/}
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka/%7D
+
   server:
-    enable-self-preservation: ${EUREKA_SELF_PRESERVATION:false}
+    enable-self-preservation: false
 
 management:
   endpoint:

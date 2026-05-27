@@ -1,5 +1,6 @@
 package org.example.dndncore.worker.model.entity;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndncore.common.model.BaseEntity;
@@ -17,99 +18,107 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
+@Schema(description = "작업자 정보 엔티티")
 public class Worker extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Schema(description = "작업자 ID", example = "1")
     private Long idx;
 
-    /** 시연 픽스처·향후 연동 시 공통으로 쓰는 외부 식별자/사번 등 (sync 시 dedup key) */
     @Column(unique = true, length = 50)
+    @Schema(description = "외부 식별자/사번", example = "EMP20240115001")
     private String externalCode;
 
-    /** 이름 */
     @Column(nullable = false, length = 30)
+    @Schema(description = "작업자 이름", example = "홍길동")
     private String name;
 
-    /** 본인 연락처 */
     @Column(length = 20)
+    @Schema(description = "연락처", example = "010-1234-5678")
     private String phone;
 
-    /** 비상 연락처 (번호) */
     @Column(length = 20)
+    @Schema(description = "비상 연락처", example = "010-9999-8888")
     private String emergencyPhone;
 
-    /** 비상 연락 관계 (예: 배우자, 자녀, 부모) */
     @Column(length = 20)
+    @Schema(description = "비상 연락 관계", example = "배우자")
     private String emergencyRelation;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
+    @Schema(description = "직급", example = "TEAM_LEAD")
     private JobRank jobRank;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
+    @Schema(description = "소속 구분", example = "DIRECT")
     private AffiliationKind affiliationKind;
 
-    /** 인력 데이터 수신 시 해당 근무자가 지원한 공종 카테고리 (예: 목공, 전기, 토목, 마감). */
     @Column(name = "trade", length = 30)
+    @Schema(description = "공종", example = "목공")
     private String trade;
 
-    /** 인사·연동에서 받은 상용(REGULAR)·일용(DAILY) 마스터 구분. sync 시 갱신되며 명단일 {@link AttendanceRecord} 생성 시 기본값으로 쓰인다. */
     @Enumerated(EnumType.STRING)
     @Column(name = "employment_kind", nullable = false, length = 16)
+    @Schema(description = "고용 구분", example = "REGULAR")
     private EmploymentKind employmentKind;
 
-    /** 투입 현장 (예: 강남구 재건축 A공구) */
     @Column(length = 100)
+    @Schema(description = "현장", example = "강남구 재건축 A공구")
     private String site;
 
-    /** 인사·현장 시스템과 맞추는 현장 코드(sync 필터 키). 미입력 시 {@link #site} 문자열로만 매칭. */
     @Column(length = 30)
+    @Schema(description = "현장 코드", example = "SITE01")
     private String siteCode;
 
-    /** 혈액형 */
     @Column(length = 5)
+    @Schema(description = "혈액형", example = "A형")
     private String bloodType;
 
-    /** 등록일 */
+    @Schema(description = "등록 일자", example = "2024-01-15")
     private LocalDate registeredAt;
 
-    /** 프로필 사진 URL */
     @Column(length = 500)
+    @Schema(description = "프로필 이미지 URL", example = "https://example.com/profile/1.jpg")
     private String profileImageUrl;
 
-    /** 당월 누적 공수 캐시값 (실시간 합계는 AttendanceRecord 로 산출) */
     @Column(precision = 5, scale = 1)
+    @Schema(description = "당월 누적 공수", example = "15.5")
     private BigDecimal monthTotalMan;
 
-    /** 피로도/위험 점수(0–100 상한 적용값). 프로필·인력 배치 등에서 참조한다. */
     @Column(name = "fatigue_score_total", nullable = false)
     @Builder.Default
+    @Schema(description = "피로도 점수(0-100)", example = "42")
     private int fatigueScoreTotal = 0;
 
-    /** {@code fatigue_score_total ≥ 80} 일 때 고위험 근로자로 분류 */
     @Column(name = "fatigue_high_risk", nullable = false)
     @Builder.Default
+    @Schema(description = "고위험 근로자 여부", example = "false")
     private boolean fatigueHighRisk = false;
 
     @Column(name = "fatigue_pt_accident", nullable = false)
     @Builder.Default
+    @Schema(description = "사고 피로도 점수", example = "10")
     private int fatiguePtAccident = 0;
 
     @Column(name = "fatigue_pt_streak", nullable = false)
     @Builder.Default
+    @Schema(description = "연속 근무 피로도 점수", example = "15")
     private int fatiguePtStreak = 0;
 
     @Column(name = "fatigue_pt_overnight", nullable = false)
     @Builder.Default
+    @Schema(description = "야간 근무 피로도 점수", example = "5")
     private int fatiguePtOvernight = 0;
 
     @Column(name = "fatigue_pt_trade_risk", nullable = false)
     @Builder.Default
+    @Schema(description = "공종 위험도 점수", example = "20")
     private int fatiguePtTradeRisk = 0;
 
-    /** 마지막 피로도 산정 시각(재계산 직후 갱신) */
     @Column(name = "fatigue_calculated_at")
+    @Schema(description = "피로도 산정 시각", example = "2026-05-27T14:30:00")
     private LocalDateTime fatigueCalculatedAt;
 
     public void replaceFatigueSnapshot(

@@ -1,16 +1,15 @@
 package org.example.dndncore.workplan.model.enums;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Arrays;
 
-/**
- * 작업 인력 직종
- * - 공종(WorkTrade)과는 별개 개념. 한 공종 안에서 여러 직종이 투입될 수 있음.
- */
+// feat : 작업 인력 직종 (공종과 별개 개념)
 @Getter
 @RequiredArgsConstructor
+@Schema(description = "feat : 작업 인력 직종")
 public enum WorkerTrade {
 
     SKILLED("전공"),
@@ -28,6 +27,7 @@ public enum WorkerTrade {
     WELDER("용접공"),
     OTHER("기타");
 
+    @Schema(description = "직종 레이블", example = "전공")
     private final String label;
 
     public static WorkerTrade fromLabel(String label) {

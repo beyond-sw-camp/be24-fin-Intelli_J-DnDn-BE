@@ -84,6 +84,7 @@ public class DailyReportService {
             monthlyPlan.updateActualProgressPct(monthlyProgressPct);
             workPlanRepository.save(monthlyPlan);
         }
+        documentEventProducer.publishDailyReportChanged("DAILY_REPORT_SUBMITTED", savedReport);
 
         // feat : 금일 작업 진척률 100% 미달 시 해당 주간 계획 기간 자동 연장
         double todayProgress = dto.getTodayProgress() == null ? 0.0 : dto.getTodayProgress();
@@ -198,22 +199,22 @@ public class DailyReportService {
         return dailyReportRepository.findByReportDate(date).stream()
                 .filter(r -> authAccessService.canAccessWorkPlan(r.getWorkPlan()))
                 .map(r ->
-                ReportDto.Res.builder()
-                        .idx(r.getIdx())
-                        .workPlanId(r.getWorkPlan().getIdx())
-                        .process(authAccessService.workPlanTradeName(r.getWorkPlan()))
-                        .actualProgress(r.getActualProgress())
-                        .todayProgress(r.getTodayProgress())
-                        .monthlyWorkPlanId(r.getMonthlyWorkPlan() != null ? r.getMonthlyWorkPlan().getIdx() : null)
-                        .progressIncrementPct(r.getProgressIncrementPct())
-                        .monthlyProgressPct(r.getMonthlyProgressPct())
-                        .actualWorkerCount(r.getActualWorkerCount())
-                        .location(nonBlank(r.getLocation(), r.getWorkPlan().getLocation()))
-                        .issue(r.getIssue())
-                        .reportDate(r.getReportDate())
-                        .todayWork(r.getTodayWork())
-                        .tomorrowPlan(r.getTomorrowPlan())
-                        .build()
-        ).collect(Collectors.toList());
+                        ReportDto.Res.builder()
+                                .idx(r.getIdx())
+                                .workPlanId(r.getWorkPlan().getIdx())
+                                .process(authAccessService.workPlanTradeName(r.getWorkPlan()))
+                                .actualProgress(r.getActualProgress())
+                                .todayProgress(r.getTodayProgress())
+                                .monthlyWorkPlanId(r.getMonthlyWorkPlan() != null ? r.getMonthlyWorkPlan().getIdx() : null)
+                                .progressIncrementPct(r.getProgressIncrementPct())
+                                .monthlyProgressPct(r.getMonthlyProgressPct())
+                                .actualWorkerCount(r.getActualWorkerCount())
+                                .location(nonBlank(r.getLocation(), r.getWorkPlan().getLocation()))
+                                .issue(r.getIssue())
+                                .reportDate(r.getReportDate())
+                                .todayWork(r.getTodayWork())
+                                .tomorrowPlan(r.getTomorrowPlan())
+                                .build()
+                ).collect(Collectors.toList());
     }
 }

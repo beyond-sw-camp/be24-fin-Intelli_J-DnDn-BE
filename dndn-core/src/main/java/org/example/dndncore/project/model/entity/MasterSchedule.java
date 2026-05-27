@@ -1,5 +1,6 @@
 package org.example.dndncore.project.model.entity;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndncore.common.model.BaseEntity;
@@ -11,33 +12,42 @@ import org.example.dndncore.project.model.enums.DocType;
 @Builder
 @Entity
 @Table(name = "master_schedule")
+@Schema(description = "마스터 공정표 엔티티")
 public class MasterSchedule extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Schema(description = "공정표 ID", example = "1")
     private Long idx;
 
     @Setter
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
+    @Schema(description = "프로젝트")
     private Project project;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private DocType docType;    // 마스터/마일스톤/보할/공종별
+    @Schema(description = "문서 타입", example = "MASTER")
+    private DocType docType;
 
     @Column(nullable = false)
-    private String fileUrl;     // 업로드된 파일 경로
+    @Schema(description = "파일 URL")
+    private String fileUrl;
 
-    private String fileName;    // 원본 파일명 (표시용)
+    @Schema(description = "원본 파일명", example = "master-schedule.xlsx")
+    private String fileName;
 
-    // 협력사 여부
+    // feat : 협력사 여부
+    @Schema(description = "협력사 문서 여부", example = "false")
     public Boolean isPartner;
 
-    // 소속 명칭 (본사 or 협력사 이름)
+    // feat : 소속 명칭
+    @Schema(description = "소속 명칭", example = "본사")
     public String affiliationName;
 
-    // 작성자 이름
+    // feat : 작성자 이름
+    @Schema(description = "작성자 이름", example = "홍길동")
     public String name;
 
     public void update(DocType docType, String fileUrl, String fileName) {
