@@ -1,5 +1,14 @@
 server:
   port: ${DOCUMENT_MANAGEMENT_PORT:8082}
+  forward-headers-strategy: framework
+
+# Gateway rewrite: /api/msa/document-management/** → /document-management/**
+# springdoc 엔드포인트를 /document-management 하위에 두어 gateway rewrite 경로와 일치시킴
+springdoc:
+  swagger-ui:
+    path: /document-management/swagger-ui/index.html
+  api-docs:
+    path: /document-management/v3/api-docs
 
 spring:
   application:
