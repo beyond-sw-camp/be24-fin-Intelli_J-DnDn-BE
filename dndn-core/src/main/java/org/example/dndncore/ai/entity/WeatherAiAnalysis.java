@@ -1,5 +1,6 @@
 package org.example.dndncore.ai.entity;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -22,24 +23,30 @@ import java.time.LocalDate;
 @Builder(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Schema(description = "기상 AI 분석 엔티티")
 public class WeatherAiAnalysis extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Schema(description = "기상 분석 ID", example = "1")
     private Long idx;
 
     @Column(name = "analysis_date", nullable = false, unique = true)
+    @Schema(description = "분석 기준일", example = "2026-05-27")
     private LocalDate analysisDate;
 
     @Column(name = "overall_safety", length = 30)
+    @Schema(description = "종합 안전도", example = "주의")
     private String overallSafety;
 
     @Lob
     @Column(name = "note", columnDefinition = "TEXT")
+    @Schema(description = "분석 비고")
     private String note;
 
     @Lob
     @Column(name = "result_json", nullable = false, columnDefinition = "LONGTEXT")
+    @Schema(description = "AI 분석 결과 JSON")
     private String resultJson;
 
     public static WeatherAiAnalysis create(

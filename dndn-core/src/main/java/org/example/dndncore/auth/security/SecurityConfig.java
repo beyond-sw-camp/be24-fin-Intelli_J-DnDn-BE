@@ -37,29 +37,35 @@ public class SecurityConfig {
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.sameOrigin())
                         .addHeaderWriter((request, response) -> {
-                            // 로컬 파일 미리보기 경로는 X-Frame-Options 제거
                             if (request.getRequestURI().startsWith("/document-management/local-files/")) {
                                 response.setHeader("X-Frame-Options", "");
                             }
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
-                        // SSE async 재디스패치: Tomcat 내부 dispatch이므로 보안 체크 불필요.
-                        // JwtFilter(OncePerRequestFilter)는 async dispatch를 건너뛰어 SecurityContext가
-                        // 비어있기 때문에 AuthorizationFilter가 Access Denied를 반환하는 문제를 방지한다.
                         .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
-                        // 모바일 작업자 — 로그인은 인증 불필요, 나머지는 ROLE_WORKER 필요
                         .requestMatchers("/mobile/auth/**").permitAll()
                         .requestMatchers("/mobile/worker/**").hasRole("WORKER")
                         .requestMatchers("/mobile/sse/**").hasRole("WORKER")
-                        // 관리자 웹 기존 규칙
+
+                        // 1. 스웨거 경로는 인증 없이 누구나 접근 가능
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/swagger-resources/**",
+                                "/swagger-ui.html"
+                        ).permitAll()
+
+                        // 2. 관리자 웹 규칙
                         .requestMatchers(HttpMethod.PUT, "/auth/password").authenticated()
-                        .requestMatchers("/auth/**","/project/**").permitAll()
+                        .requestMatchers("/auth/**", "/project/**").permitAll()
                         .requestMatchers("/document-management/local-files/**").permitAll()
                         .requestMatchers("/document-management/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/work-order", "/work-order/slice").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/account-requests").authenticated()
+
+                        // 3. 나머지 비즈니스 로직 (기존 authenticated 설정 유지)
                         .requestMatchers(
                                 "/master-schedule/**",
                                 "/trade-process/**",
@@ -69,12 +75,10 @@ public class SecurityConfig {
                                 "/analysis/**",
                                 "/schedule-change-request/**"
                         ).authenticated()
-                        .anyRequest().permitAll()   // 기존 엔드포인트는 현행 유지 (추후 역할별 제한 추가)
+
+                        .anyRequest().permitAll()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
-                // ── 에러 응답(401/403)에도 CORS 헤더 보존 ───────────────────────────────
-                // sendError() → Tomcat 에러 디스패치 → 새 Response 컨텍스트 생성 → CORS 헤더 소멸.
-                // 해결책: sendError() 대신 직접 응답을 작성해서 에러 디스패치를 우회한다.
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> {
                             String origin = request.getHeader("Origin");
@@ -111,13 +115,14 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
-                "http://localhost:5173",          // 관리자 웹 Vite dev
-                "http://localhost:8081",          // 모바일 Vite dev (로컬)
-                "http://192.100.200.41:8081",     // 모바일 Vite dev (팀 내부망 IP)
-                "http://localhost",               // Capacitor Android WebView
-                "capacitor://localhost",          // Capacitor iOS WebView
-                "ionic://localhost",              // Ionic 앱 내부 scheme
-                "https://www.dndn24.kro.kr"      // 배포 도메인
+                "http://localhost:5173",
+                "http://localhost:8081",
+                "http://192.100.200.41:8081",
+                "http://localhost",
+                "https://localhost",
+                "capacitor://localhost",
+                "ionic://localhost",
+                "https://www.dndn24.kro.kr"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));

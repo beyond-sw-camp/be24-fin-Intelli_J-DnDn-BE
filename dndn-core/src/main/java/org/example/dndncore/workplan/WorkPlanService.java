@@ -79,7 +79,7 @@ public class WorkPlanService {
     @Transactional
     public List<Long> createBulk(List<WorkPlanDto.Req> dtos) {
         if (dtos == null || dtos.isEmpty()) {
-            throw new RuntimeException("??ν븷 ?묒뾽 怨꾪쉷???놁뒿?덈떎.");
+            throw new RuntimeException("등록할 작업 계획이 없습니다.");
         }
 
         List<WorkPlan> savedPlans = new ArrayList<>();

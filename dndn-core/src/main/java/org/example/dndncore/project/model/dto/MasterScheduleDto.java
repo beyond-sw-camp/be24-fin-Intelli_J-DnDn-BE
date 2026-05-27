@@ -1,5 +1,6 @@
 package org.example.dndncore.project.model.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import org.example.dndncore.project.model.entity.MasterSchedule;
 
@@ -11,22 +12,35 @@ public class MasterScheduleDto {
     private static final DateTimeFormatter DT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     @Getter @Setter @AllArgsConstructor @NoArgsConstructor @Builder
+    @Schema(description = "마스터 공정표 요청")
     public static class Req {
+        @Schema(description = "프로젝트 ID", example = "1")
         private Long projectId;
-        private String docType;     // "마스터 공정표" | "마일스톤 공정표" | "보할 공정표" | "공종별 시공계획서"
+        @Schema(description = "문서 타입", example = "MASTER")
+        private String docType;
+        @Schema(description = "파일 URL")
         private String fileUrl;
+        @Schema(description = "파일명", example = "master-schedule.xlsx")
         private String fileName;
     }
 
     @Getter @NoArgsConstructor @AllArgsConstructor @Builder
+    @Schema(description = "마스터 공정표 응답")
     public static class Res {
+        @Schema(description = "공정표 ID", example = "1")
         private Long idx;
+        @Schema(description = "프로젝트 ID", example = "1")
         private Long projectId;
+        @Schema(description = "프로젝트명", example = "OO아파트 신축공사")
         private String projectName;
-        private String docType;     // 한글 라벨
+        @Schema(description = "문서 타입 라벨", example = "마스터 공정표")
+        private String docType;
+        @Schema(description = "파일 URL")
         private String fileUrl;
+        @Schema(description = "파일명", example = "master-schedule.xlsx")
         private String fileName;
-        private String uploadedAt;  // 표시용
+        @Schema(description = "업로드 시각", example = "2026-05-27 10:00")
+        private String uploadedAt;
 
         public static Res from(MasterSchedule entity) {
             String uploadedAt = "";

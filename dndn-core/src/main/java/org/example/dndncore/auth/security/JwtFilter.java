@@ -24,8 +24,19 @@ public class JwtFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+
+        // [스웨거 보안 예외 처리]
+        // 스웨거 관련 요청은 JWT 검사 없이 바로 통과시킵니다.
+        String path = request.getRequestURI();
+        if (path.startsWith("/swagger-ui/") ||
+                path.startsWith("/v3/api-docs") ||
+                path.startsWith("/swagger-resources/") ||
+                path.equals("/swagger-ui.html")) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         // Authorization 헤더 우선, 없으면 SSE용 query param 'token' 폴백
-        // (EventSource API 는 커스텀 헤더 미지원 → ?token= 으로 JWT 전달)
         String rawToken = null;
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {

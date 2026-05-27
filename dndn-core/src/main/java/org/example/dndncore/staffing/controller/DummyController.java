@@ -2,6 +2,12 @@ package org.example.dndncore.staffing.controller;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +40,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/staffing/dummy")
+@Tag(name = "Staffing Dummy", description = "인력 배치 더미 데이터 적재 API")
 public class DummyController {
 
     private static final String DEFAULT_CLASSPATH_RESOURCE = "classpath:data/staffing-zone-demo.json";
@@ -49,8 +56,14 @@ public class DummyController {
      */
     @PostMapping("/seed-zones")
     @Transactional
+    @Operation(summary = "구역 더미 데이터 적재", description = "JSON 리소스를 읽어 인력 배치 구역 트리를 저장합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "적재 성공")
+    })
     public ResponseEntity<BaseResponse<StaffingZoneSeedRes>> seedZones(
+            @Parameter(description = "기존 인력 배치 구역 데이터 교체 여부", example = "true")
             @RequestParam(defaultValue = "true") boolean replaceExisting,
+            @Parameter(description = "적재할 JSON 리소스 경로", example = "classpath:data/staffing-zone-demo.json")
             @RequestParam(required = false) String resource
     ) throws IOException {
         String location = (resource == null || resource.isBlank()) ? DEFAULT_CLASSPATH_RESOURCE : resource.trim();
@@ -116,13 +129,21 @@ public class DummyController {
 
     @Getter
     @Builder
+    @Schema(description = "인력 배치 구역 더미 데이터 적재 응답")
     public static class StaffingZoneSeedRes {
+        @Schema(description = "사용된 JSON 리소스 경로", example = "classpath:data/staffing-zone-demo.json")
         private final String resource;
+        @Schema(description = "기존 데이터 교체 여부", example = "true")
         private final boolean replacedExisting;
+        @Schema(description = "입력 JSON 버전", example = "1")
         private final int jsonVersion;
+        @Schema(description = "입력 JSON 설명", example = "현장 구역 더미 데이터")
         private final String jsonDescription;
+        @Schema(description = "저장된 기본 구역 수", example = "4")
         private final int zoneMainCount;
+        @Schema(description = "저장된 상세 구역 수", example = "12")
         private final int zoneSubCount;
+        @Schema(description = "저장된 직종 필요 인원 행 수", example = "36")
         private final int tradeNeedCount;
     }
 
