@@ -51,7 +51,7 @@ DnDn은 건설 현장에서 발생하는 인력, 근태, 안전, 공정, 문서,
 | 프레임워크 | ![Spring Boot](https://img.shields.io/badge/Spring_Boot_3.5.11-6DB33F?style=flat-square&logo=springboot&logoColor=white) ![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=flat-square&logo=springsecurity&logoColor=white) ![Spring Cloud](https://img.shields.io/badge/Spring_Cloud-6DB33F?style=flat-square&logo=spring&logoColor=white) |
 | 데이터 | ![JPA](https://img.shields.io/badge/JPA-59666C?style=flat-square&logo=hibernate&logoColor=white) ![MariaDB](https://img.shields.io/badge/MariaDB-003545?style=flat-square&logo=mariadb&logoColor=white) ![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white) ![Elasticsearch](https://img.shields.io/badge/Elasticsearch-005571?style=flat-square&logo=elasticsearch&logoColor=white) |
 | 메시징 | ![Kafka](https://img.shields.io/badge/Kafka-231F20?style=flat-square&logo=apachekafka&logoColor=white) |
-| AI·파일 | ![OpenAI](https://img.shields.io/badge/OpenAI_API-412991?style=flat-square&logo=openai&logoColor=white) ![AWS S3](https://img.shields.io/badge/AWS_S3-569A31?style=flat-square&logo=amazons3&logoColor=white) ![Apache POI](https://img.shields.io/badge/Apache_POI-D22128?style=flat-square&logo=apache&logoColor=white) |
+| AI·파일 | ![OpenAI](https://img.shields.io/badge/OpenAI_API-412991?style=flat-square&logo=openai&logoColor=white) ![AWS S3](https://img.shields.io/badge/AWS_S3-569A31?style=flat-square&logo=amazons3&logoColor=white) ![Apache POI](https://img.shields.io/badge/Apache_POI-D22128?style=flat-square&logo=apache&logoColor=white) ![KMA](https://img.shields.io/badge/KMA_Weather_API-2F80ED?style=flat-square) ![AirKorea](https://img.shields.io/badge/AirKorea_API-00A3E0?style=flat-square) |
 | API | ![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=flat-square&logo=swagger&logoColor=black) ![JWT](https://img.shields.io/badge/JWT-000000?style=flat-square&logo=jsonwebtokens&logoColor=white) |
 
 ### 인프라
@@ -62,12 +62,23 @@ DnDn은 건설 현장에서 발생하는 인력, 근태, 안전, 공정, 문서,
 | 실행 환경 | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white) ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white) |
 | 게이트웨이 | ![Nginx Ingress](https://img.shields.io/badge/Nginx_Ingress-009639?style=flat-square&logo=nginx&logoColor=white) |
 | 모니터링 | ![Actuator](https://img.shields.io/badge/Spring_Actuator-6DB33F?style=flat-square&logo=springboot&logoColor=white) ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white) ![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white) |
+| Storage Class | ![Longhorn](https://img.shields.io/badge/Longhorn-FFB000?style=flat-square&logo=linuxfoundation&logoColor=white) |
+
+### 협업
+
+| 분류 | 기술 |
+| :--- | :--- |
+| Version Control | ![Git](https://img.shields.io/badge/Git-F05032?style=flat-square&logo=git&logoColor=white) ![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white) |
+| API Test | ![Postman](https://img.shields.io/badge/Postman-FF6C37?style=flat-square&logo=postman&logoColor=white) |
+| Design / Docs | ![Figma](https://img.shields.io/badge/Figma-F24E1E?style=flat-square&logo=figma&logoColor=white) ![Notion](https://img.shields.io/badge/Notion-000000?style=flat-square&logo=notion&logoColor=white) |
+| Communication | ![Discord](https://img.shields.io/badge/Discord-5865F2?style=flat-square&logo=discord&logoColor=white) |
+
 
 <br/>
 
 ## 시스템 아키텍처
 
-<img width="1611" height="1181" alt="Image" src="https://github.com/user-attachments/assets/fcf66e22-a5e0-4e42-9649-cdc7d59fd750" />
+<img width="959" height="993" alt="imaasdge" src="https://github.com/user-attachments/assets/8da5c9a5-f17f-425b-9f92-1df84e92c927" />
 
 <br/>
 
