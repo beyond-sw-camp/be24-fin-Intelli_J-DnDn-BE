@@ -72,7 +72,31 @@ DnDn은 건설 현장에서 발생하는 인력, 근태, 안전, 공정, 문서,
 <br/>
 
 ## 프로젝트 문서
+| 문서             | 설명                          | 링크                                                                                                                                                        |
+|:---------------|:----------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 기획서            | 프로젝트 배경, 목표, 요구사항, 주요 기능 정의 | [기획서 바로 가기](https://docs.google.com/document/d/1sWc9Jkv1IJ1b2f6MWZsRkTO-FRbW_NpE/edit?usp=sharing&ouid=106232743371302790593&rtpof=true&sd=true)          |
+| WBS            | 개발 일정, 담당 업무, 진행 계획 정리      | [WBS 바로 가기](https://docs.google.com/spreadsheets/d/1zKD-VeyADUBgm0aWjMegf7iwteayjSAPxC_qzSimDQM/edit?usp=sharing) |
+| 요구사항 명세서       | 기능 요구사항 및 비기능 요구사항 정리       | [요구사항 명세서 바로 가기](https://docs.google.com/spreadsheets/d/1fuJQMvBLo1qCz4FHHyBuD-mh7SdobIo3/edit?usp=sharing&ouid=106232743371302790593&rtpof=true&sd=true) |
+| 화면 설계서 (Figma) | 프론트엔드 화면 설계 및 UI 구성 설계       | [화면 설계서 (피그마) 바로 가기](https://www.figma.com/design/3qUOzFW9Z5LsfDC3M57mxj/Untitled?t=AWaj1tmgtFtOj7Ns-1)                                                   |
 
+<br/>
+
+| 문서 | 설명 | 링크            |
+| :--- | :--- |:--------------|
+| ERD | 주요 도메인 테이블 및 관계 구조 | [위키 주소 작성 예정] |
+| 시스템 아키텍처 | 프론트엔드, 백엔드, DB, Redis, Kubernetes 구성도 | [위키 주소 작성 예정] |
+| API 명세서 | 프론트엔드와 백엔드 간 API 요청/응답 구조 | [주소 작성 예정]    |
+| Redis 설계 문서 | 분산락, 캐시 Key naming, TTL 정책 정리 | [여부 확인]       |
+
+
+<br/>
+
+| 문서 | 설명 | 링크 |
+| :--- | :--- | :--- |
+| 프로그램 사양서 | 주요 기능별 동작 방식 및 처리 흐름 정리 | 준비 중 |
+| 단위 테스트 결과서 | 기능별 테스트 결과 및 검증 내용 정리 | 준비 중 |
+| 배포 전략 문서 | Jenkins, Docker, Kubernetes 기반 배포 흐름 정리 | 준비 중 |
+| 트러블슈팅 문서 | 개발 중 발생한 문제와 해결 과정 정리 | 준비 중 |
 <br/>
 
 ## 모듈 구성
