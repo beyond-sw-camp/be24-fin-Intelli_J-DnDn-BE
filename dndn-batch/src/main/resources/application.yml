@@ -1,0 +1,37 @@
+spring:
+  datasource:
+    driver-class-name: org.mariadb.jdbc.Driver
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASS}
+    hikari:
+      maximum-pool-size: 8        # 멀티스레드 4개 × 동시 트랜잭션 + Spring Batch 메타 + 여유분
+      minimum-idle: 4             # 최소 유지 연결 수 (스레드 수 이상 유지)
+      max-lifetime: 600000        # 10분 (MariaDB wait_timeout보다 짧게 유지)
+      keepalive-time: 60000       # 1분마다 유휴 연결 ping → 서버 측 강제 종료 방지
+      connection-timeout: 30000   # 연결 획득 대기 30초
+      idle-timeout: 300000        # 5분 이상 유휴 연결 반환
+
+  jpa:
+    database-platform: org.hibernate.dialect.MariaDBDialect
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        default_batch_fetch_size: 1000
+        format_sql: false
+        jdbc:
+          batch_size: 50            # saveAll() → 50행씩 묶어 단일 네트워크 왕복으로 INSERT
+        order_inserts: true         # 같은 테이블 INSERT를 연속 배치로 묶음 (batch_size 효과 극대화)
+        order_updates: true         # 같은 테이블 UPDATE도 동일하게 묶음
+
+  batch:
+    jdbc:
+      initialize-schema: always    # BATCH_* 테이블 이미 생성됨 — always 시 WARN 9회 발생
+    job:
+      enabled: true    # JobLauncherApplicationRunner가 RunIdIncrementer로 고유 파라미터 자동 생성
+
+logging:
+  level:
+    org.example.dndn.batch: debug
+    org.hibernate.SQL: warn

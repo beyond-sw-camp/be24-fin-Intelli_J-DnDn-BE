@@ -1,114 +1,106 @@
-﻿<p align="center">
-  <h1 align="center">DnDn</h1>
-  <h3 align="center">건설 현장을 더 스마트하게, 안전하게</h3>
-  <p align="center">근로자 관리부터 인력 배치, 공정 분석, ESG까지 — 건설 현장 통합 관리 플랫폼 DnDn을 소개합니다.</p>
-</p>
-
----
-
-## 👥 팀원
-
 <div align="center">
 
-| **김민규** | **전민주** | **이한별** | **전성훈** | **최승우** |
+# DnDn
+
+<img width="365" height="323" alt="Image" src="https://github.com/user-attachments/assets/c5cce926-7013-4f76-ad11-ac0a90afdfc0" />
+
+### 건설 현장을 더 스마트하게, 더 안전하게
+
+인력 배치, 공정 분석, 문서 자동화, ESG 지표까지<br/>
+건설 현장 운영 데이터를 하나로 연결하는 통합 관리 플랫폼입니다.
+
+<br/>
+
+### 팀원
+
+| 김민규 | 전민주 | 이한별 | 전성훈 | 최승우 |
 | :---: | :---: | :---: | :---: | :---: |
-| <img src="https://github.com/luel1018.png" width="120" style="border-radius:50%"/> | <img src="https://github.com/minju0077.png" width="120" style="border-radius:50%"/> | <img src="https://github.com/sole0714.png" width="120" style="border-radius:50%"/> | <img src="https://github.com/1jshun.png" width="120" style="border-radius:50%"/> | <img src="https://github.com/sw-oo.png" width="120" style="border-radius:50%"/> |
+| <img src="https://github.com/luel1018.png" width="96" alt="김민규"/> | <img src="https://github.com/minju0077.png" width="96" alt="전민주"/> | <img src="https://github.com/sole0714.png" width="96" alt="이한별"/> | <img src="https://github.com/1jshun.png" width="96" alt="전성훈"/> | <img src="https://github.com/sw-oo.png" width="96" alt="최승우"/> |
 | [@luel1018](https://github.com/luel1018) | [@minju0077](https://github.com/minju0077) | [@sole0714](https://github.com/sole0714) | [@1jshun](https://github.com/1jshun) | [@sw-oo](https://github.com/sw-oo) |
+
+<br/>
+
+[![Java](https://img.shields.io/badge/Java-17-007396?style=for-the-badge&logo=openjdk&logoColor=white)](#기술-스택)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.5.11-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](#기술-스택)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)](#배포)
+[![Blue Green](https://img.shields.io/badge/Blue--Green-Deployment-00A878?style=for-the-badge)](#배포)
+
+<br/>
+
+[홈페이지](https://www.dndn24.kro.kr) ·
+[Swagger UI](https://www.dndn24.kro.kr/api/swagger-ui/index.html) ·
+[무중단 배포 시연](https://github.com/user-attachments/assets/9a31362a-4578-4c3a-af02-114a7b628da8)
 
 </div>
 
----
+<br/>
 
-## 📌 목차 (Table of Contents)
-### 1. [🔗 바로가기](#-바로가기)
-### 2. [🔨 기술 스택](#-기술-스택)
-### 3. [⚙️ 시스템 아키텍처](#-시스템-아키텍처)
-### 4. [📘 프로젝트 소개](#-프로젝트-소개)
-### 5. [💻 주요 기능](#-주요-기능)
-### 6. [🎥 무중단 배포](#-무중단-배포)
+## 프로젝트 소개
 
----
+DnDn은 건설 현장에서 발생하는 인력, 근태, 안전, 공정, 문서, 환경 데이터를 실시간으로 수집하고 관리하는 백엔드 플랫폼입니다.<br/>
+현장 소장과 관리자는 근로자 현황, 게이트 혼잡도, 공정 진행률, 일일 보고, ESG 지표를 한 화면에서 확인하고 데이터 기반으로 의사결정할 수 있습니다.
 
-## 🔗 바로가기
+<br/>
 
-| 구분 | 링크 |
-|:---|:---|
-| **🌐 홈페이지** | [www.dndn24.kro.kr](https://www.dndn24.kro.kr) |
-| **📖 API 명세서** | [Swagger UI](https://www.dndn24.kro.kr/api/swagger-ui/index.html) |
+## 핵심 요약
 
----
+| 영역         | 제공 기능                                |
+|------------|--------------------------------------|
+| **인력 관리**  | 근무자 등록, 안전사고 이력, 제재 이력 관리            |
+| **근태 관리**  | 모바일 앱 기반 출퇴근 인식, 피로도 자동 산정, 근태 현황 조회 |
+| **인력 배치**  | 구역별 직종 수요와 피로도를 반영한 인력 배치 추천         |
+| **AI 공정표** | 마스터 공정표 업로드, AI 기반 일정·작업 항목 자동 추출    |
+| **일정 관리**  | 작업 계획, 작업 지시, 공사 일보 작성과 이력 관리        |
+| **현장 정보**  | 날씨·미세먼지 연동, ESG 지표 시각화, 현장 운영 대시보드   |
 
-## 🔨 기술 스택
+<br/>
 
-### 💻 Development
+## 기술 스택
 
-| Layer | Technologies |
-| :--- | :--- |
-| **Backend** | ![Java](https://img.shields.io/badge/Java_17-007396?style=flat-square&logo=java&logoColor=white) ![Spring Boot](https://img.shields.io/badge/Spring_Boot_3-6DB33F?style=flat-square&logo=spring&logoColor=white) ![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=flat-square&logo=spring-security&logoColor=white) ![JPA](https://img.shields.io/badge/JPA-6DB33F?style=flat-square&logo=hibernate&logoColor=white) |
-| **Database** | ![MariaDB](https://img.shields.io/badge/MariaDB-003545?style=flat-square&logo=mariadb&logoColor=white) |
-| **AI** | ![OpenAI](https://img.shields.io/badge/OpenAI_API-412991?style=flat-square&logo=openai&logoColor=white) |
-| **Security** | ![JWT](https://img.shields.io/badge/JWT-000000?style=flat-square&logo=jsonwebtokens&logoColor=white) |
+### 백엔드
 
-### 🚀 Infrastructure & DevOps
+| 구분 | 기술 |
+| --- | --- |
+| 언어 | ![Java](https://img.shields.io/badge/Java_17-007396?style=flat-square&logo=openjdk&logoColor=white) |
+| 프레임워크 | ![Spring Boot](https://img.shields.io/badge/Spring_Boot_3.5.11-6DB33F?style=flat-square&logo=springboot&logoColor=white) ![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=flat-square&logo=springsecurity&logoColor=white) ![Spring Cloud](https://img.shields.io/badge/Spring_Cloud-6DB33F?style=flat-square&logo=spring&logoColor=white) |
+| 데이터 | ![JPA](https://img.shields.io/badge/JPA-59666C?style=flat-square&logo=hibernate&logoColor=white) ![MariaDB](https://img.shields.io/badge/MariaDB-003545?style=flat-square&logo=mariadb&logoColor=white) ![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white) ![Elasticsearch](https://img.shields.io/badge/Elasticsearch-005571?style=flat-square&logo=elasticsearch&logoColor=white) |
+| 메시징 | ![Kafka](https://img.shields.io/badge/Kafka-231F20?style=flat-square&logo=apachekafka&logoColor=white) |
+| AI·파일 | ![OpenAI](https://img.shields.io/badge/OpenAI_API-412991?style=flat-square&logo=openai&logoColor=white) ![AWS S3](https://img.shields.io/badge/AWS_S3-569A31?style=flat-square&logo=amazons3&logoColor=white) ![Apache POI](https://img.shields.io/badge/Apache_POI-D22128?style=flat-square&logo=apache&logoColor=white) |
+| API | ![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=flat-square&logo=swagger&logoColor=black) ![JWT](https://img.shields.io/badge/JWT-000000?style=flat-square&logo=jsonwebtokens&logoColor=white) |
 
-| Category | Technologies |
-| :--- | :--- |
-| **Orchestration** | ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white) |
-| **CI/CD** | ![Jenkins](https://img.shields.io/badge/Jenkins-D24939?style=flat-square&logo=jenkins&logoColor=white) ![Kaniko](https://img.shields.io/badge/Kaniko-2496ED?style=flat-square&logo=docker&logoColor=white) ![Docker Hub](https://img.shields.io/badge/Docker_Hub-2496ED?style=flat-square&logo=docker&logoColor=white) |
-| **Deployment** | ![BlueGreen](https://img.shields.io/badge/Blue--Green_Deployment-brightgreen?style=flat-square) |
-| **Gateway** | ![Nginx Ingress](https://img.shields.io/badge/Nginx_Ingress-009639?style=flat-square&logo=nginx&logoColor=white) |
-| **Monitoring** | ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white) ![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white) |
-| **Tools** | ![Git](https://img.shields.io/badge/Git-F05032?style=flat-square&logo=git&logoColor=white) ![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=flat-square&logo=swagger&logoColor=black) ![Postman](https://img.shields.io/badge/Postman-FF6C37?style=flat-square&logo=postman&logoColor=white) |
+### 인프라
 
----
+| 구분 | 기술 |
+| --- | --- |
+| CI/CD | ![Jenkins](https://img.shields.io/badge/Jenkins-D24939?style=flat-square&logo=jenkins&logoColor=white) ![Kaniko](https://img.shields.io/badge/Kaniko-2496ED?style=flat-square&logo=docker&logoColor=white) ![Docker Hub](https://img.shields.io/badge/Docker_Hub-2496ED?style=flat-square&logo=docker&logoColor=white) |
+| 실행 환경 | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white) ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white) |
+| 게이트웨이 | ![Nginx Ingress](https://img.shields.io/badge/Nginx_Ingress-009639?style=flat-square&logo=nginx&logoColor=white) |
+| 모니터링 | ![Actuator](https://img.shields.io/badge/Spring_Actuator-6DB33F?style=flat-square&logo=springboot&logoColor=white) ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white) ![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white) |
 
-## ⚙️ 시스템 아키텍처
+<br/>
 
-> 아키텍처 이미지 추가 예정
+## 시스템 아키텍처
 
----
+<img width="1611" height="1181" alt="Image" src="https://github.com/user-attachments/assets/fcf66e22-a5e0-4e42-9649-cdc7d59fd750" />
 
-## 📘 프로젝트 소개
+<br/>
 
-DnDn은 건설 현장의 복잡한 운영을 하나의 플랫폼으로 통합하는 건설 현장 통합 관리 시스템입니다.
+## 모듈 구성
 
-현장 근로자의 출퇴근부터 피로도 기반 인력 배치, 게이트 혼잡도 관리, 날씨 정보 통합, AI 기반 공정표 분석까지 — 건설 현장에서 발생하는 모든 데이터를 실시간으로 수집하고 관리합니다.
+| 모듈 | 역할 |
+| --- | --- |
+| `dndn-core` | 인증, 근로자, 게이트, 인력 배치, 공정표, 작업 계획, 일보, ESG, 날씨 등 핵심 도메인 API |
+| `dndn-document-management` | 문서 업로드, 문서 검색, Elasticsearch 연동, 문서 이벤트 처리 |
+| `dndn-gateway` | Spring Cloud Gateway 기반 라우팅, Eureka 연동, JWT 처리 |
+| `dndn-discovery` | Eureka Server 기반 서비스 디스커버리 |
 
-현장 소장과 관리자는 인력 현황·안전사고·공정 진행률을 한눈에 파악할 수 있으며, AI를 활용한 문서 자동 분석과 ESG 지표 대시보드를 통해 데이터 기반 의사결정을 지원합니다.
+<br/>
 
----
+## 무중단 배포
 
-## 💻 주요 기능
+DnDn 백엔드는 Kubernetes 환경에서 Nginx Ingress를 통해 외부 트래픽을 받고, Jenkins와 Kaniko를 이용해 Blue-Green 방식으로 배포됩니다.
 
-| 기능 | 설명 |
-|:---|:---|
-| **근로자 관리** | 근로자 등록·조회·문서 관리, 안전사고 이력, 제재 이력 관리 |
-| **출퇴근 관리** | 게이트 기반 출퇴근 인식, 피로도 자동 계산, 근태 현황 조회 |
-| **게이트 관리** | 게이트별 차량·배치 인원 관리, 혼잡도(SMOOTH/BUSY/CRITICAL) 실시간 반영, 세척 기계 ON/OFF |
-| **인력 배치** | 구역(Zone)별 직종 수요 기반 배치, 피로도 기반 자동 배치 추천 |
-| **공정표 관리** | 마스터 공정표 업로드·조회, AI 기반 공정 일정 자동 추출 |
-| **작업 계획·지시** | WorkPlan·WorkOrder 생성 및 관리, AI 기반 작업 계획 자동 생성 |
-| **공사 일보** | 일일 공사 일보 작성·제출, 일보 이력 조회 |
-| **날씨 정보** | 기상청·에어코리아 연동, 현장 날씨·미세먼지 대시보드 자동 갱신 |
-| **ESG 대시보드** | 환경·사회·지배구조 지표 시각화 |
-| **문서 관리** | 파일 업로드·다운로드, AI 기반 문서 내 일정·작업 자동 추출 |
-| **계정·권한 관리** | JWT 기반 인증, 역할별(관리자/현장소장/구역장 등) 접근 제어 |
-
----
-
-## 🎥 무중단 배포
-
-DnDn 백엔드는 **Kubernetes** 위에서 **Nginx Ingress**로 외부 트래픽을 받고, **Blue-Green** 무중단 배포 전략을 구성했습니다.
-
-### Blue-Green 배포를 택한 이유
-
-- 두 환경(Blue/Green)을 동시에 띄운 뒤 트래픽을 한 번에 스위칭하여 "신규 버전 준비 → 검증 후 전환"이 명확합니다.
-- Spring Boot·JPA·MariaDB·OpenAI 연동 등 데이터 일관성과 트랜잭션이 중요한 API는 단일 활성 버전을 유지하는 것이 운영·디버깅에 유리합니다.
-- 문제 발생 시 Ingress selector만 이전 색으로 되돌리면 즉시 롤백됩니다.
-
-### 배포 흐름
-
-```
+```mermaid
 Jenkins 빌드 시작
     ↓
 Kaniko로 이미지 빌드 → Docker Hub Push
@@ -124,10 +116,24 @@ Ingress 전환 (backend-service-blue ↔ backend-service-green)
 이전 Deployment replicas=0 으로 축소
 ```
 
-### 무중단 배포 테스트 시연 영상
+### Blue-Green을 선택한 이유
 
-https://github.com/user-attachments/assets/9a31362a-4578-4c3a-af02-114a7b628da8
+| 대상 | 선택 이유 |
+| --- | --- |
+| Core | 로그인, 인증, 프로젝트 등 사용자 흐름의 중심 API입니다. 새 버전이 정상 기동되기 전에 기존 버전이 내려가면 서비스 전체가 영향받기 때문에, inactive 환경에서 먼저 검증한 뒤 트래픽을 전환하는 Blue-Green 구조가 필요했습니다. |
+| Document Management | MariaDB, Kafka, Elasticsearch, S3, Eureka 등 외부 의존성이 많아 배포 시 환경변수 누락, 인증서 Secret 누락, DB 접속 지연, Kafka 설정 문제 등이 발생할 수 있습니다. 새 버전을 기존 Pod에 바로 덮어쓰지 않고 inactive 버전에 먼저 올려 정상 여부를 확인한 뒤 트래픽을 넘기기 위해 Blue-Green을 선택했습니다. |
+
+
+### 전환 방식
+
+Ingress와 Gateway는 `blue`/`green` Deployment를 직접 바라보지 않습니다.  
+항상 고정된 Kubernetes Service를 바라보며, 실제 버전 전환은 Service의 selector만 변경해 처리합니다.
+
 
 ---
 
-<p align="center">Copyright © 2026 Intelli_J Team. All rights reserved.</p>
+<div align="center">
+
+Copyright © 2026 Intelli_J Team. All rights reserved.
+
+</div>
