@@ -54,6 +54,10 @@ DnDn은 건설 현장에서 발생하는 인력, 근태, 안전, 공정, 문서,
 | AI·파일 | ![OpenAI](https://img.shields.io/badge/OpenAI_API-412991?style=flat-square&logo=openai&logoColor=white) ![AWS S3](https://img.shields.io/badge/AWS_S3-569A31?style=flat-square&logo=amazons3&logoColor=white) ![Apache POI](https://img.shields.io/badge/Apache_POI-D22128?style=flat-square&logo=apache&logoColor=white) ![KMA](https://img.shields.io/badge/KMA_Weather_API-2F80ED?style=flat-square) ![AirKorea](https://img.shields.io/badge/AirKorea_API-00A3E0?style=flat-square) |
 | API | ![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=flat-square&logo=swagger&logoColor=black) ![JWT](https://img.shields.io/badge/JWT-000000?style=flat-square&logo=jsonwebtokens&logoColor=white) |
 
+<table>
+<tr>
+<td valign="top" width="58%">
+
 ### 인프라
 
 | 구분 | 기술 |
@@ -64,15 +68,21 @@ DnDn은 건설 현장에서 발생하는 인력, 근태, 안전, 공정, 문서,
 | 모니터링 | ![Actuator](https://img.shields.io/badge/Spring_Actuator-6DB33F?style=flat-square&logo=springboot&logoColor=white) ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white) ![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white) |
 | Storage Class | ![Longhorn](https://img.shields.io/badge/Longhorn-FFB000?style=flat-square&logo=linuxfoundation&logoColor=white) |
 
+</td>
+<td valign="top" width="42%">
+
 ### 협업
 
 | 분류 | 기술 |
-| :--- | :--- |
+| --- | --- |
 | Version Control | ![Git](https://img.shields.io/badge/Git-F05032?style=flat-square&logo=git&logoColor=white) ![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white) |
 | API Test | ![Postman](https://img.shields.io/badge/Postman-FF6C37?style=flat-square&logo=postman&logoColor=white) |
 | Design / Docs | ![Figma](https://img.shields.io/badge/Figma-F24E1E?style=flat-square&logo=figma&logoColor=white) ![Notion](https://img.shields.io/badge/Notion-000000?style=flat-square&logo=notion&logoColor=white) |
 | Communication | ![Discord](https://img.shields.io/badge/Discord-5865F2?style=flat-square&logo=discord&logoColor=white) |
 
+</td>
+</tr>
+</table>
 
 <br/>
 
@@ -83,32 +93,14 @@ DnDn은 건설 현장에서 발생하는 인력, 근태, 안전, 공정, 문서,
 <br/>
 
 ## 프로젝트 문서
-| 문서             | 설명                          | 링크                                                                                                                                                        |
-|:---------------|:----------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 기획서            | 프로젝트 배경, 목표, 요구사항, 주요 기능 정의 | [기획서 바로 가기](https://docs.google.com/document/d/1sWc9Jkv1IJ1b2f6MWZsRkTO-FRbW_NpE/edit?usp=sharing&ouid=106232743371302790593&rtpof=true&sd=true)          |
-| WBS            | 개발 일정, 담당 업무, 진행 계획 정리      | [WBS 바로 가기](https://docs.google.com/spreadsheets/d/1zKD-VeyADUBgm0aWjMegf7iwteayjSAPxC_qzSimDQM/edit?usp=sharing) |
-| 요구사항 명세서       | 기능 요구사항 및 비기능 요구사항 정리       | [요구사항 명세서 바로 가기](https://docs.google.com/spreadsheets/d/1fuJQMvBLo1qCz4FHHyBuD-mh7SdobIo3/edit?usp=sharing&ouid=106232743371302790593&rtpof=true&sd=true) |
-| 화면 설계서 (Figma) | 프론트엔드 화면 설계 및 UI 구성 설계       | [화면 설계서 (피그마) 바로 가기](https://www.figma.com/design/3qUOzFW9Z5LsfDC3M57mxj/Untitled?t=AWaj1tmgtFtOj7Ns-1)                                                   |
 
-<br/>
+프로젝트 기획서, WBS, 요구사항 명세서, 화면 설계서, API 영상, ERD 등 상세 문서는 Wiki에서 확인할 수 있습니다.
 
-| 문서 | 설명 | 링크                                                                                                      |
-| :--- | :--- |:--------------------------------------------------------------------------------------------------------|
-| ERD | 주요 도메인 테이블 및 관계 구조 | [위키 주소 작성 예정](https://github.com/beyond-sw-camp/be24-fin-Intelli_J-DnDn-BE/wiki/ERD-%EB%AC%B8%EC%84%9C) |
-| 시스템 아키텍처 | 프론트엔드, 백엔드, DB, Redis, Kubernetes 구성도 | 상단 이미지 참고                                                                                               |
-| API 명세서 | 프론트엔드와 백엔드 간 API 요청/응답 구조 | [주소 작성 예정]                                                                                              |
-| Redis 설계 문서 | 분산락, 캐시 Key naming, TTL 정책 정리 | [여부 확인]                                                                                                 |
+| 문서 | 링크 |
+| --- | --- |
+| DnDn Backend Wiki | [Wiki 바로 가기](https://github.com/beyond-sw-camp/be24-fin-Intelli_J-DnDn-BE/wiki) |
 
-
-<br/>
-
-| 문서 | 설명 | 링크 |
-| :--- | :--- | :--- |
-| 프로그램 사양서 | 주요 기능별 동작 방식 및 처리 흐름 정리 | 준비 중 |
-| 단위 테스트 결과서 | 기능별 테스트 결과 및 검증 내용 정리 | 준비 중 |
-| 배포 전략 문서 | Jenkins, Docker, Kubernetes 기반 배포 흐름 정리 | 준비 중 |
-| 트러블슈팅 문서 | 개발 중 발생한 문제와 해결 과정 정리 | 준비 중 |
-<br/>
+</br>
 
 ## 모듈 구성
 
@@ -125,13 +117,13 @@ DnDn은 건설 현장에서 발생하는 인력, 근태, 안전, 공정, 문서,
 
 | 항목 | 적용 기술 | 도입 이유 |
 | --- | --- | --- |
-| 인증 | JWT, Spring Security | 서버 세션을 사용하지 않는 Stateless 인증 구조를 구성했습니다. Access Token에는 사용자 식별자와 역할 정보를 담고, 요청마다 JWT를 검증해 인증 상태를 복원합니다. |
-| 인가 | RBAC + 도메인 권한 검증 | `ADMIN`, `HEADQUARTOR`, `SITE_MANAGER`, `SITE_DIRECTOR`, `SECTION_LEADER`, `SECTION_SUPERVISOR` 역할 기반 접근 제어를 적용했습니다. 일부 기능은 역할뿐 아니라 현장 코드와 공종 범위까지 확인해 실제 업무 권한에 맞게 접근을 제한합니다. |
-| API Gateway 인증 | Spring Cloud Gateway GlobalFilter | `/api/msa/**` 요청은 Gateway에서 JWT를 먼저 검증하고, 검증된 사용자 정보를 `X-User-Idx`, `X-User-Role`, `X-User-LoginId` 헤더로 하위 서비스에 전달합니다. |
-| Elasticsearch | 문서 통합 검색 | 공정표, 작업 지시, 공사 일보 등 문서성 데이터를 여러 필드 기준으로 검색해야 했기 때문에 Elasticsearch를 도입했습니다. 키워드 검색은 ES를 사용하고, ES 장애 시 RDB 검색으로 fallback하도록 구성했습니다. |
-| Kafka | 서비스 간 비동기 이벤트 연동 | Core에서 문서 업로드, 작업 지시 변경, 공사 일보 변경 이벤트를 발행하고 Document Management가 이를 소비해 문서 검색 인덱스를 갱신합니다. Core 트랜잭션과 검색 인덱싱을 분리해 장애 전파를 줄였습니다. |
-| Redis | 캐시, 분산락 | ESG 대시보드처럼 반복 조회되는 데이터를 캐싱하고, 다중 Pod 환경에서 스케줄러가 중복 실행되지 않도록 Redisson 기반 분산락을 사용했습니다. |
-| Batch | Kubernetes CronJob / Job Trigger | 인력 동기화처럼 오래 걸리거나 주기적으로 실행되는 작업은 API 서버 내부 요청 흐름과 분리했습니다. Core API에서 Kubernetes CronJob 기반 Job을 수동 트리거할 수 있도록 구성했습니다. |
+| [인증](https://github.com/beyond-sw-camp/be24-fin-Intelli_J-DnDn-BE/wiki/02.-%EC%9D%B8%EC%A6%9D%EA%B3%BC-%EC%9D%B8%EA%B0%80) | JWT, Spring Security | 서버 세션을 사용하지 않는 Stateless 인증 구조를 구성했습니다. Access Token에는 사용자 식별자와 역할 정보를 담고, 요청마다 JWT를 검증해 인증 상태를 복원합니다. |
+| [인가](https://github.com/beyond-sw-camp/be24-fin-Intelli_J-DnDn-BE/wiki/02.-%EC%9D%B8%EC%A6%9D%EA%B3%BC-%EC%9D%B8%EA%B0%80) | RBAC + 도메인 권한 검증 | `ADMIN`, `HEADQUARTOR`, `SITE_MANAGER`, `SITE_DIRECTOR`, `SECTION_LEADER`, `SECTION_SUPERVISOR` 역할 기반 접근 제어를 적용했습니다. 일부 기능은 역할뿐 아니라 현장 코드와 공종 범위까지 확인해 실제 업무 권한에 맞게 접근을 제한합니다. |
+| API Gateway | Spring Cloud Gateway GlobalFilter | `/api/msa/**` 요청은 Gateway에서 JWT를 먼저 검증하고, 검증된 사용자 정보를 `X-User-Idx`, `X-User-Role`, `X-User-LoginId` 헤더로 하위 서비스에 전달합니다. |
+| [Kafka](https://github.com/beyond-sw-camp/be24-fin-Intelli_J-DnDn-BE/wiki/03.-%EB%AC%B8%EC%84%9C%EA%B4%80%EB%A6%AC-MSA%EC%99%80-Kafka) | 서비스 간 비동기 이벤트 연동 | Core에서 문서 업로드, 작업 지시 변경, 공사 일보 변경 이벤트를 발행하고 Document Management가 이를 소비해 문서 검색 인덱스를 갱신합니다. Core 트랜잭션과 검색 인덱싱을 분리해 장애 전파를 줄였습니다. |
+| [Elasticsearch](https://github.com/beyond-sw-camp/be24-fin-Intelli_J-DnDn-BE/wiki/04.-Elasticsearch-%EB%8F%84%EC%9E%85) | 문서 통합 검색 | 공정표, 작업 지시, 공사 일보 등 문서성 데이터를 여러 필드 기준으로 검색해야 했기 때문에 Elasticsearch를 도입했습니다. 키워드 검색은 ES를 사용하고, ES 장애 시 RDB 검색으로 fallback하도록 구성했습니다. |
+| [Redis](https://github.com/beyond-sw-camp/be24-fin-Intelli_J-DnDn-BE/wiki/05.-Redis-%ED%99%9C%EC%9A%A9) | 캐시, 분산락 | ESG 대시보드처럼 반복 조회되는 데이터를 캐싱하고, 다중 Pod 환경에서 스케줄러가 중복 실행되지 않도록 Redisson 기반 분산락을 사용했습니다. |
+| [Batch](https://github.com/beyond-sw-camp/be24-fin-Intelli_J-DnDn-BE/wiki/06.-Batch%EC%99%80-%EC%8A%A4%EC%BC%80%EC%A4%84%EB%9F%AC) | Kubernetes CronJob / Job Trigger | 인력 동기화처럼 오래 걸리거나 주기적으로 실행되는 작업은 API 서버 내부 요청 흐름과 분리했습니다. Core API에서 Kubernetes CronJob 기반 Job을 수동 트리거할 수 있도록 구성했습니다. |
 
 <br/>
 
