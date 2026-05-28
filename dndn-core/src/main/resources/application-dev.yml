@@ -82,7 +82,6 @@ logging:
     org.hibernate.SQL: warn
     org.hibernate.orm.jdbc.bind: warn
     org.example: info
-    org.example.dndncore.worker.scheduler: info
     net.ttddyy.observation: warn
     org.springframework.kafka: warn
     org.apache.kafka: warn
@@ -133,12 +132,6 @@ cloud:
       bucket: ${AWS_BUCKET_NAME}
       presigned-url-expiration: 600
 
-
-worker:
-  sync:
-    scheduler:
-      enabled: false          # 인력 동기화는 dndn-batch CronJob이 담당 — 스케줄러 비활성
-      cron: "0 30 0 * * *"   # 매일 오전 00:30 (비활성 상태이므로 실행되지 않음)
 
 storage:
   type: s3   # 기본값: s3 (운영). 부하테스트할 때만 local로 변경
