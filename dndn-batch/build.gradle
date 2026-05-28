@@ -1,0 +1,16 @@
+group = 'org.example'
+version = '0.0.1-SNAPSHOT'
+description = 'dndn-batch'
+
+// 루트 subprojects 블록에서 주입되는 spring-boot-starter-web 제거 (배치는 웹 서버 불필요)
+configurations.all {
+    exclude group: 'org.springframework.boot', module: 'spring-boot-starter-web'
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-batch'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-json'
+    implementation 'org.mariadb.jdbc:mariadb-java-client:3.4.1'
+}
