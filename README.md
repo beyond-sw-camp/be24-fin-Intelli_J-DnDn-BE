@@ -1,7 +1,5 @@
 <div align="center">
 
-# DnDn
-
 <img width="365" height="323" alt="Image" src="https://github.com/user-attachments/assets/c5cce926-7013-4f76-ad11-ac0a90afdfc0" />
 
 ### 건설 현장을 더 스마트하게, 더 안전하게
@@ -29,7 +27,8 @@
 
 [홈페이지](https://www.dndn24.kro.kr) ·
 [Swagger UI](https://www.dndn24.kro.kr/api/swagger-ui/index.html) ·
-[무중단 배포 시연](https://github.com/user-attachments/assets/9a31362a-4578-4c3a-af02-114a7b628da8)
+[무중단 배포 시연](https://github.com/user-attachments/assets/9a31362a-4578-4c3a-af02-114a7b628da8) ·
+[API 명세서](https://1jshun.github.io/DnDn-Architecture/)
 
 </div>
 
@@ -37,21 +36,8 @@
 
 ## 프로젝트 소개
 
-DnDn은 건설 현장에서 발생하는 인력, 근태, 안전, 공정, 문서, 환경 데이터를 실시간으로 수집하고 관리하는 백엔드 플랫폼입니다.<br/>
+DnDn은 건설 현장에서 발생하는 인력, 근태, 안전, 공정, 문서, 환경 데이터를 실시간으로 수집하고 관리하는 플랫폼입니다.<br/>
 현장 소장과 관리자는 근로자 현황, 게이트 혼잡도, 공정 진행률, 일일 보고, ESG 지표를 한 화면에서 확인하고 데이터 기반으로 의사결정할 수 있습니다.
-
-<br/>
-
-## 핵심 요약
-
-| 영역         | 제공 기능                                |
-|------------|--------------------------------------|
-| **인력 관리**  | 근무자 등록, 안전사고 이력, 제재 이력 관리            |
-| **근태 관리**  | 모바일 앱 기반 출퇴근 인식, 피로도 자동 산정, 근태 현황 조회 |
-| **인력 배치**  | 구역별 직종 수요와 피로도를 반영한 인력 배치 추천         |
-| **AI 공정표** | 마스터 공정표 업로드, AI 기반 일정·작업 항목 자동 추출    |
-| **일정 관리**  | 작업 계획, 작업 지시, 공사 일보 작성과 이력 관리        |
-| **현장 정보**  | 날씨·미세먼지 연동, ESG 지표 시각화, 현장 운영 대시보드   |
 
 <br/>
 
@@ -96,11 +82,25 @@ DnDn은 건설 현장에서 발생하는 인력, 근태, 안전, 공정, 문서,
 
 <br/>
 
+## 백엔드 핵심 설계
+
+| 항목 | 적용 기술 | 도입 이유 |
+| --- | --- | --- |
+| 인증 | JWT, Spring Security | 서버 세션을 사용하지 않는 Stateless 인증 구조를 구성했습니다. Access Token에는 사용자 식별자와 역할 정보를 담고, 요청마다 JWT를 검증해 인증 상태를 복원합니다. |
+| 인가 | RBAC + 도메인 권한 검증 | `ADMIN`, `HEADQUARTOR`, `SITE_MANAGER`, `SITE_DIRECTOR`, `SECTION_LEADER`, `SECTION_SUPERVISOR` 역할 기반 접근 제어를 적용했습니다. 일부 기능은 역할뿐 아니라 현장 코드와 공종 범위까지 확인해 실제 업무 권한에 맞게 접근을 제한합니다. |
+| API Gateway 인증 | Spring Cloud Gateway GlobalFilter | `/api/msa/**` 요청은 Gateway에서 JWT를 먼저 검증하고, 검증된 사용자 정보를 `X-User-Idx`, `X-User-Role`, `X-User-LoginId` 헤더로 하위 서비스에 전달합니다. |
+| Elasticsearch | 문서 통합 검색 | 공정표, 작업 지시, 공사 일보 등 문서성 데이터를 여러 필드 기준으로 검색해야 했기 때문에 Elasticsearch를 도입했습니다. 키워드 검색은 ES를 사용하고, ES 장애 시 RDB 검색으로 fallback하도록 구성했습니다. |
+| Kafka | 서비스 간 비동기 이벤트 연동 | Core에서 문서 업로드, 작업 지시 변경, 공사 일보 변경 이벤트를 발행하고 Document Management가 이를 소비해 문서 검색 인덱스를 갱신합니다. Core 트랜잭션과 검색 인덱싱을 분리해 장애 전파를 줄였습니다. |
+| Redis | 캐시, 분산락 | ESG 대시보드처럼 반복 조회되는 데이터를 캐싱하고, 다중 Pod 환경에서 스케줄러가 중복 실행되지 않도록 Redisson 기반 분산락을 사용했습니다. |
+| Batch | Kubernetes CronJob / Job Trigger | 인력 동기화처럼 오래 걸리거나 주기적으로 실행되는 작업은 API 서버 내부 요청 흐름과 분리했습니다. Core API에서 Kubernetes CronJob 기반 Job을 수동 트리거할 수 있도록 구성했습니다. |
+
+<br/>
+
 ## 무중단 배포
 
 DnDn 백엔드는 Kubernetes 환경에서 Nginx Ingress를 통해 외부 트래픽을 받고, Jenkins와 Kaniko를 이용해 Blue-Green 방식으로 배포됩니다.
 
-```mermaid
+```text
 Jenkins 빌드 시작
     ↓
 Kaniko로 이미지 빌드 → Docker Hub Push
