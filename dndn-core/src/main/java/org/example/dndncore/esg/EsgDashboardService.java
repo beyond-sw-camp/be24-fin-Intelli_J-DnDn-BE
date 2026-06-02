@@ -178,12 +178,14 @@ public class EsgDashboardService {
                 .map(request -> {
                     String zoneName = request.getZoneName().trim();
                     EsgZoneDailySnapshot previousZoneSnapshot = previousZoneSnapshotMap.get(zoneName);
-                    ScoreProgress zoneProgress = advanceFloorProgress(
-                            previousZoneSnapshot == null ? null : previousZoneSnapshot.getTotalScore(),
-                            previousZoneSnapshot == null ? null : previousZoneSnapshot.getLevel(),
-                            request.getTotalScore(),
-                            ZONE_FLOOR_POINT
-                    );
+                    ScoreProgress zoneProgress = shouldResetZoneProgress(request)
+                            ? new ScoreProgress(0.0, 0)
+                            : advanceFloorProgress(
+                                    previousZoneSnapshot == null ? null : previousZoneSnapshot.getTotalScore(),
+                                    previousZoneSnapshot == null ? null : previousZoneSnapshot.getLevel(),
+                                    request.getTotalScore(),
+                                    ZONE_FLOOR_POINT
+                            );
 
                     EsgZoneDailySnapshot snapshot = currentDateSnapshotMap.getOrDefault(
                             zoneName,
@@ -219,6 +221,27 @@ public class EsgDashboardService {
         return esgZoneDailySnapshotRepository.findAllByProject_IdxAndReportDate(project.getIdx(), targetDate);
     }
 
+
+    private boolean shouldResetZoneProgress(EsgDashboardDto.SaveZoneSnapshotRequestDto request) {
+        if (request == null) {
+            return true;
+        }
+        String zoneType = normalizeText(request.getZoneType(), "").toLowerCase();
+        String zoneName = normalizeText(request.getZoneName(), "");
+        boolean supportZone = "support".equals(zoneType)
+                || "outdoor".equals(zoneType)
+                || "세척장".equals(zoneName)
+                || "민원 구역".equals(zoneName)
+                || "민원구역".equals(zoneName);
+        if (!supportZone) {
+            return false;
+        }
+        return normalizeDailyScore(request.getTotalScore()) <= 0.0
+                && normalizePositiveInteger(request.getEquipmentCount()) <= 0
+                && normalizePositiveInteger(request.getHighRiskEquipmentCount()) <= 0
+                && normalizePositiveInteger(request.getRiskCount()) <= 0
+                && normalizePercent(request.getMissionRate()) <= 0;
+    }
 
     private Map<Long, EsgDailySnapshot> buildRankingSnapshotMap(List<Project> rankingProjects, LocalDate targetDate) {
         if (rankingProjects == null || rankingProjects.isEmpty()) {

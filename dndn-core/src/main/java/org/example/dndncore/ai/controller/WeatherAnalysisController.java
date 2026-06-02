@@ -37,12 +37,15 @@ public class WeatherAnalysisController {
             @Parameter(description = "분석 날짜(YYYY-MM-DD)", example = "2026-05-01")
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate date) {
+            LocalDate date,
+            @Parameter(description = "공사현장 ID", example = "1")
+            @RequestParam(required = false)
+            Long projectId) {
 
-        log.info("[분석 API] 요청 - 날짜: {}", date);
+        log.info("[분석 API] 요청 - 날짜: {}, 현장: {}", date, projectId);
 
         try {
-            WeatherAiDto.AnalysisResult result = weatherAnalysisExtractor.analyze(date);
+            WeatherAiDto.AnalysisResult result = weatherAnalysisExtractor.analyze(date, projectId);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             log.error("[분석 API] 실패", e);

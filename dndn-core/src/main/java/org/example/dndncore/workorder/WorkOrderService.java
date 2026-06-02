@@ -252,7 +252,17 @@ public class WorkOrderService {
     // feat : 작업지시서 장비와 작업구역/상세내역을 화면 연동용으로 반환
     @Transactional(readOnly = true)
     public List<WorkOrderDto.GateEquipmentRes> getGateEquipments(LocalDate targetDate) {
-        return workOrderRepository.findGateEquipmentsByTargetDate(targetDate).stream()
+        return getGateEquipments(targetDate, null, false);
+    }
+
+    // feat : 현장별 조회와 기상관제용 장비 미등록 작업지시 포함 옵션 지원
+    @Transactional(readOnly = true)
+    public List<WorkOrderDto.GateEquipmentRes> getGateEquipments(
+            LocalDate targetDate,
+            Long projectId,
+            boolean includeNoEquipment
+    ) {
+        return workOrderRepository.findGateEquipmentsByTargetDate(targetDate, projectId, includeNoEquipment).stream()
                 .filter(row -> authAccessService.canAccessProjectId(toLong(row[12]))
                         && authAccessService.canAccessTradeName(toStringValue(row[3])))
                 .map(row -> {
@@ -522,10 +532,19 @@ public class WorkOrderService {
     }
 
     private String resolveEquipmentStatus(String statusCode, LocalDate workDate) {
-        if ("COMPLETED".equalsIgnoreCase(statusCode) || "DONE".equalsIgnoreCase(statusCode)) {
+        String normalizedStatus = statusCode == null ? "" : statusCode.trim().toUpperCase();
+        LocalDate today = LocalDate.now();
+
+        if ("COMPLETED".equals(normalizedStatus) || "DONE".equals(normalizedStatus)) {
+            return "완료";
+        }
+        if (workDate != null && workDate.isBefore(today)) {
+            return "완료";
+        }
+        if ("APPROVED".equals(normalizedStatus) && (workDate == null || workDate.equals(today))) {
             return "작업중";
         }
-        if (workDate != null && workDate.isBefore(LocalDate.now())) {
+        if (workDate != null && workDate.equals(today) && normalizedStatus.isBlank()) {
             return "작업중";
         }
         return "입차예정";

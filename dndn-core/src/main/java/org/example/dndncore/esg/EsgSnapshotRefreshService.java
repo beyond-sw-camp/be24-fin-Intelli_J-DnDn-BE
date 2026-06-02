@@ -662,12 +662,14 @@ public class EsgSnapshotRefreshService {
         List<EsgZoneDailySnapshot> snapshots = refreshZones.stream()
                 .map(zone -> {
                     EsgZoneDailySnapshot previousZoneSnapshot = previousZoneSnapshotByName.get(zone.zoneName());
-                    ScoreProgress progress = advanceFloorProgress(
-                            previousZoneSnapshot == null ? null : previousZoneSnapshot.getTotalScore(),
-                            previousZoneSnapshot == null ? null : previousZoneSnapshot.getLevel(),
-                            zone.dailyScore(),
-                            ZONE_FLOOR_POINT
-                    );
+                    ScoreProgress progress = shouldResetZoneProgress(zone)
+                            ? new ScoreProgress(0.0, 0)
+                            : advanceFloorProgress(
+                                    previousZoneSnapshot == null ? null : previousZoneSnapshot.getTotalScore(),
+                                    previousZoneSnapshot == null ? null : previousZoneSnapshot.getLevel(),
+                                    zone.dailyScore(),
+                                    ZONE_FLOOR_POINT
+                            );
 
                     EsgZoneDailySnapshot snapshot = currentZoneSnapshotByName.getOrDefault(
                             zone.zoneName(),
@@ -710,15 +712,16 @@ public class EsgSnapshotRefreshService {
             EsgDailySnapshot previousSiteSnapshot
     ) {
         int zoneCount = refreshZones.size();
-        double environmentScore = average(refreshZones, zone -> zone.metrics().environmentScore);
-        double socialScore = average(refreshZones, zone -> zone.metrics().socialScore);
-        double governanceScore = average(refreshZones, zone -> zone.metrics().governanceScore);
-        double dailySiteScore = average(refreshZones, ZoneRefreshModel::dailyScore);
+        List<ZoneRefreshModel> siteScoreZones = selectSiteScoreZones(refreshZones);
+        double environmentScore = average(siteScoreZones, zone -> zone.metrics().environmentScore);
+        double socialScore = average(siteScoreZones, zone -> zone.metrics().socialScore);
+        double governanceScore = average(siteScoreZones, zone -> zone.metrics().governanceScore);
+        double dailySiteScore = average(siteScoreZones, ZoneRefreshModel::dailyScore);
         double carbonKg = refreshZones.stream().mapToDouble(ZoneRefreshModel::carbonKg).sum();
         double powerSavingKwh = refreshZones.stream().mapToDouble(ZoneRefreshModel::powerSavingKwh).sum();
         int riskCount = refreshZones.stream().mapToInt(ZoneRefreshModel::riskCount).sum();
-        int missionRate = zoneCount > 0
-                ? (int) Math.round(refreshZones.stream().mapToInt(ZoneRefreshModel::missionRate).average().orElse(0.0))
+        int missionRate = !siteScoreZones.isEmpty()
+                ? (int) Math.round(siteScoreZones.stream().mapToInt(ZoneRefreshModel::missionRate).average().orElse(0.0))
                 : 0;
 
         ScoreProgress siteProgress = advanceFloorProgress(
@@ -754,9 +757,12 @@ public class EsgSnapshotRefreshService {
     }
 
     private List<EquipmentRow> loadEquipments(Long projectId, LocalDate reportDate) {
-        return workOrderRepository.findGateEquipmentsByTargetDate(reportDate).stream()
+        if (projectId == null || reportDate == null) {
+            return List.of();
+        }
+
+        return workOrderRepository.findGateEquipmentsByTargetDate(reportDate, projectId, false).stream()
                 .map(this::toEquipmentRow)
-                .filter(row -> row.siteIdx() != null && row.siteIdx().equals(projectId))
                 .toList();
     }
 
@@ -920,7 +926,9 @@ public class EsgSnapshotRefreshService {
         Map<String, Object> json = new LinkedHashMap<>();
         json.put("projectId", project != null ? project.getIdx() : null);
         json.put("reportDate", reportDate);
+        List<ZoneRefreshModel> scoreTargetZones = selectSiteScoreZones(zones);
         json.put("dailySiteScore", roundOne(dailySiteScore));
+        json.put("scoreTargetZoneCount", scoreTargetZones.size());
         json.put("zoneCount", zones.size());
         json.put("zones", zones.stream().map(zone -> {
             Map<String, Object> row = new LinkedHashMap<>();
@@ -958,6 +966,48 @@ public class EsgSnapshotRefreshService {
             result.add(zone.withRank(index + 1, roundOne(index == 0 ? 0.0 : zone.dailyScore() - leaderScore)));
         }
         return result;
+    }
+
+    private List<ZoneRefreshModel> selectSiteScoreZones(List<ZoneRefreshModel> zones) {
+        if (zones == null || zones.isEmpty()) {
+            return List.of();
+        }
+        return zones.stream()
+                .filter(this::isSiteScoreZone)
+                .toList();
+    }
+
+    private boolean isSiteScoreZone(ZoneRefreshModel zone) {
+        if (zone == null) {
+            return false;
+        }
+        String zoneType = normalizeText(zone.zoneType()).toLowerCase(Locale.ROOT);
+        if ("support".equals(zoneType) || "outdoor".equals(zoneType)) {
+            return false;
+        }
+        String zoneName = normalizeText(zone.zoneName());
+        if ("세척장".equals(zoneName) || "민원 구역".equals(zoneName) || "민원구역".equals(zoneName)) {
+            return false;
+        }
+        return "work".equals(zoneType) || zone.equipmentCount() > 0;
+    }
+
+    private boolean shouldResetZoneProgress(ZoneRefreshModel zone) {
+        if (zone == null) {
+            return true;
+        }
+        String zoneType = normalizeText(zone.zoneType()).toLowerCase(Locale.ROOT);
+        if (!("support".equals(zoneType) || "outdoor".equals(zoneType))) {
+            return false;
+        }
+        return zone.dailyScore() <= 0.0
+                && zone.equipmentCount() <= 0
+                && zone.highRiskEquipmentCount() <= 0
+                && zone.riskCount() <= 0
+                && zone.missionRate() <= 0
+                && zone.metrics().reportCount <= 0
+                && zone.metrics().complaintCount <= 0
+                && zone.metrics().complaintResolvedCount <= 0;
     }
 
     private boolean hasEsgOperationData(ZoneMetrics metrics, boolean hasMeaningfulMetricInput) {

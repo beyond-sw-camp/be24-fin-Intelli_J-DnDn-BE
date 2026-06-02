@@ -30,105 +30,113 @@ public class WeatherAnalysisExtractor {
     private final ObjectMapper objectMapper;
 
     /**
-     * 화면 조회용 API.
-     * - 과거/미래/당일 모두 저장된 AI 분석 결과가 있으면 DB 결과만 반환한다.
-     * - 저장 결과가 없으면 사용자 안내용 문구만 반환하며, OpenAI 신규 호출은 하지 않는다.
-     * - 실제 OpenAI 분석은 1시간 기상 갱신 직후 refreshTodayAnalysis()에서만 수행한다.
+     * 기존 호출부 호환용 메서드.
      */
     public WeatherAiDto.AnalysisResult analyze(LocalDate analysisDate) {
+        return analyze(analysisDate, null);
+    }
+
+    /**
+     * 화면 조회용 API.
+     * - projectId가 있으면 현장 + 날짜 기준 저장 결과를 우선 반환한다.
+     * - 당일 저장 결과가 없으면 해당 현장/날짜 기준으로 1회 분석 후 저장한다.
+     * - 과거/미래는 저장 결과가 없으면 신규 OpenAI 호출 없이 안내 문구만 반환한다.
+     */
+    public WeatherAiDto.AnalysisResult analyze(LocalDate analysisDate, Long projectId) {
         LocalDate targetDate = analysisDate != null ? analysisDate : LocalDate.now();
         LocalDate today = LocalDate.now();
 
-        log.info("[기상분석] 저장 결과 조회 요청 - 날짜: {}", targetDate);
+        log.info("[기상분석] 저장 결과 조회 요청 - 날짜: {}, 현장: {}", targetDate, projectId);
 
-        WeatherAiDto.AnalysisResult savedResult = findSavedResult(targetDate);
+        WeatherAiDto.AnalysisResult savedResult = findSavedResult(targetDate, projectId);
         if (savedResult != null) {
-            log.info("[기상분석] 저장된 AI 분석 결과 반환 - 날짜: {}", targetDate);
+            log.info("[기상분석] 저장된 AI 분석 결과 반환 - 날짜: {}, 현장: {}", targetDate, projectId);
             return savedResult;
         }
 
         if (targetDate.isBefore(today)) {
-            log.info("[기상분석] 과거 날짜 저장 결과 없음 - 신규 AI 호출 생략 - 날짜: {}", targetDate);
+            log.info("[기상분석] 과거 날짜 저장 결과 없음 - 신규 AI 호출 생략 - 날짜: {}, 현장: {}", targetDate, projectId);
             return createInfoResult("해당 날짜의 저장된 AI 분석 결과가 없습니다.");
         }
 
         if (targetDate.isAfter(today)) {
-            log.info("[기상분석] 미래 날짜 저장 결과 없음 - 신규 AI 호출 생략 - 날짜: {}", targetDate);
+            log.info("[기상분석] 미래 날짜 저장 결과 없음 - 신규 AI 호출 생략 - 날짜: {}, 현장: {}", targetDate, projectId);
             return createInfoResult("미래 날짜의 AI 분석 결과는 제공되지 않습니다.");
         }
 
-        List<WorkOrderDto.GateEquipmentRes> gateEquipments = workOrderService.getGateEquipments(targetDate);
-        if (gateEquipments == null || gateEquipments.isEmpty()) {
-            log.info("[기상분석] 오늘 작업지시서 없음 - 저장 없이 안내 문구 반환 - 날짜: {}", targetDate);
-            return createNoWorkOrderResult();
-        }
-
-        log.info("[기상분석] 오늘 저장 결과 없음 - 정기 기상 갱신 후 AI 분석 결과 제공 예정 - 날짜: {}", targetDate);
-        return createInfoResult("최신 기상 갱신 이후 AI 분석 결과가 제공됩니다.");
+        log.info("[기상분석] 당일 저장 결과 없음 - 즉시 분석 수행 - 날짜: {}, 현장: {}", targetDate, projectId);
+        return refreshTodayAnalysis(targetDate, projectId);
     }
 
     /**
-     * 정기 기상 갱신 완료 직후 실행되는 당일 AI 갱신.
-     * - 오늘 날짜에만 동작한다.
-     * - 작업지시가 없어도 최신 weather_info snapshot 기준 조치추천(actions)은 생성·저장한다.
-     * - 작업지시가 없으면 작업지시 기반 위험항목(risks)은 비워두고, 안내 문구는 유지한다.
-     * - 작업지시가 있으면 최신 weather_info snapshot과 작업지시를 기준으로 OpenAI 분석을 다시 수행하고 DB에 update한다.
+     * 기존 스케줄러 호출부 호환용 메서드.
      */
     public WeatherAiDto.AnalysisResult refreshTodayAnalysis(LocalDate analysisDate) {
+        return refreshTodayAnalysis(analysisDate, null);
+    }
+
+    /**
+     * 정기 기상 갱신 완료 직후 또는 당일 화면 최초 조회 시 실행되는 AI 갱신.
+     * - 오늘 날짜에만 동작한다.
+     * - 기상관제는 장비가 없는 작업지시도 분석 대상에 포함한다.
+     * - projectId가 있으면 해당 현장 작업지시만 분석하고 저장한다.
+     */
+    public WeatherAiDto.AnalysisResult refreshTodayAnalysis(LocalDate analysisDate, Long projectId) {
         LocalDate today = LocalDate.now();
         LocalDate targetDate = analysisDate != null ? analysisDate : today;
 
         if (!targetDate.equals(today)) {
-            log.info("[기상분석] 당일 이외 정기 분석 요청 생략 - 날짜: {}", targetDate);
-            WeatherAiDto.AnalysisResult savedResult = findSavedResult(targetDate);
+            log.info("[기상분석] 당일 이외 정기 분석 요청 생략 - 날짜: {}, 현장: {}", targetDate, projectId);
+            WeatherAiDto.AnalysisResult savedResult = findSavedResult(targetDate, projectId);
             return savedResult != null
                     ? savedResult
                     : createInfoResult("해당 날짜의 저장된 AI 분석 결과가 없습니다.");
         }
 
-        log.info("[기상분석] 정기 당일 AI 분석 갱신 시작 - 날짜: {}", targetDate);
+        log.info("[기상분석] 당일 AI 분석 갱신 시작 - 날짜: {}, 현장: {}", targetDate, projectId);
 
-        List<WorkOrderDto.GateEquipmentRes> gateEquipments = workOrderService.getGateEquipments(targetDate);
-        List<WorkOrderDto.GateEquipmentRes> analysisEquipments = gateEquipments != null ? gateEquipments : List.of();
-        boolean hasWorkOrders = !analysisEquipments.isEmpty();
+        List<WorkOrderDto.GateEquipmentRes> workOrders = workOrderService.getGateEquipments(targetDate, projectId, true);
+        List<WorkOrderDto.GateEquipmentRes> analysisTargets = workOrders != null ? workOrders : List.of();
+        boolean hasWorkOrders = !analysisTargets.isEmpty();
 
         WeatherInfoDto.DashboardRes dashboard = weatherInfoService.readDashboard(targetDate);
         WeatherInfoDto.WeatherAnalysis weather = dashboard != null ? dashboard.getAnalysis() : null;
         if (!hasUsableWeatherAnalysis(weather)) {
             WeatherAiDto.AnalysisResult weatherUnavailableResult = createInfoResult("최신 기상 스냅샷이 없어 AI 분석을 보류했습니다.");
-            saveResult(targetDate, weatherUnavailableResult);
-            log.info("[기상분석] 기상 스냅샷 없음 결과 저장 완료 - 날짜: {}", targetDate);
+            saveResult(targetDate, projectId, weatherUnavailableResult);
+            log.info("[기상분석] 기상 스냅샷 없음 결과 저장 완료 - 날짜: {}, 현장: {}", targetDate, projectId);
             return weatherUnavailableResult;
         }
 
         try {
-            WeatherAiDto.AnalysisRequest request = prepareAnalysisRequest(targetDate, analysisEquipments, weather);
+            WeatherAiDto.AnalysisRequest request = prepareAnalysisRequest(targetDate, analysisTargets, weather);
             WeatherAiDto.AnalysisResult result = openAiWeatherAnalyzer.analyze(request);
             if (!hasWorkOrders) {
                 result = normalizeNoWorkOrderWeatherActionResult(result);
             }
-            saveResult(targetDate, result);
+            saveResult(targetDate, projectId, result);
 
-            log.info("[기상분석] 정기 당일 AI 분석 저장 완료 - 날짜: {}, 작업지시: {}, 위험항목: {}, 조치: {}",
+            log.info("[기상분석] 당일 AI 분석 저장 완료 - 날짜: {}, 현장: {}, 작업지시: {}, 위험항목: {}, 조치: {}",
                     targetDate,
+                    projectId,
                     hasWorkOrders ? "있음" : "없음",
                     result.getRisks() != null ? result.getRisks().size() : 0,
                     result.getActions() != null ? result.getActions().size() : 0);
 
             return result;
         } catch (Exception e) {
-            log.error("[기상분석] 정기 당일 AI 분석 실패", e);
+            log.error("[기상분석] 당일 AI 분석 실패 - 날짜: {}, 현장: {}", targetDate, projectId, e);
             return createErrorResult(e);
         }
     }
 
-    private WeatherAiDto.AnalysisResult findSavedResult(LocalDate targetDate) {
-        return weatherAiAnalysisRepository.findByAnalysisDate(targetDate)
+    private WeatherAiDto.AnalysisResult findSavedResult(LocalDate targetDate, Long projectId) {
+        return weatherAiAnalysisRepository.findSnapshot(projectId, targetDate)
                 .map(snapshot -> {
                     try {
                         return objectMapper.readValue(snapshot.getResultJson(), WeatherAiDto.AnalysisResult.class);
                     } catch (Exception e) {
-                        log.warn("[기상분석] 저장된 AI 분석 결과 파싱 실패 - date={}", targetDate);
+                        log.warn("[기상분석] 저장된 AI 분석 결과 파싱 실패 - date={}, projectId={}", targetDate, projectId);
                         return null;
                     }
                 })
@@ -176,11 +184,13 @@ public class WeatherAnalysisExtractor {
                     firstNonBlank(item.getTradeType(), "공종 미지정")
             ));
 
-            bucket.equipments().add(WeatherAiDto.EquipmentInfo.builder()
-                    .name(firstNonBlank(item.getEquipmentName(), "장비 미지정"))
-                    .type(firstNonBlank(item.getEquipmentType(), "중장비"))
-                    .count(item.getEquipmentCount() != null ? item.getEquipmentCount() : 1)
-                    .build());
+            if (hasRealEquipment(item)) {
+                bucket.equipments().add(WeatherAiDto.EquipmentInfo.builder()
+                        .name(firstNonBlank(item.getEquipmentName(), "장비 미지정"))
+                        .type(firstNonBlank(item.getEquipmentType(), "중장비"))
+                        .count(item.getEquipmentCount() != null ? item.getEquipmentCount() : 1)
+                        .build());
+            }
         }
 
         return buckets.values().stream()
@@ -192,6 +202,14 @@ public class WeatherAnalysisExtractor {
                         .equipments(bucket.equipments())
                         .build())
                 .toList();
+    }
+
+    private boolean hasRealEquipment(WorkOrderDto.GateEquipmentRes item) {
+        return item != null
+                && item.getIdx() != null
+                && item.getEquipmentName() != null
+                && !item.getEquipmentName().isBlank()
+                && !"장비 미지정".equals(item.getEquipmentName());
     }
 
     private Double resolveTemperature(WeatherInfoDto.WeatherAnalysis weather) {
@@ -215,11 +233,12 @@ public class WeatherAnalysisExtractor {
         return null;
     }
 
-    private void saveResult(LocalDate targetDate, WeatherAiDto.AnalysisResult result) {
+    private void saveResult(LocalDate targetDate, Long projectId, WeatherAiDto.AnalysisResult result) {
         try {
             String resultJson = objectMapper.writeValueAsString(result);
-            WeatherAiAnalysis snapshot = weatherAiAnalysisRepository.findByAnalysisDate(targetDate)
+            WeatherAiAnalysis snapshot = weatherAiAnalysisRepository.findSnapshot(projectId, targetDate)
                     .orElseGet(() -> WeatherAiAnalysis.create(
+                            projectId,
                             targetDate,
                             result.getOverallSafety(),
                             result.getNote(),
@@ -229,7 +248,7 @@ public class WeatherAnalysisExtractor {
             snapshot.updateResult(result.getOverallSafety(), result.getNote(), resultJson);
             weatherAiAnalysisRepository.save(snapshot);
         } catch (Exception e) {
-            log.warn("[기상분석] AI 분석 결과 저장 실패 - date={}, message={}", targetDate, e.getMessage());
+            log.warn("[기상분석] AI 분석 결과 저장 실패 - date={}, projectId={}, message={}", targetDate, projectId, e.getMessage());
         }
     }
 
@@ -254,7 +273,6 @@ public class WeatherAnalysisExtractor {
         result.setNote("해당 날짜에 등록된 작업지시서가 없어 AI 분석을 생략했습니다.");
         return result;
     }
-
 
     private WeatherAiDto.AnalysisResult createInfoResult(String note) {
         return WeatherAiDto.AnalysisResult.builder()
