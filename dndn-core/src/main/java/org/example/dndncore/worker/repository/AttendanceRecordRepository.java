@@ -14,8 +14,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AttendanceRecordRepository extends JpaRepository<AttendanceRecord, Long> {
-    // 특정 날짜의 모든 근태 (목록 N+1 방지용)
-    List<AttendanceRecord> findAllByWorkDate(LocalDate workDate);
+    // 당일 스냅샷 전체 조회 — JOIN FETCH로 N+1 방지 (workDate는 항상 오늘, 배치 재실행 중 잔여 데이터 방어용)
+    @Query("SELECT ar FROM AttendanceRecord ar JOIN FETCH ar.worker WHERE ar.workDate = :workDate")
+    List<AttendanceRecord> findAllByWorkDate(@Param("workDate") LocalDate workDate);
 
     // 특정 날짜 + 현장코드 필터 (현장 분리 조회)
     @Query("""
