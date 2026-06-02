@@ -8,5 +8,14 @@ import java.util.Optional;
 
 public interface WeatherAiAnalysisRepository extends JpaRepository<WeatherAiAnalysis, Long> {
 
-    Optional<WeatherAiAnalysis> findByAnalysisDate(LocalDate analysisDate);
+    Optional<WeatherAiAnalysis> findByProjectIdAndAnalysisDate(Long projectId, LocalDate analysisDate);
+
+    Optional<WeatherAiAnalysis> findFirstByProjectIdIsNullAndAnalysisDate(LocalDate analysisDate);
+
+    default Optional<WeatherAiAnalysis> findSnapshot(Long projectId, LocalDate analysisDate) {
+        if (projectId == null) {
+            return findFirstByProjectIdIsNullAndAnalysisDate(analysisDate);
+        }
+        return findByProjectIdAndAnalysisDate(projectId, analysisDate);
+    }
 }

@@ -123,10 +123,14 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
                     wo.status_code,
                     wo.site_idx
             FROM work_order wo
-            JOIN work_order_equipment we ON we.work_order_idx = wo.idx
+            LEFT JOIN work_order_equipment we
+                   ON we.work_order_idx = wo.idx
+                  AND (we.is_deleted = false OR we.is_deleted IS NULL)
             LEFT JOIN work_plan wp ON wp.idx = wo.work_plan_id
             WHERE (wo.is_deleted = false OR wo.is_deleted IS NULL)
-              AND (we.is_deleted = false OR we.is_deleted IS NULL)
+              AND (:projectId IS NULL OR wo.site_idx = :projectId)
+              AND (wo.status_code IS NULL OR UPPER(wo.status_code) NOT IN ('REJECTED', 'CANCELLED', 'CANCELED', 'DELETED'))
+              AND (:includeNoEquipment = true OR we.idx IS NOT NULL)
               AND (
                     :targetDate IS NULL
                     OR wo.due_date = :targetDate
@@ -137,5 +141,13 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
                      we.gate_idx ASC,
                      we.idx ASC
             """, nativeQuery = true)
-    List<Object[]> findGateEquipmentsByTargetDate(@Param("targetDate") LocalDate targetDate);
+    List<Object[]> findGateEquipmentsByTargetDate(
+            @Param("targetDate") LocalDate targetDate,
+            @Param("projectId") Long projectId,
+            @Param("includeNoEquipment") boolean includeNoEquipment
+    );
+
+    default List<Object[]> findGateEquipmentsByTargetDate(LocalDate targetDate) {
+        return findGateEquipmentsByTargetDate(targetDate, null, false);
+    }
 }

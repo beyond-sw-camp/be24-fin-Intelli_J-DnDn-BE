@@ -96,9 +96,19 @@ public class WorkOrderController {
             @Parameter(description = "대상 일자", example = "2026-05-27")
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate targetDate
+            LocalDate targetDate,
+            @Parameter(description = "공사현장 ID", example = "1")
+            @RequestParam(required = false)
+            Long projectId,
+            @Parameter(description = "장비가 없는 작업지시 포함 여부", example = "false")
+            @RequestParam(defaultValue = "false")
+            boolean includeNoEquipment
     ) {
-        List<WorkOrderDto.GateEquipmentRes> list = workOrderService.getGateEquipments(targetDate);
+        List<WorkOrderDto.GateEquipmentRes> list = workOrderService.getGateEquipments(
+                targetDate,
+                projectId,
+                includeNoEquipment
+        );
         return ResponseEntity.ok(BaseResponse.success(list));
     }
 
