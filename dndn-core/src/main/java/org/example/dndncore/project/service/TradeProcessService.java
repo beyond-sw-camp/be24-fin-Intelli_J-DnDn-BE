@@ -29,7 +29,7 @@ public class TradeProcessService {
         MasterSchedule schedule = masterScheduleRepository.findById(dto.getMasterScheduleId())
                 .orElseThrow(() -> new RuntimeException("공정표를 찾을 수 없습니다."));
 
-        authAccessService.assertProjectAccess(schedule.getProject() != null ? schedule.getProject().getIdx() : null);
+        authAccessService.assertProjectWriteAccess(schedule.getProject() != null ? schedule.getProject().getIdx() : null);
         authAccessService.assertTradeAccess(dto.getTradeName());
 
         TradeProcess tp = TradeProcess.builder()
@@ -55,7 +55,7 @@ public class TradeProcessService {
         MasterSchedule schedule = masterScheduleRepository.findById(masterScheduleId)
                 .orElseThrow(() -> new RuntimeException("공정표를 찾을 수 없습니다."));
 
-        authAccessService.assertProjectAccess(schedule.getProject() != null ? schedule.getProject().getIdx() : null);
+        authAccessService.assertProjectWriteAccess(schedule.getProject() != null ? schedule.getProject().getIdx() : null);
 
         List<TradeProcess> entities = dtoList.stream()
                 .peek(dto -> authAccessService.assertTradeAccess(dto.getTradeName()))
@@ -140,7 +140,7 @@ public class TradeProcessService {
     @Transactional
     public void update(Long tpId, TradeProcessDto.Req dto) {
         TradeProcess tradeProcess = findTradeProcess(tpId);
-        authAccessService.assertTradeProcessAccess(tradeProcess);
+        authAccessService.assertTradeProcessWriteAccess(tradeProcess);
         authAccessService.assertTradeAccess(dto.getTradeName());
         tradeProcess.update(
                 dto.getTradeName(),
@@ -156,7 +156,7 @@ public class TradeProcessService {
     @Transactional
     public void delete(Long tpId) {
         TradeProcess tradeProcess = findTradeProcess(tpId);
-        authAccessService.assertTradeProcessAccess(tradeProcess);
+        authAccessService.assertTradeProcessWriteAccess(tradeProcess);
         tradeProcessRepository.delete(tradeProcess);
     }
 

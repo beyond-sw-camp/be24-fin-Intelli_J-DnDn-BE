@@ -401,7 +401,7 @@ public class DocumentManagementService {
 
     @Transactional
     public void upload(DocumentManagementDto.UploadReq dto) {
-        authAccessService.assertProjectAccess(dto.getProjectId());
+        authAccessService.assertProjectWriteAccess(dto.getProjectId());
 
         Project project = projectRepository.findById(dto.getProjectId())
                 .orElseThrow(() -> BaseException.from(BaseResponseStatus.DOCUMENT_PROJECT_NOT_FOUND));

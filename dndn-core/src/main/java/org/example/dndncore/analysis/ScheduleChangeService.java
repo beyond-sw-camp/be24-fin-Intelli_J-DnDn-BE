@@ -49,7 +49,7 @@ public class ScheduleChangeService {
         Project project = projectRepository.findById(dto.getProjectId())
                 .orElseThrow(() -> new RuntimeException("현장을 찾을 수 없습니다."));
 
-        authAccessService.assertProjectAccess(project.getIdx());
+        authAccessService.assertProjectWriteAccess(project.getIdx());
 
         TradeProcess tradeProcess = null;
         if (dto.getTradeProcessId() != null) {
@@ -71,7 +71,7 @@ public class ScheduleChangeService {
         }
 
         if (workPlan != null) {
-            authAccessService.assertWorkPlanAccess(workPlan);
+            authAccessService.assertWorkPlanWriteAccess(workPlan);
         }
 
         String resolvedProcess = resolveProcess(dto, tradeProcess, workPlan);
@@ -238,6 +238,9 @@ public class ScheduleChangeService {
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────
 
     private void assertChangeAccess(ScheduleChange request) {
+        if (request != null && request.getProject() != null) {
+            authAccessService.assertProjectActive(request.getProject().getIdx());
+        }
         if (!canAccessChange(request)) {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.FORBIDDEN,
@@ -374,7 +377,7 @@ public class ScheduleChangeService {
             WorkPlan workPlan = workPlanRepository.findById(workPlanId)
                     .orElseThrow(() -> new RuntimeException("변경 대상 작업 계획을 찾을 수 없습니다. id=" + workPlanId));
 
-            authAccessService.assertWorkPlanAccess(workPlan);
+            authAccessService.assertWorkPlanWriteAccess(workPlan);
             applyDetailChangeToWorkPlan(workPlan, detail);
         }
     }

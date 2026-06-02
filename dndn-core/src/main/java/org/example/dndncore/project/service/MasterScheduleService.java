@@ -41,7 +41,7 @@ public class MasterScheduleService {
 
     @Transactional
     public Long create(MasterScheduleDto.Req dto) {
-        authAccessService.assertProjectAccess(dto.getProjectId());
+        authAccessService.assertProjectWriteAccess(dto.getProjectId());
 
         Project project = projectRepository.findById(dto.getProjectId())
                 .orElseThrow(() -> new RuntimeException("현장을 찾을 수 없습니다."));
@@ -82,7 +82,7 @@ public class MasterScheduleService {
     @Transactional
     public void delete(Long scheduleId) {
         MasterSchedule schedule = findSchedule(scheduleId);
-        authAccessService.assertProjectAccess(schedule.getProject() != null ? schedule.getProject().getIdx() : null);
+        authAccessService.assertProjectWriteAccess(schedule.getProject() != null ? schedule.getProject().getIdx() : null);
         masterScheduleRepository.delete(schedule);
     }
 
@@ -98,7 +98,7 @@ public class MasterScheduleService {
             String docTypeLabel,
             MultipartFile file
     ) {
-        authAccessService.assertProjectAccess(projectId);
+        authAccessService.assertProjectWriteAccess(projectId);
 
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new RuntimeException("현장을 찾을 수 없습니다."));

@@ -37,7 +37,7 @@ public class ProjectService {
 
     @Transactional
     public void update(Long projectId, ProjectDto.Req dto) {
-        authAccessService.assertProjectAccess(projectId);
+        authAccessService.assertProjectWriteAccess(projectId);
         findProject(projectId).update(
                 dto.getName(),
                 dto.getLocation(),
@@ -58,7 +58,7 @@ public class ProjectService {
 
     @Transactional
     public void delete(Long projectId) {
-        authAccessService.assertProjectAccess(projectId);
+        authAccessService.assertProjectWriteAccess(projectId);
         projectRepository.delete(findProject(projectId));
     }
 

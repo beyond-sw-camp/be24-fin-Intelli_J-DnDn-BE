@@ -63,7 +63,7 @@ public class GateService {
     @Transactional
     public GateDto.BlueprintRes saveBlueprint(Long projectId, GateDto.BlueprintReq dto) {
         Project project = findProject(projectId);
-        authAccessService.assertProjectAccess(project.getIdx());
+        authAccessService.assertProjectWriteAccess(project.getIdx());
 
         GateBlueprint blueprint = gateBlueprintRepository.findByProject_Idx(project.getIdx())
                 .map(existing -> {

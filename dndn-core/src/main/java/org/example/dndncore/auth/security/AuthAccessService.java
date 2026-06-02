@@ -86,6 +86,28 @@ public class AuthAccessService {
         });
     }
 
+    public void assertProjectActive(Long projectId) {
+        if (projectId == null) return;
+        projectRepository.findById(projectId)
+                .filter(p -> !p.isActive())
+                .ifPresent(p -> throwInactiveProject());
+    }
+
+    public void assertProjectWriteAccess(Long projectId) {
+        assertProjectActive(projectId);
+        assertProjectAccess(projectId);
+    }
+
+    public void assertWorkPlanWriteAccess(WorkPlan plan) {
+        assertProjectActive(workPlanProjectId(plan));
+        assertWorkPlanAccess(plan);
+    }
+
+    public void assertTradeProcessWriteAccess(TradeProcess tradeProcess) {
+        assertProjectActive(tradeProcessProjectId(tradeProcess));
+        assertTradeProcessAccess(tradeProcess);
+    }
+
     public boolean canAccessProjectId(Long projectId) {
         return currentUser()
                 .map(user -> canAccessProjectId(user, projectId))
@@ -202,6 +224,25 @@ public class AuthAccessService {
 
     private String clean(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private Long workPlanProjectId(WorkPlan plan) {
+        if (plan == null) return null;
+        TradeProcess tp = plan.getTradeProcess();
+        if (tp == null && plan.getParentWorkPlan() != null) {
+            tp = plan.getParentWorkPlan().getTradeProcess();
+        }
+        return tradeProcessProjectId(tp);
+    }
+
+    private Long tradeProcessProjectId(TradeProcess tradeProcess) {
+        if (tradeProcess == null || tradeProcess.getMasterSchedule() == null) return null;
+        Project project = tradeProcess.getMasterSchedule().getProject();
+        return project != null ? project.getIdx() : null;
+    }
+
+    private void throwInactiveProject() {
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "비활성화된 현장에는 쓰기 작업을 수행할 수 없습니다.");
     }
 
     private void throwForbidden() {

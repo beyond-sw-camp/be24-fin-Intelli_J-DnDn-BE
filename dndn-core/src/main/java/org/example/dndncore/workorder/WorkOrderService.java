@@ -427,7 +427,7 @@ public class WorkOrderService {
         if (req == null) {
             return;
         }
-        authAccessService.assertProjectAccess(req.getSiteIdx());
+        authAccessService.assertProjectWriteAccess(req.getSiteIdx());
         authAccessService.assertTradeAccess(req.getTradeType());
         if (req.getWorkPlanId() != null) {
             WorkPlan workPlan = workPlanRepository.findById(req.getWorkPlanId())

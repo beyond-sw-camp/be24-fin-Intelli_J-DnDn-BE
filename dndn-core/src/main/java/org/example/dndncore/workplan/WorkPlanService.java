@@ -110,7 +110,7 @@ public class WorkPlanService {
         if (projectId == null) {
             throw new RuntimeException("현장 ID는 필수입니다.");
         }
-        authAccessService.assertProjectAccess(projectId);
+        authAccessService.assertProjectWriteAccess(projectId);
 
         PlanType uploadPlanType = resolveUploadPlanType(planType);
         File storedFile = storeUploadFile(file);
@@ -143,7 +143,7 @@ public class WorkPlanService {
 
         linkTradeProcessIfPresent(plan, dto.getTradeProcessId());
         linkParentWorkPlanIfPresent(plan, dto.getParentWorkPlanId());
-        authAccessService.assertWorkPlanAccess(plan);
+        authAccessService.assertWorkPlanWriteAccess(plan);
 
         return workPlanRepository.save(plan);
     }
@@ -226,7 +226,7 @@ public class WorkPlanService {
     @Transactional
     public void update(Long planId, WorkPlanDto.Req dto) {
         WorkPlan plan = findPlan(planId);
-        authAccessService.assertWorkPlanAccess(plan);
+        authAccessService.assertWorkPlanWriteAccess(plan);
 
         plan.updateInfo(
                 dto.getName(),
@@ -255,7 +255,7 @@ public class WorkPlanService {
 
         linkTradeProcessIfPresent(plan, dto.getTradeProcessId());
         linkParentWorkPlanIfPresent(plan, dto.getParentWorkPlanId());
-        authAccessService.assertWorkPlanAccess(plan);
+        authAccessService.assertWorkPlanWriteAccess(plan);
         triggerZoneSync(plan.getStartDate());
     }
 
@@ -263,7 +263,7 @@ public class WorkPlanService {
     @Transactional
     public void extend(Long planId, WorkPlanDto.ExtReq dto) {
         WorkPlan plan = findPlan(planId);
-        authAccessService.assertWorkPlanAccess(plan);
+        authAccessService.assertWorkPlanWriteAccess(plan);
         WorkPlanExtension extension = plan.getExtension();
 
         if (extension == null) {
@@ -319,7 +319,7 @@ public class WorkPlanService {
 
             linkTradeProcessIfPresent(plan, dto.getTradeProcessId());
             linkParentWorkPlanIfPresent(plan, dto.getParentWorkPlanId());
-            authAccessService.assertWorkPlanAccess(plan);
+            authAccessService.assertWorkPlanWriteAccess(plan);
 
             savedIds.add(workPlanRepository.save(plan).getIdx());
         }
@@ -332,7 +332,7 @@ public class WorkPlanService {
     @Transactional
     public void start(Long planId) {
         WorkPlan plan = findPlan(planId);
-        authAccessService.assertWorkPlanAccess(plan);
+        authAccessService.assertWorkPlanWriteAccess(plan);
         plan.markStarted(LocalDate.now());
     }
 
@@ -340,7 +340,7 @@ public class WorkPlanService {
     @Transactional
     public void delete(Long planId) {
         WorkPlan plan = findPlan(planId);
-        authAccessService.assertWorkPlanAccess(plan);
+        authAccessService.assertWorkPlanWriteAccess(plan);
         LocalDate planDate = plan.getStartDate();
         workPlanRepository.delete(plan);
         triggerZoneSync(planDate);
@@ -608,7 +608,7 @@ public class WorkPlanService {
         TradeProcess tradeProcess = tradeProcessRepository.findById(tradeProcessId)
                 .orElseThrow(() -> new RuntimeException("공정을 찾을 수 없습니다. id=" + tradeProcessId));
 
-        authAccessService.assertTradeProcessAccess(tradeProcess);
+        authAccessService.assertTradeProcessWriteAccess(tradeProcess);
         plan.linkTradeProcess(tradeProcess);
     }
 
@@ -618,7 +618,7 @@ public class WorkPlanService {
         WorkPlan parent = workPlanRepository.findById(parentWorkPlanId)
                 .orElseThrow(() -> new RuntimeException("상위 작업 계획을 찾을 수 없습니다. id=" + parentWorkPlanId));
 
-        authAccessService.assertWorkPlanAccess(parent);
+        authAccessService.assertWorkPlanWriteAccess(parent);
         plan.linkParentWorkPlan(parent);
     }
 
