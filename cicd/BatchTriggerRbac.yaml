@@ -1,0 +1,24 @@
+# ClusterRole: batch namespace의 Job/CronJob 조작 권한
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: batch-trigger-role
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["create", "get", "list"]
+---
+# ClusterRoleBinding: default namespace의 default SA에 ClusterRole 부여
+# (백엔드 Pod가 batch namespace의 Job을 생성할 수 있도록 cross-namespace 허용)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: batch-trigger-binding
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: batch-trigger-role
+  apiGroup: rbac.authorization.k8s.io

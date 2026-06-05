@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: seungwoo0128/dndn-backend:1.1
+          image: seungwoo0128/dndn-backend:1.12
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
