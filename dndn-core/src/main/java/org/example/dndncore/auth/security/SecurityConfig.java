@@ -125,7 +125,9 @@ public class SecurityConfig {
                 "https://localhost",
                 "capacitor://localhost",
                 "ionic://localhost",
-                "https://www.dndn24.kro.kr"
+                "https://www.dndn24.kro.kr",
+                "https://www.dndn26.kro.kr",
+                "https://dndn26.kro.kr"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
