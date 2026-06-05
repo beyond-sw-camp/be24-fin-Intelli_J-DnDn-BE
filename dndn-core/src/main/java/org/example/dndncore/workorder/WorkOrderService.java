@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.dndncore.auth.model.entity.SystemUser;
 import org.example.dndncore.auth.security.AuthAccessService;
 import org.example.dndncore.esg.event.EsgDashboardDataChangedEventPublisher;
+import org.example.dndncore.esg.event.EsgSnapshotRefreshEventPublisher;
 import org.example.dndncore.document_event.DocumentEventProducer;
 import org.example.dndncore.workorder.model.WorkOrder;
 import org.example.dndncore.workorder.model.WorkOrderDto;
@@ -42,6 +43,7 @@ public class WorkOrderService {
     private final WorkPlanRepository workPlanRepository;
     private final AuthAccessService authAccessService;
     private final EsgDashboardDataChangedEventPublisher esgDashboardDataChangedEventPublisher;
+    private final EsgSnapshotRefreshEventPublisher esgSnapshotRefreshEventPublisher;
     private final DocumentEventProducer documentEventProducer;
 
     // [WORKORDER_001] 1단계 : 작업 지시서 기본 작성 기능
@@ -101,6 +103,7 @@ public class WorkOrderService {
     @Transactional(readOnly = true)
     public WorkOrderDto.SliceRes getWorkOrderSlice(
             LocalDate targetDate,
+            Long projectId,
             String tradeType,
             String statusCode,
             String keyword,
@@ -111,6 +114,7 @@ public class WorkOrderService {
         int requestSize = normalizeSliceSize(size);
         List<Long> ids = findAccessibleWorkOrderIds(
                 targetDate,
+                projectId,
                 normalizeFilter(tradeType),
                 normalizeFilter(statusCode),
                 normalizeFilter(keyword),
@@ -181,6 +185,7 @@ public class WorkOrderService {
 
     private List<Long> findAccessibleWorkOrderIds(
             LocalDate targetDate,
+            Long projectId,
             String tradeType,
             String statusCode,
             String keyword,
@@ -197,8 +202,27 @@ public class WorkOrderService {
             if (projectIds.isEmpty()) {
                 return List.of();
             }
+            if (projectId != null) {
+                if (!projectIds.contains(projectId)) {
+                    return List.of();
+                }
+                projectIds = List.of(projectId);
+            }
             return workOrderRepository.findActiveIdsBySiteIdxInBefore(
                     projectIds,
+                    targetDate,
+                    tradeType,
+                    statusCode,
+                    keyword,
+                    cursorDueDate,
+                    cursorId,
+                    limitOnly
+            );
+        }
+
+        if (projectId != null) {
+            return workOrderRepository.findActiveIdsBySiteIdxInBefore(
+                    List.of(projectId),
                     targetDate,
                     tradeType,
                     statusCode,
@@ -430,7 +454,11 @@ public class WorkOrderService {
     }
 
     private void publishEsgDashboardChanged(Long projectId, LocalDate reportDate) {
+        if (projectId == null || reportDate == null) {
+            return;
+        }
         esgDashboardDataChangedEventPublisher.publishProjectDate(projectId, reportDate);
+        esgSnapshotRefreshEventPublisher.publishProjectDate(projectId, reportDate);
     }
 
     private void assertRequestAccess(WorkOrderDto.Req req) {

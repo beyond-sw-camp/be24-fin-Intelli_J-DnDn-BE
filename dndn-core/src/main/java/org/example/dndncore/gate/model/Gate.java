@@ -3,6 +3,7 @@ package org.example.dndncore.gate.model;
 import jakarta.persistence.*;
 import lombok.*;
 import org.example.dndncore.common.model.BaseEntity;
+import org.example.dndncore.project.model.entity.Project;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -19,6 +20,10 @@ public class Gate extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long idx;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_idx")
+    private Project project;
+
     private String name;        // 게이트명
 
     private Double x;           // X 좌표 (0~100, 도면 비율 기준)
@@ -30,6 +35,15 @@ public class Gate extends BaseEntity {
     @OneToMany(mappedBy = "gate", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<GateMachine> machines = new ArrayList<>();
+
+    public void bindProject(Project project) {
+        this.project = project;
+    }
+
+    public boolean belongsToProject(Long projectId) {
+        if (projectId == null) return true;
+        return project != null && project.getIdx() != null && project.getIdx().equals(projectId);
+    }
 
     public void updateInfo(String name, Double x, Double y, Integer vehicles, Integer manpower) {
         if (name != null && !name.isBlank()) {

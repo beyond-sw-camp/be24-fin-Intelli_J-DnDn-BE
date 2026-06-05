@@ -661,6 +661,11 @@ public class EsgSnapshotRefreshService {
 
         List<EsgZoneDailySnapshot> snapshots = refreshZones.stream()
                 .map(zone -> {
+                    EsgZoneDailySnapshot currentZoneSnapshot = currentZoneSnapshotByName.get(zone.zoneName());
+                    if (shouldKeepCurrentSupportSnapshot(currentZoneSnapshot, zone)) {
+                        return currentZoneSnapshot;
+                    }
+
                     EsgZoneDailySnapshot previousZoneSnapshot = previousZoneSnapshotByName.get(zone.zoneName());
                     ScoreProgress progress = shouldResetZoneProgress(zone)
                             ? new ScoreProgress(0.0, 0)
@@ -671,14 +676,13 @@ public class EsgSnapshotRefreshService {
                                     ZONE_FLOOR_POINT
                             );
 
-                    EsgZoneDailySnapshot snapshot = currentZoneSnapshotByName.getOrDefault(
-                            zone.zoneName(),
-                            EsgZoneDailySnapshot.builder()
+                    EsgZoneDailySnapshot snapshot = currentZoneSnapshot != null
+                            ? currentZoneSnapshot
+                            : EsgZoneDailySnapshot.builder()
                                     .project(project)
                                     .reportDate(reportDate)
                                     .zoneName(zone.zoneName())
-                                    .build()
-                    );
+                                    .build();
 
                     snapshot.update(
                             zone.zoneName(),
@@ -1008,6 +1012,117 @@ public class EsgSnapshotRefreshService {
                 && zone.metrics().reportCount <= 0
                 && zone.metrics().complaintCount <= 0
                 && zone.metrics().complaintResolvedCount <= 0;
+    }
+
+    private boolean shouldKeepCurrentSupportSnapshot(
+            EsgZoneDailySnapshot currentDateSnapshot,
+            ZoneRefreshModel refreshZone
+    ) {
+        if (currentDateSnapshot == null || refreshZone == null) {
+            return false;
+        }
+        return isSupportRefreshZone(refreshZone)
+                && isInactiveSupportRefreshZone(refreshZone)
+                && isActiveSupportSnapshot(currentDateSnapshot);
+    }
+
+    private boolean isSupportRefreshZone(ZoneRefreshModel zone) {
+        if (zone == null) {
+            return false;
+        }
+        String zoneType = normalizeText(zone.zoneType()).toLowerCase(Locale.ROOT);
+        String zoneName = normalizeText(zone.zoneName());
+        return "support".equals(zoneType)
+                || "outdoor".equals(zoneType)
+                || "세척장".equals(zoneName)
+                || "민원 구역".equals(zoneName)
+                || "민원구역".equals(zoneName);
+    }
+
+    private boolean isInactiveSupportRefreshZone(ZoneRefreshModel zone) {
+        if (zone == null) {
+            return true;
+        }
+        return zone.dailyScore() <= 0.0
+                && zone.equipmentCount() <= 0
+                && zone.highRiskEquipmentCount() <= 0
+                && zone.riskCount() <= 0
+                && zone.missionRate() <= 0
+                && zone.metrics().environmentScore <= 0.0
+                && zone.metrics().socialScore <= 0.0
+                && zone.metrics().governanceScore <= 0.0
+                && zone.metrics().totalScore <= 0.0
+                && zone.metrics().reportCount <= 0
+                && zone.metrics().complaintCount <= 0
+                && zone.metrics().complaintResolvedCount <= 0
+                && zone.metrics().workerCount <= 0
+                && zone.metrics().assignedWorkerCount <= 0
+                && zone.metrics().requiredWorkerCount <= 0
+                && zone.metrics().trainedWorkerCount <= 0;
+    }
+
+    private boolean isActiveSupportSnapshot(EsgZoneDailySnapshot snapshot) {
+        if (snapshot == null) {
+            return false;
+        }
+        return normalizeCumulativeSnapshotScore(snapshot.getTotalScore()) > 0.0
+                || normalizeCumulativeSnapshotScore(snapshot.getEnvironmentScore()) > 0.0
+                || normalizeCumulativeSnapshotScore(snapshot.getSocialScore()) > 0.0
+                || normalizeCumulativeSnapshotScore(snapshot.getGovernanceScore()) > 0.0
+                || normalizeCumulativeSnapshotScore(snapshot.getCarbonKg()) > 0.0
+                || normalizeCumulativeSnapshotScore(snapshot.getPowerSavingKwh()) > 0.0
+                || snapshotInteger(snapshot.getEquipmentCount()) > 0
+                || snapshotInteger(snapshot.getHighRiskEquipmentCount()) > 0
+                || snapshotInteger(snapshot.getRiskCount()) > 0
+                || snapshotInteger(snapshot.getMissionRate()) > 0
+                || hasActiveSupportMetricInSnapshotJson(snapshot.getSnapshotJson());
+    }
+
+    private boolean hasActiveSupportMetricInSnapshotJson(String snapshotJson) {
+        if (isBlank(snapshotJson)) {
+            return false;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(snapshotJson);
+            JsonNode metrics = root.path("metrics");
+            if (metrics.isMissingNode() || metrics.isNull()) {
+                return false;
+            }
+            return metrics.path("supportOperationActive").asBoolean(false)
+                    || positiveJsonNumber(metrics, "totalEquipmentCount")
+                    || positiveJsonNumber(metrics, "highRiskEquipmentCount")
+                    || positiveJsonNumber(metrics, "operatingRisk")
+                    || positiveJsonNumber(metrics, "weatherRiskCount")
+                    || positiveJsonNumber(metrics, "missionRate")
+                    || positiveJsonNumber(metrics, "complaintCount")
+                    || positiveJsonNumber(metrics, "complaintResolvedCount")
+                    || positiveJsonNumber(metrics, "workerCount")
+                    || positiveJsonNumber(metrics, "assignedWorkerCount")
+                    || positiveJsonNumber(metrics, "requiredWorkerCount")
+                    || positiveJsonNumber(metrics, "trainedWorkerCount")
+                    || positiveJsonNumber(metrics, "environmentScore")
+                    || positiveJsonNumber(metrics, "socialScore")
+                    || positiveJsonNumber(metrics, "governanceScore")
+                    || positiveJsonNumber(metrics, "totalScore");
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private boolean positiveJsonNumber(JsonNode node, String fieldName) {
+        JsonNode value = node.path(fieldName);
+        return value.isNumber() && value.asDouble() > 0.0;
+    }
+
+    private int snapshotInteger(Integer value) {
+        return value != null ? Math.max(0, value) : 0;
+    }
+
+    private double normalizeCumulativeSnapshotScore(Double value) {
+        if (value == null || value.isNaN() || value.isInfinite()) {
+            return 0.0;
+        }
+        return Math.max(0.0, value);
     }
 
     private boolean hasEsgOperationData(ZoneMetrics metrics, boolean hasMeaningfulMetricInput) {

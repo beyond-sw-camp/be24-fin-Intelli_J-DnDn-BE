@@ -127,6 +127,6 @@ public class WeatherSnapshotScheduler {
 
     private void refreshTodayWeatherAndAi(LocalDate today) {
         weatherInfoService.refreshTodaySnapshotAndAvailableForecasts();
-        weatherAnalysisExtractor.refreshTodayAnalysis(today);
+        weatherAnalysisExtractor.refreshTodayAnalysisForActiveProjects(today);
     }
 }

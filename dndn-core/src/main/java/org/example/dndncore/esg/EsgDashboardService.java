@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -177,24 +178,29 @@ public class EsgDashboardService {
                 .filter(request -> request.getZoneName() != null && !request.getZoneName().isBlank())
                 .map(request -> {
                     String zoneName = request.getZoneName().trim();
+                    EsgZoneDailySnapshot currentDateSnapshot = currentDateSnapshotMap.get(zoneName);
+
+                    if (shouldKeepCurrentSupportSnapshot(currentDateSnapshot, request)) {
+                        return currentDateSnapshot;
+                    }
+
                     EsgZoneDailySnapshot previousZoneSnapshot = previousZoneSnapshotMap.get(zoneName);
                     ScoreProgress zoneProgress = shouldResetZoneProgress(request)
                             ? new ScoreProgress(0.0, 0)
                             : advanceFloorProgress(
-                                    previousZoneSnapshot == null ? null : previousZoneSnapshot.getTotalScore(),
-                                    previousZoneSnapshot == null ? null : previousZoneSnapshot.getLevel(),
-                                    request.getTotalScore(),
-                                    ZONE_FLOOR_POINT
-                            );
-
-                    EsgZoneDailySnapshot snapshot = currentDateSnapshotMap.getOrDefault(
-                            zoneName,
-                            EsgZoneDailySnapshot.builder()
-                                    .project(project)
-                                    .reportDate(targetDate)
-                                    .zoneName(zoneName)
-                                    .build()
+                            previousZoneSnapshot == null ? null : previousZoneSnapshot.getTotalScore(),
+                            previousZoneSnapshot == null ? null : previousZoneSnapshot.getLevel(),
+                            request.getTotalScore(),
+                            ZONE_FLOOR_POINT
                     );
+
+                    EsgZoneDailySnapshot snapshot = currentDateSnapshot != null
+                            ? currentDateSnapshot
+                            : EsgZoneDailySnapshot.builder()
+                            .project(project)
+                            .reportDate(targetDate)
+                            .zoneName(zoneName)
+                            .build();
                     snapshot.update(
                             zoneName,
                             normalizeText(request.getZoneType(), "work"),
@@ -215,10 +221,65 @@ public class EsgDashboardService {
                     );
                     return snapshot;
                 })
+                .filter(Objects::nonNull)
                 .toList();
 
         esgZoneDailySnapshotRepository.saveAll(snapshots);
         return esgZoneDailySnapshotRepository.findAllByProject_IdxAndReportDate(project.getIdx(), targetDate);
+    }
+
+
+    private boolean shouldKeepCurrentSupportSnapshot(
+            EsgZoneDailySnapshot currentDateSnapshot,
+            EsgDashboardDto.SaveZoneSnapshotRequestDto request
+    ) {
+        if (!isSupportZoneRequest(request) || !isInactiveSupportRequest(request)) {
+            return false;
+        }
+
+        return currentDateSnapshot == null || isActiveSupportSnapshot(currentDateSnapshot);
+    }
+
+    private boolean isSupportZoneRequest(EsgDashboardDto.SaveZoneSnapshotRequestDto request) {
+        if (request == null) {
+            return false;
+        }
+        String zoneType = normalizeText(request.getZoneType(), "").toLowerCase();
+        String zoneName = normalizeText(request.getZoneName(), "");
+        return "support".equals(zoneType)
+                || "outdoor".equals(zoneType)
+                || "세척장".equals(zoneName)
+                || "민원 구역".equals(zoneName)
+                || "민원구역".equals(zoneName);
+    }
+
+    private boolean isInactiveSupportRequest(EsgDashboardDto.SaveZoneSnapshotRequestDto request) {
+        return normalizeDailyScore(request.getTotalScore()) <= 0.0
+                && normalizeDailyScore(request.getEnvironmentScore()) <= 0.0
+                && normalizeDailyScore(request.getSocialScore()) <= 0.0
+                && normalizeDailyScore(request.getGovernanceScore()) <= 0.0
+                && normalizePositiveDouble(request.getCarbonKg()) <= 0.0
+                && normalizePositiveDouble(request.getPowerSavingKwh()) <= 0.0
+                && normalizePositiveInteger(request.getEquipmentCount()) <= 0
+                && normalizePositiveInteger(request.getHighRiskEquipmentCount()) <= 0
+                && normalizePositiveInteger(request.getRiskCount()) <= 0
+                && normalizePercent(request.getMissionRate()) <= 0;
+    }
+
+    private boolean isActiveSupportSnapshot(EsgZoneDailySnapshot snapshot) {
+        if (snapshot == null) {
+            return false;
+        }
+        return normalizeCumulativeScore(snapshot.getTotalScore()) > 0.0
+                || normalizeDailyScore(snapshot.getEnvironmentScore()) > 0.0
+                || normalizeDailyScore(snapshot.getSocialScore()) > 0.0
+                || normalizeDailyScore(snapshot.getGovernanceScore()) > 0.0
+                || normalizePositiveDouble(snapshot.getCarbonKg()) > 0.0
+                || normalizePositiveDouble(snapshot.getPowerSavingKwh()) > 0.0
+                || normalizePositiveInteger(snapshot.getEquipmentCount()) > 0
+                || normalizePositiveInteger(snapshot.getHighRiskEquipmentCount()) > 0
+                || normalizePositiveInteger(snapshot.getRiskCount()) > 0
+                || normalizePercent(snapshot.getMissionRate()) > 0;
     }
 
 

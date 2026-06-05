@@ -2,6 +2,7 @@ package org.example.dndncore.gate.model;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
+import org.example.dndncore.project.model.entity.Project;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -19,9 +20,14 @@ public class GateDto {
         private Double y;
 
         public Gate toEntity() {
+            return toEntity(null);
+        }
+
+        public Gate toEntity(Project project) {
             String resolvedName = (this.name == null || this.name.isBlank()) ? "Gate" : this.name;
 
             return Gate.builder()
+                    .project(project)
                     .name(resolvedName)
                     .x(clamp(this.x))
                     .y(clamp(this.y))
@@ -83,6 +89,7 @@ public class GateDto {
     @Builder
     public static class Res {
         private Long idx;
+        private Long projectId;
         private String name;
         private Double x;
         private Double y;
@@ -112,9 +119,11 @@ public class GateDto {
             String congestionLabel = congestion == null ? null : congestion.getLabel();
             String noticeCode = notice == null ? null : notice.name();
             String noticeMessage = notice == null ? null : notice.getMessage();
+            Long projectId = entity.getProject() == null ? null : entity.getProject().getIdx();
 
             return Res.builder()
                     .idx(entity.getIdx())
+                    .projectId(projectId)
                     .name(entity.getName())
                     .x(entity.getX())
                     .y(entity.getY())

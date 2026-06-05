@@ -18,8 +18,10 @@ public class GateController {
 
     // 게이트 등록
     @PostMapping
-    public ResponseEntity<?> create(@RequestBody GateDto.CreateReq dto) {
-        Long newIdx = gateService.create(dto);
+    public ResponseEntity<?> create(
+            @RequestParam(value = "projectId", required = false) Long projectId,
+            @RequestBody GateDto.CreateReq dto) {
+        Long newIdx = gateService.create(projectId, dto);
         return ResponseEntity.ok(BaseResponse.success(newIdx));
     }
 
@@ -32,8 +34,8 @@ public class GateController {
 
     // 게이트 목록 조회
     @GetMapping
-    public ResponseEntity<?> list() {
-        List<GateDto.Res> dtos = gateService.list();
+    public ResponseEntity<?> list(@RequestParam(value = "projectId", required = false) Long projectId) {
+        List<GateDto.Res> dtos = gateService.list(projectId);
         return ResponseEntity.ok(BaseResponse.success(dtos));
     }
 

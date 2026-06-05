@@ -6,13 +6,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.dndncore.ai.dto.WeatherAiDto;
 import org.example.dndncore.ai.entity.WeatherAiAnalysis;
 import org.example.dndncore.ai.repository.WeatherAiAnalysisRepository;
+import org.example.dndncore.project.model.entity.Project;
+import org.example.dndncore.project.repository.ProjectRepository;
 import org.example.dndncore.weather.WeatherInfoService;
 import org.example.dndncore.weather.model.WeatherInfoDto;
 import org.example.dndncore.workorder.WorkOrderService;
 import org.example.dndncore.workorder.model.WorkOrderDto;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,10 +27,13 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class WeatherAnalysisExtractor {
 
+    private static final Duration ANALYSIS_REFRESH_INTERVAL = Duration.ofHours(1);
+
     private final OpenAiWeatherAnalyzer openAiWeatherAnalyzer;
     private final WeatherInfoService weatherInfoService;
     private final WorkOrderService workOrderService;
     private final WeatherAiAnalysisRepository weatherAiAnalysisRepository;
+    private final ProjectRepository projectRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -48,10 +55,19 @@ public class WeatherAnalysisExtractor {
 
         log.info("[기상분석] 저장 결과 조회 요청 - 날짜: {}, 현장: {}", targetDate, projectId);
 
-        WeatherAiDto.AnalysisResult savedResult = findSavedResult(targetDate, projectId);
-        if (savedResult != null) {
-            log.info("[기상분석] 저장된 AI 분석 결과 반환 - 날짜: {}, 현장: {}", targetDate, projectId);
-            return savedResult;
+        WeatherAiAnalysis savedSnapshot = findSavedSnapshot(targetDate, projectId);
+        if (savedSnapshot != null) {
+            WeatherAiDto.AnalysisResult savedResult = toAnalysisResult(savedSnapshot, targetDate, projectId);
+            if (savedResult != null) {
+                if (targetDate.equals(today) && isStaleTodaySnapshot(savedSnapshot)) {
+                    log.info("[기상분석] 저장 결과가 1시간 이상 경과하여 재분석 수행 - 날짜: {}, 현장: {}, updatedAt: {}",
+                            targetDate, projectId, savedSnapshot.getUpdatedAt());
+                    return refreshTodayAnalysis(targetDate, projectId);
+                }
+
+                log.info("[기상분석] 저장된 AI 분석 결과 반환 - 날짜: {}, 현장: {}", targetDate, projectId);
+                return savedResult;
+            }
         }
 
         if (targetDate.isBefore(today)) {
@@ -73,6 +89,39 @@ public class WeatherAnalysisExtractor {
      */
     public WeatherAiDto.AnalysisResult refreshTodayAnalysis(LocalDate analysisDate) {
         return refreshTodayAnalysis(analysisDate, null);
+    }
+
+    /**
+     * 정기 기상 갱신 완료 직후 모든 활성 현장 기준 AI 분석을 갱신한다.
+     * 서버가 여러 대여도 상위 스케줄러의 Redis 분산락으로 1회만 실행된다.
+     */
+    public void refreshTodayAnalysisForActiveProjects(LocalDate analysisDate) {
+        LocalDate today = LocalDate.now();
+        LocalDate targetDate = analysisDate != null ? analysisDate : today;
+
+        if (!targetDate.equals(today)) {
+            log.info("[기상분석] 활성 현장 정기 갱신 생략 - 당일이 아님 - date={}", targetDate);
+            return;
+        }
+
+        List<Project> activeProjects = projectRepository.findAll().stream()
+                .filter(Project::isActive)
+                .toList();
+
+        if (activeProjects.isEmpty()) {
+            log.info("[기상분석] 활성 현장이 없어 공통 분석만 갱신합니다. - date={}", targetDate);
+            refreshTodayAnalysis(targetDate, null);
+            return;
+        }
+
+        for (Project project : activeProjects) {
+            try {
+                refreshTodayAnalysis(targetDate, project.getIdx());
+            } catch (Exception exception) {
+                log.warn("[기상분석] 현장별 정기 AI 분석 갱신 실패 - date={}, projectId={}",
+                        targetDate, project.getIdx(), exception);
+            }
+        }
     }
 
     /**
@@ -130,17 +179,30 @@ public class WeatherAnalysisExtractor {
         }
     }
 
+    private WeatherAiAnalysis findSavedSnapshot(LocalDate targetDate, Long projectId) {
+        return weatherAiAnalysisRepository.findSnapshot(projectId, targetDate).orElse(null);
+    }
+
     private WeatherAiDto.AnalysisResult findSavedResult(LocalDate targetDate, Long projectId) {
-        return weatherAiAnalysisRepository.findSnapshot(projectId, targetDate)
-                .map(snapshot -> {
-                    try {
-                        return objectMapper.readValue(snapshot.getResultJson(), WeatherAiDto.AnalysisResult.class);
-                    } catch (Exception e) {
-                        log.warn("[기상분석] 저장된 AI 분석 결과 파싱 실패 - date={}, projectId={}", targetDate, projectId);
-                        return null;
-                    }
-                })
-                .orElse(null);
+        WeatherAiAnalysis snapshot = findSavedSnapshot(targetDate, projectId);
+        return snapshot == null ? null : toAnalysisResult(snapshot, targetDate, projectId);
+    }
+
+    private WeatherAiDto.AnalysisResult toAnalysisResult(WeatherAiAnalysis snapshot, LocalDate targetDate, Long projectId) {
+        try {
+            return objectMapper.readValue(snapshot.getResultJson(), WeatherAiDto.AnalysisResult.class);
+        } catch (Exception e) {
+            log.warn("[기상분석] 저장된 AI 분석 결과 파싱 실패 - date={}, projectId={}", targetDate, projectId);
+            return null;
+        }
+    }
+
+    private boolean isStaleTodaySnapshot(WeatherAiAnalysis snapshot) {
+        if (snapshot == null || snapshot.getUpdatedAt() == null) {
+            return true;
+        }
+        LocalDateTime refreshThreshold = LocalDateTime.now().minus(ANALYSIS_REFRESH_INTERVAL);
+        return snapshot.getUpdatedAt().isBefore(refreshThreshold);
     }
 
     private boolean hasUsableWeatherAnalysis(WeatherInfoDto.WeatherAnalysis weather) {

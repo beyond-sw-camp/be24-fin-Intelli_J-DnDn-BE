@@ -58,6 +58,8 @@ public class WorkOrderController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate targetDate,
+            @Parameter(description = "공사현장 ID", example = "2")
+            @RequestParam(required = false) Long projectId,
             @Parameter(description = "공종 유형", example = "CARPENTRY")
             @RequestParam(required = false) String tradeType,
             @Parameter(description = "상태 코드", example = "PENDING")
@@ -75,6 +77,7 @@ public class WorkOrderController {
     ) {
         WorkOrderDto.SliceRes slice = workOrderService.getWorkOrderSlice(
                 targetDate,
+                projectId,
                 tradeType,
                 statusCode,
                 keyword,
