@@ -15,9 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-Google 검색 또는 URL 입력
-
-
 
 # SPDX-License-Identifier: Apache-2.0
 #

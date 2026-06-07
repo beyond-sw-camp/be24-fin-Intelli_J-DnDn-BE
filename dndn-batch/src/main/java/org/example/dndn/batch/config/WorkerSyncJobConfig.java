@@ -155,9 +155,10 @@ public class WorkerSyncJobConfig {
 
     @Bean
     @StepScope
-    public RosterCleanupTasklet rosterCleanupTasklet() {
+    public RosterCleanupTasklet rosterCleanupTasklet(
+            @Value("#{jobParameters['syncDate']}") String syncDate) {
         return new RosterCleanupTasklet(attendanceRepository,
-                workerDocumentRepository, LocalDate.now());
+                workerDocumentRepository, LocalDate.parse(syncDate));
     }
 
     /**
@@ -301,8 +302,9 @@ public class WorkerSyncJobConfig {
     @Bean
     @StepScope
     public WorkerSyncItemWriter workerSyncItemWriter(
-            @Value("#{stepExecutionContext['siteCode']}") String siteCode) {
-        return new WorkerSyncItemWriter(workerSyncService, objectMapper, siteCode, LocalDate.now());
+            @Value("#{stepExecutionContext['siteCode']}") String siteCode,
+            @Value("#{jobParameters['syncDate']}") String syncDate) {
+        return new WorkerSyncItemWriter(workerSyncService, objectMapper, siteCode, LocalDate.parse(syncDate));
     }
 
     // ── Infrastructure Beans ─────────────────────────────────────────────────
