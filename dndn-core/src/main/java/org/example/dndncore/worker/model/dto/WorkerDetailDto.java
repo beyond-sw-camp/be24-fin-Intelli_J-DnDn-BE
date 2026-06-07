@@ -92,6 +92,8 @@ public class WorkerDetailDto {
         private String name;
         @Schema(description = "소속 구분", example = "DIRECT")
         private AffiliationKind affiliationKind;
+        @Schema(description = "공종", example = "목공")
+        private String trade;
         @Schema(description = "직급", example = "TEAM_LEAD")
         private JobRank jobRank;
         @Schema(description = "현장", example = "강남구 재건축 A공구")
@@ -120,6 +122,7 @@ public class WorkerDetailDto {
                     .idx(w.getIdx())
                     .name(w.getName())
                     .affiliationKind(w.getAffiliationKind())
+                    .trade(w.getTrade())
                     .jobRank(w.getJobRank())
                     .site(w.getSite())
                     .phone(w.getPhone())

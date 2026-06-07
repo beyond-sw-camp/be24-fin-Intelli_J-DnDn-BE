@@ -21,6 +21,7 @@ import java.util.Set;
 
 import static org.example.dndncore.common.model.BaseResponseStatus.ACCOUNT_NOT_FOUND;
 import static org.example.dndncore.common.model.BaseResponseStatus.AUTH_NOT_AUTHENTICATED;
+import static org.example.dndncore.common.model.BaseResponseStatus.LOGIN_ACCOUNT_DEACTIVATED;
 import static org.example.dndncore.common.model.BaseResponseStatus.LOGIN_INVALID_USERINFO;
 import static org.example.dndncore.common.model.BaseResponseStatus.LOGIN_ROLE_NOT_ALLOWED_FOR_ADMIN;
 import static org.example.dndncore.common.model.BaseResponseStatus.LOGIN_ROLE_NOT_ALLOWED_FOR_SITE;
@@ -76,7 +77,7 @@ public class AuthService {
                 .orElseThrow(() -> new BaseException(LOGIN_INVALID_USERINFO));
 
         if (!user.isActive()) {
-            throw new BaseException(LOGIN_INVALID_USERINFO);
+            throw new BaseException(LOGIN_ACCOUNT_DEACTIVATED);
         }
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
             throw new BaseException(LOGIN_INVALID_USERINFO);

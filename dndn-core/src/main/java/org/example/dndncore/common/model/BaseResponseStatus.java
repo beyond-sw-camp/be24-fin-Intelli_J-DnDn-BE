@@ -13,10 +13,11 @@ public enum BaseResponseStatus {
     // 3000번대 인증/인가 오류
     JWT_EXPIRED(false, 3001, "JWT 토큰이 만료되었습니다."),
     JWT_INVALID(false, 3002, "JWT 토큰이 유효하지 않습니다."),
-    LOGIN_INVALID_USERINFO(false, 3010, "이메일이나 비밀번호를 확인해주세요."),
+    LOGIN_INVALID_USERINFO(false, 3010, "아이디나 비밀번호를 확인하세요."),
     LOGIN_ROLE_NOT_ALLOWED_FOR_SITE(false, 3011, "현장 로그인은 현장 권한 계정만 사용할 수 있습니다."),
     LOGIN_ROLE_NOT_ALLOWED_FOR_ADMIN(false, 3012, "관리자 로그인은 본사 또는 시스템 관리자 계정만 사용할 수 있습니다."),
     AUTH_NOT_AUTHENTICATED(false, 3013, "인증된 사용자 정보를 찾을 수 없습니다."),
+    LOGIN_ACCOUNT_DEACTIVATED(false, 3014, "비활성화된 계정입니다."),
 
     // 3100번대 회원가입/계정 오류
     SIGNUP_DUPLICATE_EMAIL(false, 3101, "중복된 이메일입니다."),
@@ -57,6 +58,8 @@ public enum BaseResponseStatus {
     DOCUMENT_FILE_EMPTY(false, 3405, "업로드 파일이 비어있습니다."),
     DOCUMENT_NOT_FOUND(false, 3406, "존재하지 않는 문서입니다."),
     DOCUMENT_FILE_READ_FAIL(false, 3407, "파일을 읽을 수 없습니다."),
+    PROJECT_INVALID_SITE_CODE(false, 3450, "현장 코드는 XX-X 형식의 영문 대문자만 사용할 수 있습니다."),
+    PROJECT_DUPLICATE_SITE_CODE(false, 3451, "이미 사용 중인 현장 코드입니다."),
 
     // 5000번대 서버 오류
     FAIL(false, 5000, "요청이 실패했습니다."),
